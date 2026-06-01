@@ -12,15 +12,15 @@
 <title>UNIS WMS — Inventory & Task Controller</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
 <style>
-:root{color-scheme:light}
+:root{color-scheme:light;--item-purple:#753BBD;--item-purple-dark:#5F2E98;--item-purple-soft:#F7F2FF;--item-purple-border:#D8C4FF;--item-ink:#1a1f2e}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f2f8;color:#1a1f2e;min-height:100vh}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F7F5FB;color:#1a1f2e;min-height:100vh}
 
 /* ── LOGIN ── */
-#login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#eef2ff 0%,#f5f0ff 100%);display:flex;align-items:center;justify-content:center;z-index:9999}
-.login-wrap{background:white;border-radius:20px;padding:44px 40px;width:420px;box-shadow:0 24px 64px rgba(79,110,247,.15),0 4px 16px rgba(0,0,0,.06)}
+#login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#F6F0FF 0%,#F7F2FF 100%);display:flex;align-items:center;justify-content:center;z-index:9999}
+.login-wrap{background:white;border-radius:20px;padding:44px 40px;width:420px;box-shadow:0 24px 64px rgba(117,59,189,.15),0 4px 16px rgba(0,0,0,.06)}
 .login-brand{display:flex;align-items:center;gap:12px;margin-bottom:36px}
-.login-brand-icon{width:44px;height:44px;background:#4f6ef7;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.login-brand-icon{width:44px;height:44px;background:#753BBD;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .login-brand-icon svg{width:22px;height:22px}
 .login-brand-name{font-size:17px;font-weight:800;color:#1a1f2e;line-height:1.2}
 .login-brand-sub{font-size:11.5px;color:#6b7280;font-weight:400}
@@ -29,12 +29,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .fg{margin-bottom:18px}
 .fg label{display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:6px}
 .fg input{width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:14px;outline:none;color:#1a1f2e;transition:border-color .2s,box-shadow .2s}
-.fg input:focus{border-color:#4f6ef7;box-shadow:0 0 0 3px rgba(79,110,247,.1)}
+.fg input:focus{border-color:#753BBD;box-shadow:0 0 0 3px rgba(117,59,189,.1)}
 .fg .hint{font-size:11px;color:#9ca3af;margin-top:5px}
-.login-cta{width:100%;padding:13px;background:#4f6ef7;color:white;border:none;border-radius:9px;font-size:15px;font-weight:700;cursor:pointer;transition:background .2s,transform .1s;letter-spacing:.01em}
-.login-cta:hover{background:#3d5ce8}
+.login-cta{width:100%;padding:13px;background:#753BBD;color:white;border:none;border-radius:9px;font-size:15px;font-weight:700;cursor:pointer;transition:background .2s,transform .1s;letter-spacing:.01em}
+.login-cta:hover{background:#5F2E98}
 .login-cta:active{transform:scale(.99)}
-.login-cta:disabled{background:#a5b4fc;cursor:not-allowed}
+.login-cta:disabled{background:#CBB6EC;cursor:not-allowed}
 .login-err{display:none;color:#ef4444;font-size:13px;margin-top:12px;padding:10px 12px;background:#fef2f2;border-radius:7px;border:1px solid #fecaca}
 .login-footer{text-align:center;margin-top:20px;font-size:11.5px;color:#9ca3af}
 .login-footer strong{color:#6b7280}
@@ -46,7 +46,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .sidebar{position:fixed;left:0;top:0;bottom:0;width:235px;background:#1a1f2e;display:flex;flex-direction:column;overflow-y:auto;z-index:200}
 .sb-logo{padding:18px 18px 14px;border-bottom:1px solid rgba(255,255,255,.07)}
 .sb-logo-inner{display:flex;align-items:center;gap:10px}
-.sb-logo-box{width:34px;height:34px;background:#4f6ef7;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sb-logo-box{width:34px;height:34px;background:#753BBD;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .sb-logo-box svg{width:17px;height:17px}
 .sb-logo-text{font-size:13px;font-weight:700;color:white;line-height:1.25}
 .sb-logo-text span{display:block;font-size:10px;color:rgba(255,255,255,.4);font-weight:400}
@@ -55,10 +55,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .sb-item{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;color:rgba(255,255,255,.6);font-size:13.5px;font-weight:500;position:relative;transition:all .15s;border-left:3px solid transparent;user-select:none}
 .sb-item svg{width:16px;height:16px;flex-shrink:0}
 .sb-item:hover{background:rgba(255,255,255,.05);color:rgba(255,255,255,.9)}
-.sb-item.active{background:rgba(79,110,247,.15);color:#8ba4ff;border-left-color:#4f6ef7}
+.sb-item.active{background:rgba(117,59,189,.15);color:#D8C4FF;border-left-color:#753BBD}
 .sb-badge{margin-left:auto;background:#ef4444;color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;min-width:18px;text-align:center}
 .sb-badge.amber{background:#f97316}
-.sb-badge.blue{background:#4f6ef7}
+.sb-badge.blue{background:#753BBD}
 .sb-badge.green{background:#10b981}
 .sb-sub{padding-left:10px;display:none}
 .sb-sub.open{display:block}
@@ -70,7 +70,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .sb-qa-title{font-size:10px;font-weight:700;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
 .qa-btn{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.65);font-size:12.5px;cursor:pointer;border:none;margin-bottom:5px;transition:all .15s;font-weight:500;text-align:left}
 .qa-btn svg{width:14px;height:14px;flex-shrink:0}
-.qa-btn:hover{background:rgba(79,110,247,.2);color:white}
+.qa-btn:hover{background:rgba(117,59,189,.2);color:white}
 
 /* ── MAIN ── */
 .main{margin-left:235px;display:flex;flex-direction:column;min-height:100vh}
@@ -104,7 +104,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .user-menu-item.danger{color:#dc2626}
 .user-menu-item.danger svg{color:#dc2626}
 .user-menu-item.danger:hover{background:#fef2f2;color:#991b1b}
-.avatar{width:32px;height:32px;background:linear-gradient(135deg,#4f6ef7,#7c3aed);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:12.5px;font-weight:700}
+.avatar{width:32px;height:32px;background:linear-gradient(135deg,#753BBD,#753BBD);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:12.5px;font-weight:700}
 .user-info .name{font-size:13px;font-weight:600;color:#1a1f2e}
 .user-info .role{font-size:11px;color:#9ca3af}
 
@@ -114,8 +114,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .view.active{display:flex;flex-direction:column;gap:20px}
 
 /* ── AI INSIGHT ── */
-.ai-bar{background:linear-gradient(135deg,#f0f4ff,#faf0ff);border:1px solid #c7d2fe;border-radius:11px;padding:13px 16px;display:flex;align-items:flex-start;gap:11px}
-.ai-tag{background:#4f6ef7;color:white;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0;margin-top:2px;letter-spacing:.04em}
+.ai-bar{background:linear-gradient(135deg,#F7F2FF,#FCF8FF);border:1px solid #D8C4FF;border-radius:11px;padding:13px 16px;display:flex;align-items:flex-start;gap:11px}
+.ai-tag{background:#753BBD;color:white;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0;margin-top:2px;letter-spacing:.04em}
 .ai-msg{font-size:13px;color:#374151;line-height:1.55}
 .ai-msg.loading{color:#9ca3af;font-style:italic}
 
@@ -124,9 +124,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .kpi{background:white;border-radius:12px;padding:20px;border:1px solid #e5e7eb;display:flex;align-items:flex-start;gap:15px}
 .kpi-ico{width:50px;height:50px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .kpi-ico svg{width:23px;height:23px}
-.kpi-ico.blue{background:#eff2ff}
+.kpi-ico.blue{background:#F7F2FF}
 .kpi-ico.green{background:#ecfdf5}
-.kpi-ico.purple{background:#f5f3ff}
+.kpi-ico.purple{background:#F7F2FF}
 .kpi-ico.amber{background:#fff7ed}
 .kpi-ico.red{background:#fef2f2}
 .kpi-ico.teal{background:#ecfeff}
@@ -142,7 +142,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .card{background:white;border-radius:12px;padding:20px;border:1px solid #e5e7eb}
 .card-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
 .card-ttl{font-size:15px;font-weight:700;color:#1a1f2e}
-.card-link{font-size:12.5px;color:#4f6ef7;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:3px}
+.card-link{font-size:12.5px;color:#753BBD;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:3px}
 .sel{font-size:12px;background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:7px;padding:4px 10px;color:#374151;cursor:pointer;outline:none}
 .donut-wrap{position:relative;width:200px;margin:0 auto 16px}
 .donut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
@@ -162,12 +162,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .tbl th{padding:8px 12px;text-align:left;font-size:10.5px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;border-bottom:1.5px solid #e5e7eb}
 .tbl td{padding:11px 12px;border-bottom:1px solid #f3f4f6;color:#374151}
 .tbl tr:last-child td{border-bottom:none}
-.tbl tr:hover td{background:#fafbff}
+.tbl tr:hover td{background:#FCFAFF}
 .badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:600;white-space:nowrap}
 .badge.low{background:#fff7ed;color:#c2410c}
 .badge.vlow{background:#fef2f2;color:#991b1b}
 .badge.out{background:#fef2f2;color:#7f1d1d;border:1px solid #fca5a5}
-.badge.ip{background:#eff2ff;color:#3730a3}
+.badge.ip{background:#F7F2FF;color:#5F2E98}
 .badge.done{background:#ecfdf5;color:#065f46}
 .badge.pend{background:#fffbeb;color:#92400e}
 .badge.over{background:#fef2f2;color:#991b1b}
@@ -178,13 +178,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .num-red{color:#ef4444;font-weight:700}
 .num-amber{color:#f97316;font-weight:700}
 .num-green{color:#10b981;font-weight:700}
-.view-all-row{display:flex;align-items:center;justify-content:center;gap:4px;padding-top:12px;font-size:13px;color:#4f6ef7;font-weight:600;cursor:pointer;border-top:1px solid #f3f4f6;margin-top:8px}
+.view-all-row{display:flex;align-items:center;justify-content:center;gap:4px;padding-top:12px;font-size:13px;color:#753BBD;font-weight:600;cursor:pointer;border-top:1px solid #f3f4f6;margin-top:8px}
 
 /* ── TASK OVERVIEW ── */
 .task-kpis{display:grid;grid-template-columns:repeat(5,1fr);text-align:center;gap:6px;margin-bottom:14px}
 .task-kpi .n{font-size:22px;font-weight:800;color:#1a1f2e;letter-spacing:-.02em}
 .task-kpi .l{font-size:11px;color:#9ca3af;margin-top:2px}
-.task-kpi .n.g{color:#10b981}.task-kpi .n.b{color:#4f6ef7}.task-kpi .n.a{color:#f97316}.task-kpi .n.r{color:#ef4444}
+.task-kpi .n.g{color:#10b981}.task-kpi .n.b{color:#753BBD}.task-kpi .n.a{color:#f97316}.task-kpi .n.r{color:#ef4444}
 .prog-bar{height:7px;border-radius:4px;background:#f3f4f6;display:flex;overflow:hidden;gap:2px;margin-bottom:16px}
 .prog-seg{height:100%;border-radius:4px}
 .task-rows{display:flex;flex-direction:column;gap:0}
@@ -199,16 +199,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .schedule-grid{display:grid;grid-template-columns:120px repeat(7,1fr);gap:1px;background:#e5e7eb;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb}
 .sch-cell{background:white;padding:10px 8px;font-size:12px;min-height:50px}
 .sch-head{background:#f9fafb;font-weight:700;color:#374151;text-align:center;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em}
-.sch-time{background:#fafbff;font-weight:600;color:#6b7280;font-size:11.5px;display:flex;align-items:center;justify-content:center}
+.sch-time{background:#FCFAFF;font-weight:600;color:#6b7280;font-size:11.5px;display:flex;align-items:center;justify-content:center}
 .sch-shift{margin:2px 0;padding:4px 6px;border-radius:5px;font-size:11px;font-weight:600;line-height:1.3}
-.sch-shift.morn{background:#eff2ff;color:#3730a3}
+.sch-shift.morn{background:#F7F2FF;color:#5F2E98}
 .sch-shift.aft{background:#fff7ed;color:#c2410c}
-.sch-shift.night{background:#f5f3ff;color:#6d28d9}
+.sch-shift.night{background:#F7F2FF;color:#5F2E98}
 
 /* ── CYCLE COUNT ── */
 .cc-progress{display:flex;align-items:center;gap:14px;margin:8px 0 4px}
 .cc-bar{flex:1;height:10px;background:#f3f4f6;border-radius:5px;overflow:hidden}
-.cc-bar-fill{height:100%;background:linear-gradient(90deg,#4f6ef7,#7c3aed);border-radius:5px}
+.cc-bar-fill{height:100%;background:linear-gradient(90deg,#753BBD,#753BBD);border-radius:5px}
 .cc-pct{font-size:13px;font-weight:700;color:#1a1f2e;min-width:42px;text-align:right}
 
 /* ── ROBOTS ── */
@@ -236,10 +236,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 /* ── CALENDAR ── */
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
 .cal-head{font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;text-align:center;padding:4px 0}
-.cal-day{background:#fafbff;border:1px solid #f3f4f6;border-radius:8px;min-height:80px;padding:6px;font-size:11.5px;color:#374151;display:flex;flex-direction:column;gap:3px}
-.cal-day.today{border-color:#4f6ef7;background:#eff2ff}
+.cal-day{background:#FCFAFF;border:1px solid #f3f4f6;border-radius:8px;min-height:80px;padding:6px;font-size:11.5px;color:#374151;display:flex;flex-direction:column;gap:3px}
+.cal-day.today{border-color:#753BBD;background:#F7F2FF}
 .cal-day .dn{font-weight:700;font-size:12px}
-.cal-evt{font-size:10.5px;padding:2px 4px;border-radius:4px;background:#eff2ff;color:#3730a3;line-height:1.3}
+.cal-evt{font-size:10.5px;padding:2px 4px;border-radius:4px;background:#F7F2FF;color:#5F2E98;line-height:1.3}
 .cal-evt.warn{background:#fff7ed;color:#c2410c}
 .cal-evt.ok{background:#ecfdf5;color:#065f46}
 
@@ -250,7 +250,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .set-row .lbl{font-weight:500}
 .set-row .desc{font-size:11.5px;color:#9ca3af;margin-top:2px}
 .toggle{position:relative;width:38px;height:22px;background:#e5e7eb;border-radius:11px;cursor:pointer;transition:background .2s}
-.toggle.on{background:#4f6ef7}
+.toggle.on{background:#753BBD}
 .toggle::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;background:white;border-radius:50%;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .toggle.on::after{left:18px}
 
@@ -260,76 +260,76 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .cc-label{font-size:12px;font-weight:600;color:#374151}
 .cc-label .req{color:#ef4444;margin-right:2px}
 .cc-input{padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;color:#1a1f2e;background:white;outline:none;transition:border-color .15s,box-shadow .15s;font-family:inherit;width:100%;height:42px}
-.cc-input:focus{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.12)}
+.cc-input:focus{border-color:#753BBD;box-shadow:0 0 0 3px rgba(117,59,189,.12)}
 .cc-input[disabled]{background:#f9fafb;color:#9ca3af}
 select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5'><polyline points='6 9 12 15 18 9'/></svg>");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;cursor:pointer}
 .cc-input.date{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238b5cf6' stroke-width='2'><rect x='3' y='4' width='18' height='18' rx='2'/><line x1='16' y1='2' x2='16' y2='6'/><line x1='8' y1='2' x2='8' y2='6'/><line x1='3' y1='10' x2='21' y2='10'/></svg>");background-repeat:no-repeat;background-position:12px center;padding-left:36px}
 .toggle-wrap{display:flex;align-items:center;height:42px}
 .chip-wrap{display:flex;flex-wrap:wrap;gap:6px;padding:6px 32px 6px 10px;border:1.5px solid #e5e7eb;border-radius:8px;background:white;min-height:42px;align-items:center;cursor:pointer;position:relative}
-.chip-wrap:focus-within,.chip-wrap.open{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.12)}
-.chip{display:inline-flex;align-items:center;gap:5px;background:#f3f0ff;color:#6d28d9;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:4px;letter-spacing:.04em;text-transform:uppercase}
-.chip-x{cursor:pointer;color:#a78bfa;font-weight:700;font-size:13px;line-height:1;padding:0 1px}
-.chip-x:hover{color:#6d28d9}
+.chip-wrap:focus-within,.chip-wrap.open{border-color:#753BBD;box-shadow:0 0 0 3px rgba(117,59,189,.12)}
+.chip{display:inline-flex;align-items:center;gap:5px;background:#F7F2FF;color:#5F2E98;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:4px;letter-spacing:.04em;text-transform:uppercase}
+.chip-x{cursor:pointer;color:#B999E6;font-weight:700;font-size:13px;line-height:1;padding:0 1px}
+.chip-x:hover{color:#5F2E98}
 .chip-caret{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:#6b7280;width:14px;height:14px;pointer-events:none}
 .chip-menu{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:white;border:1.5px solid #e5e7eb;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.08);z-index:50;padding:4px;max-height:220px;overflow-y:auto}
 .chip-menu.open{display:block}
 .chip-opt{padding:7px 10px;font-size:12px;color:#374151;cursor:pointer;border-radius:5px;display:flex;align-items:center;gap:7px}
-.chip-opt:hover{background:#f3f0ff;color:#6d28d9}
-.chip-opt.sel{background:#f3f0ff;color:#6d28d9;font-weight:600}
+.chip-opt:hover{background:#F7F2FF;color:#5F2E98}
+.chip-opt.sel{background:#F7F2FF;color:#5F2E98;font-weight:600}
 .chip-opt .check{width:14px;height:14px;border:1.5px solid #d1d5db;border-radius:3px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;background:white}
-.chip-opt.sel .check{background:#8b5cf6;border-color:#8b5cf6}
+.chip-opt.sel .check{background:#753BBD;border-color:#753BBD}
 .chip-opt.sel .check::after{content:'';width:4px;height:8px;border:solid white;border-width:0 2px 2px 0;transform:rotate(45deg);margin-bottom:2px}
 .btn{padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s;font-family:inherit;display:inline-flex;align-items:center;gap:6px;height:38px}
-.btn-primary{background:#8b5cf6;color:white}
-.btn-primary:hover{background:#7c3aed}
-.btn-primary:disabled{background:#c7c2dc;cursor:not-allowed}
+.btn-primary{background:#753BBD;color:white}
+.btn-primary:hover{background:#753BBD}
+.btn-primary:disabled{background:#D8C4FF;cursor:not-allowed}
 .btn-secondary{background:white;color:#374151;border:1.5px solid #e5e7eb}
 .btn-secondary:hover{border-color:#9ca3af}
 .btn-danger-ghost{background:transparent;color:#ef4444;padding:4px 8px;height:auto;font-size:12px}
 .btn-danger-ghost:hover{background:#fef2f2}
 .form-actions{display:flex;justify-content:flex-end;margin-top:16px;gap:8px}
-.cc-toggle{background:#8b5cf6}
+.cc-toggle{background:#753BBD}
 
 /* Count lines area */
-.cc-lines-empty{padding:36px 16px;text-align:center;color:#9ca3af;font-size:13px;border:1.5px dashed #e5e7eb;border-radius:10px;background:#fafbff}
+.cc-lines-empty{padding:36px 16px;text-align:center;color:#9ca3af;font-size:13px;border:1.5px dashed #e5e7eb;border-radius:10px;background:#FCFAFF}
 .cc-lines-empty svg{width:32px;height:32px;color:#cbd5e1;margin-bottom:8px}
 .cc-lines-empty .h{color:#374151;font-weight:600;font-size:13px;margin-bottom:2px}
 
 /* Saved tasks panel */
 .task-card{background:white;border:1px solid #e5e7eb;border-radius:11px;padding:14px;margin-bottom:10px;transition:border-color .15s,box-shadow .15s}
-.task-card:hover{border-color:#c7d2fe;box-shadow:0 2px 8px rgba(79,110,247,.08)}
-.task-card.editing{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.12)}
+.task-card:hover{border-color:#D8C4FF;box-shadow:0 2px 8px rgba(117,59,189,.08)}
+.task-card.editing{border-color:#753BBD;box-shadow:0 0 0 3px rgba(117,59,189,.12)}
 .task-card-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
 .task-card-name{font-size:14px;font-weight:700;color:#1a1f2e;line-height:1.3;flex:1;min-width:0;word-break:break-word}
 .task-card-sub{font-size:11.5px;color:#6b7280;margin-top:2px}
 .task-card-actions{display:flex;gap:4px;flex-shrink:0}
 .task-card-actions button{background:transparent;border:1px solid #e5e7eb;border-radius:6px;padding:4px 8px;font-size:11px;color:#6b7280;cursor:pointer;font-weight:600}
-.task-card-actions button:hover{border-color:#8b5cf6;color:#6d28d9}
+.task-card-actions button:hover{border-color:#753BBD;color:#5F2E98}
 .task-card-actions button.del:hover{border-color:#ef4444;color:#dc2626}
 .task-progress-row{display:flex;align-items:center;gap:10px;margin-top:10px}
 .task-progress-bar{flex:1;height:8px;background:#f3f4f6;border-radius:4px;overflow:hidden;position:relative}
-.task-progress-fill{height:100%;background:linear-gradient(90deg,#8b5cf6,#6d28d9);border-radius:4px;transition:width .3s ease}
+.task-progress-fill{height:100%;background:linear-gradient(90deg,#753BBD,#5F2E98);border-radius:4px;transition:width .3s ease}
 .task-progress-fill.complete{background:linear-gradient(90deg,#10b981,#059669)}
 .task-progress-pct{font-size:12.5px;font-weight:800;color:#1a1f2e;min-width:42px;text-align:right;font-variant-numeric:tabular-nums}
 .task-progress-pct.complete{color:#059669}
 .task-progress-pct input{width:54px;text-align:right;border:1px solid #e5e7eb;border-radius:5px;padding:2px 5px;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;outline:none}
-.task-progress-pct input:focus{border-color:#8b5cf6;box-shadow:0 0 0 2px rgba(139,92,246,.12)}
-.task-status-chip{display:inline-flex;align-items:center;gap:4px;background:#eff2ff;color:#3730a3;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.04em;text-transform:uppercase}
+.task-progress-pct input:focus{border-color:#753BBD;box-shadow:0 0 0 2px rgba(117,59,189,.12)}
+.task-status-chip{display:inline-flex;align-items:center;gap:4px;background:#F7F2FF;color:#5F2E98;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.04em;text-transform:uppercase}
 .task-status-chip.complete{background:#ecfdf5;color:#065f46}
-.task-status-chip.editing{background:#f3f0ff;color:#6d28d9}
-.tasks-empty{padding:24px 12px;text-align:center;color:#9ca3af;font-size:12.5px;border:1.5px dashed #e5e7eb;border-radius:10px;background:#fafbff}
+.task-status-chip.editing{background:#F7F2FF;color:#5F2E98}
+.tasks-empty{padding:24px 12px;text-align:center;color:#9ca3af;font-size:12.5px;border:1.5px dashed #e5e7eb;border-radius:10px;background:#FCFAFF}
 
 /* Per-customer rows inside a grouped (multi-customer) task card */
-.task-cust-row{display:grid;grid-template-columns:1fr auto;gap:8px 12px;padding:10px 12px;margin-top:8px;background:#fafbff;border:1px solid #f3f4f6;border-radius:8px;align-items:center}
+.task-cust-row{display:grid;grid-template-columns:1fr auto;gap:8px 12px;padding:10px 12px;margin-top:8px;background:#FCFAFF;border:1px solid #f3f4f6;border-radius:8px;align-items:center}
 .task-cust-row:hover{border-color:#e5e7eb}
-.task-cust-row.editing{border-color:#8b5cf6;background:#faf7ff}
+.task-cust-row.editing{border-color:#753BBD;background:#FCFAFF}
 .task-cust-row .tc-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
 .task-cust-row .tc-name{font-size:13px;font-weight:700;color:#1a1f2e;line-height:1.3}
 .task-cust-row .tc-ticket{font-size:10.5px;color:#6b7280;font-weight:600;background:#f3f4f6;padding:2px 6px;border-radius:4px}
 .task-cust-row .tc-sub{font-size:11px;color:#9ca3af}
 .task-cust-row .tc-actions{display:flex;gap:4px;align-items:center}
 .task-cust-row .tc-actions button{background:transparent;border:1px solid #e5e7eb;border-radius:5px;padding:3px 7px;font-size:10.5px;color:#6b7280;cursor:pointer;font-weight:600;line-height:1.2}
-.task-cust-row .tc-actions button:hover{border-color:#8b5cf6;color:#6d28d9}
+.task-cust-row .tc-actions button:hover{border-color:#753BBD;color:#5F2E98}
 .task-cust-row .tc-actions button.del:hover{border-color:#ef4444;color:#dc2626}
 .task-cust-row .tc-progress{grid-column:1 / -1;display:flex;align-items:center;gap:10px;margin-top:4px}
 .task-cust-row .tc-progress .task-progress-bar{height:6px}
@@ -337,19 +337,19 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 .task-cust-row .tc-progress .task-progress-pct input{width:50px;font-size:11px;padding:1px 4px}
 
 /* Submit-count inline form */
-.cnt-submit-form{display:none;margin-top:10px;padding:10px 12px;background:#fafbff;border:1px solid #e5e7eb;border-radius:8px}
+.cnt-submit-form{display:none;margin-top:10px;padding:10px 12px;background:#FCFAFF;border:1px solid #e5e7eb;border-radius:8px}
 .cnt-submit-form.open{display:block}
 .cnt-submit-grid{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:end}
 .cnt-submit-grid .cf{display:flex;flex-direction:column;gap:3px}
 .cnt-submit-grid .cf label{font-size:10.5px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
 .cnt-submit-grid input,.cnt-submit-grid select{font-size:13px;padding:6px 8px;border:1.5px solid #e5e7eb;border-radius:6px;outline:none;font-family:inherit}
-.cnt-submit-grid input:focus,.cnt-submit-grid select:focus{border-color:#8b5cf6;box-shadow:0 0 0 2px rgba(139,92,246,.1)}
+.cnt-submit-grid input:focus,.cnt-submit-grid select:focus{border-color:#753BBD;box-shadow:0 0 0 2px rgba(117,59,189,.1)}
 .cnt-submit-row2{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
 .cnt-submit-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
 .cnt-submit-btn{padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none}
-.cnt-submit-btn.go{background:#8b5cf6;color:white}
-.cnt-submit-btn.go:hover{background:#7c3aed}
-.cnt-submit-btn.go:disabled{background:#c7c2dc;cursor:not-allowed}
+.cnt-submit-btn.go{background:#753BBD;color:white}
+.cnt-submit-btn.go:hover{background:#753BBD}
+.cnt-submit-btn.go:disabled{background:#D8C4FF;cursor:not-allowed}
 .cnt-submit-btn.cancel{background:white;color:#6b7280;border:1px solid #e5e7eb}
 
 /* Live data status pill */
@@ -373,30 +373,30 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 .pagination{display:flex;align-items:center;justify-content:space-between;padding:12px 4px 4px;font-size:12px;color:#6b7280}
 .pag-right{display:flex;align-items:center;gap:8px}
 .pag-btn{min-width:26px;height:26px;border-radius:6px;border:1px solid #e5e7eb;background:white;cursor:pointer;color:#6b7280;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;font-size:12px}
-.pag-btn:hover:not([disabled]){border-color:#8b5cf6;color:#8b5cf6}
-.pag-btn.active{background:#8b5cf6;color:white;border-color:#8b5cf6;font-weight:700}
+.pag-btn:hover:not([disabled]){border-color:#753BBD;color:#753BBD}
+.pag-btn.active{background:#753BBD;color:white;border-color:#753BBD;font-weight:700}
 .pag-btn[disabled]{opacity:.4;cursor:not-allowed}
-.tbl input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:#8b5cf6;vertical-align:middle}
-.tbl tr.selected td{background:#faf7ff}
+.tbl input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:#753BBD;vertical-align:middle}
+.tbl tr.selected td{background:#FCFAFF}
 .empty-row td{padding:36px 12px;text-align:center;color:#9ca3af;font-size:13px}
 .results-wrap{border:1px solid #e5e7eb;border-radius:10px;overflow:hidden}
-.results-wrap .tbl th{background:#fafbff}
+.results-wrap .tbl th{background:#FCFAFF}
 .results-count{font-size:12px;color:#6b7280}
 
 /* Customer location count badge on the form */
 .cc-cust-meta{font-size:11.5px;color:#6b7280;margin-top:6px;display:flex;align-items:center;gap:6px;min-height:14px}
 .cc-cust-meta strong{color:#1a1f2e;font-weight:600}
-.cc-cust-meta .spinner{width:10px;height:10px;border:1.5px solid #c7d2fe;border-top-color:#8b5cf6;border-radius:50%;animation:spin .8s linear infinite;display:inline-block}
+.cc-cust-meta .spinner{width:10px;height:10px;border:1.5px solid #D8C4FF;border-top-color:#753BBD;border-radius:50%;animation:spin .8s linear infinite;display:inline-block}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* Modal pre-load progress bar */
-.modal-progress{display:none;align-items:center;gap:10px;padding:8px 12px;background:#f3f0ff;border:1px solid #ddd6fe;border-radius:8px;font-size:12px;color:#6d28d9;margin:10px 0}
+.modal-progress{display:none;align-items:center;gap:10px;padding:8px 12px;background:#F7F2FF;border:1px solid #E7DBF6;border-radius:8px;font-size:12px;color:#5F2E98;margin:10px 0}
 .modal-progress.show{display:flex}
-.modal-progress .mpbar{flex:1;height:6px;background:#ede9fe;border-radius:3px;overflow:hidden}
-.modal-progress .mpfill{height:100%;background:linear-gradient(90deg,#8b5cf6,#6d28d9);width:0%;transition:width .25s ease}
-.modal-progress .mpcount{font-weight:600;color:#4c1d95;font-variant-numeric:tabular-nums}
-.modal-progress .mpcancel{font-weight:600;cursor:pointer;color:#6d28d9}
-.modal-progress .mpcancel:hover{color:#4c1d95;text-decoration:underline}
+.modal-progress .mpbar{flex:1;height:6px;background:#F1EAFB;border-radius:3px;overflow:hidden}
+.modal-progress .mpfill{height:100%;background:linear-gradient(90deg,#753BBD,#5F2E98);width:0%;transition:width .25s ease}
+.modal-progress .mpcount{font-weight:600;color:#4B1D75;font-variant-numeric:tabular-nums}
+.modal-progress .mpcancel{font-weight:600;cursor:pointer;color:#5F2E98}
+.modal-progress .mpcancel:hover{color:#4B1D75;text-decoration:underline}
 </style>
 </head>
 <body>
@@ -594,7 +594,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         <div class="kpi-grid">
           <div class="kpi">
             <div class="kpi-ico blue">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
             </div>
             <div>
               <div class="kpi-lbl">Total Inventory Value</div>
@@ -614,7 +614,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           </div>
           <div class="kpi">
             <div class="kpi-ico purple">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
             </div>
             <div>
               <div class="kpi-lbl">Tasks Completed</div>
@@ -659,7 +659,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
               </div>
             </div>
             <div>
-              <div class="legend-row"><span class="legend-lbl"><span class="legend-dot" style="background:#4f6ef7"></span>In Stock</span><div class="legend-right"><span class="legend-n">842</span><span class="legend-p">(67.6%)</span></div></div>
+              <div class="legend-row"><span class="legend-lbl"><span class="legend-dot" style="background:#753BBD"></span>In Stock</span><div class="legend-right"><span class="legend-n">842</span><span class="legend-p">(67.6%)</span></div></div>
               <div class="legend-row"><span class="legend-lbl"><span class="legend-dot" style="background:#f97316"></span>Low Stock</span><div class="legend-right"><span class="legend-n">231</span><span class="legend-p">(18.5%)</span></div></div>
               <div class="legend-row"><span class="legend-lbl"><span class="legend-dot" style="background:#ef4444"></span>Out of Stock</span><div class="legend-right"><span class="legend-n">98</span><span class="legend-p">(7.9%)</span></div></div>
               <div class="legend-row"><span class="legend-lbl"><span class="legend-dot" style="background:#10b981"></span>On Order</span><div class="legend-right"><span class="legend-n">77</span><span class="legend-p">(6.0%)</span></div></div>
@@ -701,7 +701,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
             </div>
             <div class="prog-bar">
               <div class="prog-seg" style="width:64%;background:#10b981"></div>
-              <div class="prog-seg" style="width:24%;background:#4f6ef7"></div>
+              <div class="prog-seg" style="width:24%;background:#753BBD"></div>
               <div class="prog-seg" style="width:36%;background:#f97316"></div>
               <div class="prog-seg" style="width:12%;background:#ef4444"></div>
             </div>
@@ -746,7 +746,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
       <!-- ════ VIEW: INVENTORY ════ -->
       <div class="view" id="view-inventory">
         <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div><div class="kpi-lbl">SKUs Tracked</div><div class="kpi-val">1,248</div><div class="kpi-chg up">▲ 5.2%</div></div></div>
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div><div class="kpi-lbl">SKUs Tracked</div><div class="kpi-val">1,248</div><div class="kpi-chg up">▲ 5.2%</div></div></div>
           <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">In Stock</div><div class="kpi-val">842</div><div class="kpi-chg neutral">67.6% of SKUs</div></div></div>
           <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg></div><div><div class="kpi-lbl">Low Stock</div><div class="kpi-val">231</div><div class="kpi-chg down">▼ 2.1%</div></div></div>
           <div class="kpi"><div class="kpi-ico red"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><div><div class="kpi-lbl">Out of Stock</div><div class="kpi-val">98</div><div class="kpi-chg up">▲ 3 vs last wk</div></div></div>
@@ -782,9 +782,9 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
       <!-- ════ VIEW: TASKS ════ -->
       <div class="view" id="view-tasks">
         <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2"><path d="M9 11l3 3L22 4"/></svg></div><div><div class="kpi-lbl">Total Tasks</div><div class="kpi-val">50</div><div class="kpi-chg neutral">Week of May 20</div></div></div>
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M9 11l3 3L22 4"/></svg></div><div><div class="kpi-lbl">Total Tasks</div><div class="kpi-val">50</div><div class="kpi-chg neutral">Week of May 20</div></div></div>
           <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Completed</div><div class="kpi-val">32</div><div class="kpi-chg up">▲ 12.8%</div></div></div>
-          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-lbl">In Progress</div><div class="kpi-val">12</div><div class="kpi-chg neutral">on track</div></div></div>
+          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-lbl">In Progress</div><div class="kpi-val">12</div><div class="kpi-chg neutral">on track</div></div></div>
           <div class="kpi"><div class="kpi-ico red"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div><div><div class="kpi-lbl">Overdue</div><div class="kpi-val">6</div><div class="kpi-chg down">action required</div></div></div>
         </div>
 
@@ -859,7 +859,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
             <div class="cc-field">
               <label class="cc-label">Schedule source</label>
               <div style="display:flex;gap:0;border:1.5px solid #e5e7eb;border-radius:9px;overflow:hidden;width:fit-content">
-                <button type="button" id="sched-mode-existing-btn" onclick="setScheduleMode('existing')" style="padding:8px 16px;border:none;background:#4f6ef7;color:white;font-size:13px;font-weight:600;cursor:pointer">Use existing schedule</button>
+                <button type="button" id="sched-mode-existing-btn" onclick="setScheduleMode('existing')" style="padding:8px 16px;border:none;background:#753BBD;color:white;font-size:13px;font-weight:600;cursor:pointer">Use existing schedule</button>
                 <button type="button" id="sched-mode-new-btn" onclick="setScheduleMode('new')" style="padding:8px 16px;border:none;background:white;color:#6b7280;font-size:13px;font-weight:600;cursor:pointer;border-left:1.5px solid #e5e7eb">Create new schedule</button>
               </div>
             </div>
@@ -873,7 +873,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
                 <option value="">Loading schedules…</option>
               </select>
               <div class="scheduler-help" style="margin-top:4px" id="sched-existing-help">Loaded from <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">POST /api/cyclecount-app/cycle-count/schedule/search-by-paging</code></div>
-              <div id="sched-existing-summary" style="margin-top:10px;display:none;padding:10px 14px;background:#eff2ff;border:1px solid #c7d2fe;border-radius:8px;font-size:13px;color:#3730a3"></div>
+              <div id="sched-existing-summary" style="margin-top:10px;display:none;padding:10px 14px;background:#F7F2FF;border:1px solid #D8C4FF;border-radius:8px;font-size:13px;color:#5F2E98"></div>
             </div>
           </div>
 
@@ -1043,10 +1043,10 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
       <!-- ════ VIEW: CYCLE COUNT ════ -->
       <div class="view" id="view-cycle">
         <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2"><path d="M21 12a9 9 0 1 1-3.5-7.1"/><polyline points="21 4 21 10 15 10"/></svg></div><div><div class="kpi-lbl">Total Cycle Counts</div><div class="kpi-val" id="cc-kpi-total">—</div><div class="kpi-chg neutral" id="cc-kpi-total-sub">at this facility</div></div></div>
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M21 12a9 9 0 1 1-3.5-7.1"/><polyline points="21 4 21 10 15 10"/></svg></div><div><div class="kpi-lbl">Total Cycle Counts</div><div class="kpi-val" id="cc-kpi-total">—</div><div class="kpi-chg neutral" id="cc-kpi-total-sub">at this facility</div></div></div>
           <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-lbl">Open / In Progress</div><div class="kpi-val" id="cc-kpi-open">—</div><div class="kpi-chg neutral" id="cc-kpi-open-sub">awaiting completion</div></div></div>
           <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Completed</div><div class="kpi-val" id="cc-kpi-done">—</div><div class="kpi-chg neutral" id="cc-kpi-done-sub">closed tickets</div></div></div>
-          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg></div><div><div class="kpi-lbl">Next Scheduled Count</div><div class="kpi-val" id="cc-kpi-next" style="font-size:18px">—</div><div class="kpi-chg neutral" id="cc-kpi-next-sub">none</div></div></div>
+          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg></div><div><div class="kpi-lbl">Next Scheduled Count</div><div class="kpi-val" id="cc-kpi-next" style="font-size:18px">—</div><div class="kpi-chg neutral" id="cc-kpi-next-sub">none</div></div></div>
         </div>
 
         <div class="bottom-row">
@@ -1118,7 +1118,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         </div>
 
         <div class="kpi-grid" style="margin-top:15px">
-          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/></svg></div><div><div class="kpi-lbl">Fleet Size</div><div class="kpi-val" id="rk-fleet">12</div><div class="kpi-chg neutral" id="rk-fleet-sub">2 retired, 1 inbound</div></div></div>
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/></svg></div><div><div class="kpi-lbl">Fleet Size</div><div class="kpi-val" id="rk-fleet">12</div><div class="kpi-chg neutral" id="rk-fleet-sub">2 retired, 1 inbound</div></div></div>
           <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Active Now</div><div class="kpi-val" id="rk-active">8</div><div class="kpi-chg up" id="rk-active-sub">66.7% utilization</div></div></div>
           <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div><div><div class="kpi-lbl">Charging / Idle</div><div class="kpi-val" id="rk-charging">3</div><div class="kpi-chg neutral" id="rk-charging-sub">Avg 78% battery</div></div></div>
           <div class="kpi"><div class="kpi-ico red"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12" y2="16"/></svg></div><div><div class="kpi-lbl">Out of Service</div><div class="kpi-val" id="rk-down">1</div><div class="kpi-chg down" id="rk-down-sub">R-04 · drive fault</div></div></div>
@@ -1213,9 +1213,9 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
       <!-- ════ VIEW: REPORTS ════ -->
       <div class="view" id="view-reports">
         <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><div><div class="kpi-lbl">Reports Generated</div><div class="kpi-val">42</div><div class="kpi-chg neutral">This month</div></div></div>
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><div><div class="kpi-lbl">Reports Generated</div><div class="kpi-val">42</div><div class="kpi-chg neutral">This month</div></div></div>
           <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg></div><div><div class="kpi-lbl">Inventory Turns</div><div class="kpi-val">4.2x</div><div class="kpi-chg up">▲ 0.3 QoQ</div></div></div>
-          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg></div><div><div class="kpi-lbl">Order Accuracy</div><div class="kpi-val">99.6%</div><div class="kpi-chg up">▲ 0.2 pts</div></div></div>
+          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg></div><div><div class="kpi-lbl">Order Accuracy</div><div class="kpi-val">99.6%</div><div class="kpi-chg up">▲ 0.2 pts</div></div></div>
           <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-lbl">Avg Pick Time</div><div class="kpi-val">42s</div><div class="kpi-chg down">▼ 5s WoW</div></div></div>
         </div>
 
@@ -1239,7 +1239,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         <div class="kpi-grid">
           <div class="kpi"><div class="kpi-ico red"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg></div><div><div class="kpi-lbl">Critical Alerts</div><div class="kpi-val">3</div><div class="kpi-chg down">Action required</div></div></div>
           <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div><div><div class="kpi-lbl">Warnings</div><div class="kpi-val">12</div><div class="kpi-chg neutral">Low stock / variances</div></div></div>
-          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg></div><div><div class="kpi-lbl">Info</div><div class="kpi-val">28</div><div class="kpi-chg neutral">PO acks, sync events</div></div></div>
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg></div><div><div class="kpi-lbl">Info</div><div class="kpi-val">28</div><div class="kpi-chg neutral">PO acks, sync events</div></div></div>
           <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Resolved Today</div><div class="kpi-val">17</div><div class="kpi-chg up">▲ vs 11 yesterday</div></div></div>
         </div>
 
@@ -1631,15 +1631,15 @@ function initCharts() {
       datasets: [{
         label: 'Inventory Value (USD)',
         data: DATA_7.values,
-        borderColor: '#4f6ef7',
+        borderColor: '#753BBD',
         backgroundColor: (ctx) => {
           const g = ctx.chart.ctx.createLinearGradient(0,0,0,250);
-          g.addColorStop(0,'rgba(79,110,247,.14)');
-          g.addColorStop(1,'rgba(79,110,247,.01)');
+          g.addColorStop(0,'rgba(117,59,189,.14)');
+          g.addColorStop(1,'rgba(117,59,189,.01)');
           return g;
         },
         borderWidth: 2.5,
-        pointBackgroundColor: '#4f6ef7',
+        pointBackgroundColor: '#753BBD',
         pointRadius: 4, pointHoverRadius: 6,
         fill: true, tension: 0.4
       }]
@@ -1659,7 +1659,7 @@ function initCharts() {
     type: 'doughnut',
     data: {
       labels:['In Stock','Low Stock','Out of Stock','On Order'],
-      datasets:[{data:[842,231,98,77], backgroundColor:['#4f6ef7','#f97316','#ef4444','#10b981'], borderWidth:0, hoverOffset:6}]
+      datasets:[{data:[842,231,98,77], backgroundColor:['#753BBD','#f97316','#ef4444','#10b981'], borderWidth:0, hoverOffset:6}]
     },
     options:{
       responsive:false, cutout:'72%',
@@ -9173,8 +9173,8 @@ function setLiveStatus(ok) {
     // Cowork artifact iframe CSP blocks fetch to unis.item.com, so we
     // serve from the real Wise snapshot baked into the artifact.
     pill.className = 'live-pill';
-    pill.style.cssText = 'background:#eff2ff;border-color:#c7d2fe;color:#3730a3';
-    pill.innerHTML = '<span class="ldot" style="background:#4f6ef7"></span>Cached · Real Wise snapshot · 2026-05-27';
+    pill.style.cssText = 'background:#F7F2FF;border-color:#D8C4FF;color:#5F2E98';
+    pill.innerHTML = '<span class="ldot" style="background:#753BBD"></span>Cached · Real Wise snapshot · 2026-05-27';
   }
 }
 
@@ -9318,11 +9318,11 @@ function setScheduleMode(mode) {
   newBlock.style.display      = useExisting ? 'none' : '';
   // Segmented button visual state
   if (btnE) {
-    btnE.style.background = useExisting ? '#4f6ef7' : 'white';
+    btnE.style.background = useExisting ? '#753BBD' : 'white';
     btnE.style.color      = useExisting ? 'white'   : '#6b7280';
   }
   if (btnN) {
-    btnN.style.background = useExisting ? 'white'   : '#4f6ef7';
+    btnN.style.background = useExisting ? 'white'   : '#753BBD';
     btnN.style.color      = useExisting ? '#6b7280' : 'white';
   }
   // Stash the chosen mode for submit
@@ -9415,9 +9415,9 @@ function onExistingScheduleChange() {
   summary.style.display = 'block';
   summary.innerHTML =
     '<strong>' + (s.name || s.id) + '</strong> · ' + (s.recurrenceType || '—') +
-    '<br><span style="color:#4f6ef7">' + trim(s.startTime).replace('T',' ') +
-    '</span> → <span style="color:#4f6ef7">' + trim(s.endTime).replace('T',' ') + '</span>' +
-    '<br><span style="font-size:11.5px;color:#6366f1">Created by ' + (s.createdBy || '—') +
+    '<br><span style="color:#753BBD">' + trim(s.startTime).replace('T',' ') +
+    '</span> → <span style="color:#753BBD">' + trim(s.endTime).replace('T',' ') + '</span>' +
+    '<br><span style="font-size:11.5px;color:#753BBD">Created by ' + (s.createdBy || '—') +
     ' · ID ' + s.id + '</span>';
 
   // Stash the selected schedule id for submitCycleCount to reference
@@ -10035,7 +10035,7 @@ function renderCountLines() {
     const custName = (lookup[cid] && lookup[cid].name) || cid;
     html += `<div style="margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:8px;padding:6px 0 8px;border-bottom:1.5px solid #e5e7eb;margin-bottom:8px">
-        <span style="background:#f3f0ff;color:#6d28d9;font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px;letter-spacing:.04em;text-transform:uppercase">${esc(custName)}</span>
+        <span style="background:#F7F2FF;color:#5F2E98;font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px;letter-spacing:.04em;text-transform:uppercase">${esc(custName)}</span>
         <span style="font-size:12px;color:#6b7280">${lines.length.toLocaleString()} location${lines.length===1?'':'s'}</span>
         <button class="btn btn-danger-ghost" style="margin-left:auto" onclick="removeCustomerFromTask('${escapeAttr(cid)}')">Remove all</button>
       </div>
@@ -10200,7 +10200,7 @@ function renderTaskGroupCard(g, custLookup) {
 
   // Header
   const scheduleChip = isGroup
-    ? '<span style="background:#f3f0ff;color:#6d28d9;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.04em;margin-left:6px">SCHEDULE ' + esc(tasks[0].scheduleId) + '</span>'
+    ? '<span style="background:#F7F2FF;color:#5F2E98;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.04em;margin-left:6px">SCHEDULE ' + esc(tasks[0].scheduleId) + '</span>'
     : (tasks[0].ticketId ? '<span style="font-size:10.5px;color:#6b7280;font-weight:600;background:#f3f4f6;padding:2px 6px;border-radius:4px;margin-left:6px">' + esc(tasks[0].ticketId) + '</span>' : '');
 
   // Solo single-task path uses the existing card style
