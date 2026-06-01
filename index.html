@@ -1427,8 +1427,8 @@ function _extractTokens(obj) {
 }
 
 // ═══ IAM BROWSER AUTH BRIDGE ═══
-const IAM_CLIENT_ID = 'adc27593-ecf4-4618-9e8f-a44666df103a';
-const IAM_AUTHORIZE_URL = 'https://id.item.com/oauth/authorize';
+const IAM_CLIENT_ID = 'iam-internal';
+const IAM_AUTHORIZE_URL = 'https://id.item.com/oauth2/authorize';
 function iamRedirectUri() {
   return location.origin + location.pathname.replace(/[^/]*$/, '') + 'auth-callback.html';
 }
@@ -1438,8 +1438,8 @@ function buildIamAuthUrl() {
   const u = new URL(IAM_AUTHORIZE_URL);
   u.searchParams.set('client_id', IAM_CLIENT_ID);
   u.searchParams.set('redirect_uri', iamRedirectUri());
-  u.searchParams.set('response_type', 'token');
-  u.searchParams.set('scope', 'openid email');
+  u.searchParams.set('response_type', 'code');
+  u.searchParams.set('scope', 'profile');
   u.searchParams.set('state', state);
   return u.toString();
 }
