@@ -7,7 +7,7 @@ set -euo pipefail
 
 PORT="${PORT:-8080}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-FILE="index-shareable.html"
+FILE="index.html"
 
 if [ ! -f "$SCRIPT_DIR/$FILE" ]; then
   echo "ERROR: $FILE not found in $SCRIPT_DIR" >&2

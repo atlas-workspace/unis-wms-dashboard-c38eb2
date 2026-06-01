@@ -1,17 +1,13 @@
 # UNIS WMS Dashboard
 
-Extracted from `unis-wms-dashboard-code.md`.
+Single-file, shareable UNIS WMS dashboard.
 
 ## Files
 
-- `index.html` — **safe hosted default**. This is a copy of the shareable build so static hosting never serves the credentialed/live build by default.
-- `index-shareable.html` — self-contained shareable build for staff. No embedded credentials; users sign in themselves and it can fall back to a baked Wise snapshot.
-- `index-live.html` — original full live build extracted from the markdown's `index.html`. Keep private; do not serve publicly because it may contain stored credential/session context.
-- `serve-local.sh` — convenience script that serves `index-shareable.html` on a local network.
+- `index.html` — the only dashboard build. It is the shareable/no-embedded-credentials version; users sign in with their own access and the page can fall back to baked Wise snapshot data when live API calls are blocked.
+- `serve-local.sh` — optional convenience script that serves `index.html` on a local network.
 
 ## Run locally
-
-Safe/shareable hosted version:
 
 ```bash
 python3 -m http.server 8080
