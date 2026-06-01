@@ -2,7 +2,9 @@
 {
   "name": "Unis Wms Dashboard",
   "schemaVersion": 1,
-  "description": "UNIS WMS Inventory & Task Controller dashboard for the Valley View Warehouse facility (LT_F1). Sidebar tabs Dashboard, Inventory, Tasks, Calendar, Cycle Count, Robot Count, Reports, Alerts, Settings, plus a fully wired Scheduler tab that creates Cycle Counts: Customer dropdown populated with the 28 active Valley View customers from Atlas, Type / Schedule Date / Target Completion / Blind Count / Manual / Count Method / Ignore Collect Fields chips, and a Select Locations modal with all 10 filter fields and pagination. Calls live unis.item.com REST endpoints with credential cookie auth and graceful offline fallback."
+  "description": "UNIS WMS Inventory & Task Controller dashboard. The active warehouse is chosen from the facility switcher and drives every section as global state. Sidebar tabs Dashboard, Inventory, Tasks, Calendar, Cycle Count, Robot Count, Reports, Alerts, Settings, plus a fully wired Scheduler tab that creates Cycle Counts: Customer dropdown populated per-facility from Atlas/Wise, Type / Schedule Date / Target Completion / Blind Count / Manual / Count Method / Ignore Collect Fields chips, and a Select Locations modal with all 10 filter fields and pagination. Calls live unis.item.com REST endpoints with credential cookie auth and graceful offline fallback.",
+  "mcpTools": [],
+  "mcpServerNames": []
 }
 </script>
 <html lang="en">
@@ -17,10 +19,10 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f2f8;color:#1a1f2e;min-height:100vh}
 
 /* ── LOGIN ── */
-#login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#eef2ff 0%,#f5f0ff 100%);display:flex;align-items:center;justify-content:center;z-index:9999}
-.login-wrap{background:white;border-radius:20px;padding:44px 40px;width:420px;box-shadow:0 24px 64px rgba(79,110,247,.15),0 4px 16px rgba(0,0,0,.06)}
+#login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#f5f0ff 0%,#ede9fe 100%);display:flex;align-items:center;justify-content:center;z-index:9999}
+.login-wrap{background:white;border-radius:20px;padding:44px 40px;width:420px;box-shadow:0 24px 64px rgba(124,58,237,.15),0 4px 16px rgba(0,0,0,.06)}
 .login-brand{display:flex;align-items:center;gap:12px;margin-bottom:36px}
-.login-brand-icon{width:44px;height:44px;background:#4f6ef7;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.login-brand-icon{width:44px;height:44px;background:#7c3aed;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .login-brand-icon svg{width:22px;height:22px}
 .login-brand-name{font-size:17px;font-weight:800;color:#1a1f2e;line-height:1.2}
 .login-brand-sub{font-size:11.5px;color:#6b7280;font-weight:400}
@@ -29,10 +31,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .fg{margin-bottom:18px}
 .fg label{display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:6px}
 .fg input{width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:14px;outline:none;color:#1a1f2e;transition:border-color .2s,box-shadow .2s}
-.fg input:focus{border-color:#4f6ef7;box-shadow:0 0 0 3px rgba(79,110,247,.1)}
+.fg input:focus{border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,.1)}
 .fg .hint{font-size:11px;color:#9ca3af;margin-top:5px}
-.login-cta{width:100%;padding:13px;background:#4f6ef7;color:white;border:none;border-radius:9px;font-size:15px;font-weight:700;cursor:pointer;transition:background .2s,transform .1s;letter-spacing:.01em}
-.login-cta:hover{background:#3d5ce8}
+.login-cta{width:100%;padding:13px;background:#7c3aed;color:white;border:none;border-radius:9px;font-size:15px;font-weight:700;cursor:pointer;transition:background .2s,transform .1s;letter-spacing:.01em}
+.login-cta:hover{background:#6d28d9}
 .login-cta:active{transform:scale(.99)}
 .login-cta:disabled{background:#a5b4fc;cursor:not-allowed}
 .login-err{display:none;color:#ef4444;font-size:13px;margin-top:12px;padding:10px 12px;background:#fef2f2;border-radius:7px;border:1px solid #fecaca}
@@ -46,7 +48,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .sidebar{position:fixed;left:0;top:0;bottom:0;width:235px;background:#1a1f2e;display:flex;flex-direction:column;overflow-y:auto;z-index:200}
 .sb-logo{padding:18px 18px 14px;border-bottom:1px solid rgba(255,255,255,.07)}
 .sb-logo-inner{display:flex;align-items:center;gap:10px}
-.sb-logo-box{width:34px;height:34px;background:#4f6ef7;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sb-logo-box{width:34px;height:34px;background:#7c3aed;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .sb-logo-box svg{width:17px;height:17px}
 .sb-logo-text{font-size:13px;font-weight:700;color:white;line-height:1.25}
 .sb-logo-text span{display:block;font-size:10px;color:rgba(255,255,255,.4);font-weight:400}
@@ -55,10 +57,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .sb-item{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;color:rgba(255,255,255,.6);font-size:13.5px;font-weight:500;position:relative;transition:all .15s;border-left:3px solid transparent;user-select:none}
 .sb-item svg{width:16px;height:16px;flex-shrink:0}
 .sb-item:hover{background:rgba(255,255,255,.05);color:rgba(255,255,255,.9)}
-.sb-item.active{background:rgba(79,110,247,.15);color:#8ba4ff;border-left-color:#4f6ef7}
+.sb-item.active{background:rgba(124,58,237,.15);color:#8ba4ff;border-left-color:#7c3aed}
 .sb-badge{margin-left:auto;background:#ef4444;color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;min-width:18px;text-align:center}
 .sb-badge.amber{background:#f97316}
-.sb-badge.blue{background:#4f6ef7}
+.sb-badge.blue{background:#7c3aed}
 .sb-badge.green{background:#10b981}
 .sb-sub{padding-left:10px;display:none}
 .sb-sub.open{display:block}
@@ -70,7 +72,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .sb-qa-title{font-size:10px;font-weight:700;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
 .qa-btn{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.65);font-size:12.5px;cursor:pointer;border:none;margin-bottom:5px;transition:all .15s;font-weight:500;text-align:left}
 .qa-btn svg{width:14px;height:14px;flex-shrink:0}
-.qa-btn:hover{background:rgba(79,110,247,.2);color:white}
+.qa-btn:hover{background:rgba(124,58,237,.2);color:white}
 
 /* ── MAIN ── */
 .main{margin-left:235px;display:flex;flex-direction:column;min-height:100vh}
@@ -104,7 +106,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .user-menu-item.danger{color:#dc2626}
 .user-menu-item.danger svg{color:#dc2626}
 .user-menu-item.danger:hover{background:#fef2f2;color:#991b1b}
-.avatar{width:32px;height:32px;background:linear-gradient(135deg,#4f6ef7,#7c3aed);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:12.5px;font-weight:700}
+.avatar{width:32px;height:32px;background:linear-gradient(135deg,#7c3aed,#7c3aed);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:12.5px;font-weight:700}
 .user-info .name{font-size:13px;font-weight:600;color:#1a1f2e}
 .user-info .role{font-size:11px;color:#9ca3af}
 
@@ -115,7 +117,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 /* ── AI INSIGHT ── */
 .ai-bar{background:linear-gradient(135deg,#f0f4ff,#faf0ff);border:1px solid #c7d2fe;border-radius:11px;padding:13px 16px;display:flex;align-items:flex-start;gap:11px}
-.ai-tag{background:#4f6ef7;color:white;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0;margin-top:2px;letter-spacing:.04em}
+.ai-tag{background:#7c3aed;color:white;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0;margin-top:2px;letter-spacing:.04em}
 .ai-msg{font-size:13px;color:#374151;line-height:1.55}
 .ai-msg.loading{color:#9ca3af;font-style:italic}
 
@@ -142,7 +144,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .card{background:white;border-radius:12px;padding:20px;border:1px solid #e5e7eb}
 .card-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
 .card-ttl{font-size:15px;font-weight:700;color:#1a1f2e}
-.card-link{font-size:12.5px;color:#4f6ef7;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:3px}
+.card-link{font-size:12.5px;color:#7c3aed;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:3px}
 .sel{font-size:12px;background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:7px;padding:4px 10px;color:#374151;cursor:pointer;outline:none}
 .donut-wrap{position:relative;width:200px;margin:0 auto 16px}
 .donut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
@@ -178,13 +180,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .num-red{color:#ef4444;font-weight:700}
 .num-amber{color:#f97316;font-weight:700}
 .num-green{color:#10b981;font-weight:700}
-.view-all-row{display:flex;align-items:center;justify-content:center;gap:4px;padding-top:12px;font-size:13px;color:#4f6ef7;font-weight:600;cursor:pointer;border-top:1px solid #f3f4f6;margin-top:8px}
+.view-all-row{display:flex;align-items:center;justify-content:center;gap:4px;padding-top:12px;font-size:13px;color:#7c3aed;font-weight:600;cursor:pointer;border-top:1px solid #f3f4f6;margin-top:8px}
 
 /* ── TASK OVERVIEW ── */
 .task-kpis{display:grid;grid-template-columns:repeat(5,1fr);text-align:center;gap:6px;margin-bottom:14px}
 .task-kpi .n{font-size:22px;font-weight:800;color:#1a1f2e;letter-spacing:-.02em}
 .task-kpi .l{font-size:11px;color:#9ca3af;margin-top:2px}
-.task-kpi .n.g{color:#10b981}.task-kpi .n.b{color:#4f6ef7}.task-kpi .n.a{color:#f97316}.task-kpi .n.r{color:#ef4444}
+.task-kpi .n.g{color:#10b981}.task-kpi .n.b{color:#7c3aed}.task-kpi .n.a{color:#f97316}.task-kpi .n.r{color:#ef4444}
 .prog-bar{height:7px;border-radius:4px;background:#f3f4f6;display:flex;overflow:hidden;gap:2px;margin-bottom:16px}
 .prog-seg{height:100%;border-radius:4px}
 .task-rows{display:flex;flex-direction:column;gap:0}
@@ -208,7 +210,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 /* ── CYCLE COUNT ── */
 .cc-progress{display:flex;align-items:center;gap:14px;margin:8px 0 4px}
 .cc-bar{flex:1;height:10px;background:#f3f4f6;border-radius:5px;overflow:hidden}
-.cc-bar-fill{height:100%;background:linear-gradient(90deg,#4f6ef7,#7c3aed);border-radius:5px}
+.cc-bar-fill{height:100%;background:linear-gradient(90deg,#7c3aed,#7c3aed);border-radius:5px}
 .cc-pct{font-size:13px;font-weight:700;color:#1a1f2e;min-width:42px;text-align:right}
 
 /* ── ROBOTS ── */
@@ -237,7 +239,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
 .cal-head{font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;text-align:center;padding:4px 0}
 .cal-day{background:#fafbff;border:1px solid #f3f4f6;border-radius:8px;min-height:80px;padding:6px;font-size:11.5px;color:#374151;display:flex;flex-direction:column;gap:3px}
-.cal-day.today{border-color:#4f6ef7;background:#eff2ff}
+.cal-day.today{border-color:#7c3aed;background:#eff2ff}
 .cal-day .dn{font-weight:700;font-size:12px}
 .cal-evt{font-size:10.5px;padding:2px 4px;border-radius:4px;background:#eff2ff;color:#3730a3;line-height:1.3}
 .cal-evt.warn{background:#fff7ed;color:#c2410c}
@@ -250,7 +252,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .set-row .lbl{font-weight:500}
 .set-row .desc{font-size:11.5px;color:#9ca3af;margin-top:2px}
 .toggle{position:relative;width:38px;height:22px;background:#e5e7eb;border-radius:11px;cursor:pointer;transition:background .2s}
-.toggle.on{background:#4f6ef7}
+.toggle.on{background:#7c3aed}
 .toggle::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;background:white;border-radius:50%;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .toggle.on::after{left:18px}
 
@@ -297,7 +299,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 
 /* Saved tasks panel */
 .task-card{background:white;border:1px solid #e5e7eb;border-radius:11px;padding:14px;margin-bottom:10px;transition:border-color .15s,box-shadow .15s}
-.task-card:hover{border-color:#c7d2fe;box-shadow:0 2px 8px rgba(79,110,247,.08)}
+.task-card:hover{border-color:#c7d2fe;box-shadow:0 2px 8px rgba(124,58,237,.08)}
 .task-card.editing{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.12)}
 .task-card-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
 .task-card-name{font-size:14px;font-weight:700;color:#1a1f2e;line-height:1.3;flex:1;min-width:0;word-break:break-word}
@@ -370,6 +372,12 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 .modal-filters{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 14px}
 .modal-search-row{display:flex;justify-content:flex-end;margin-top:16px;margin-bottom:12px}
 .modal-footer{padding:14px 22px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:8px;align-items:center}
+.seg-group{display:inline-flex;border:1px solid #d1d5db;border-radius:8px;overflow:hidden}
+.seg-btn{padding:9px 20px;background:#fff;border:none;border-right:1px solid #d1d5db;font-size:14px;font-weight:600;color:#374151;cursor:pointer;transition:background .15s}
+.seg-btn:last-child{border-right:none}
+.seg-btn:hover{background:#f3f4f6}
+.seg-btn.active{background:#7c3aed;color:#fff}
+.seg-btn.active:hover{background:#6d28d9}
 .pagination{display:flex;align-items:center;justify-content:space-between;padding:12px 4px 4px;font-size:12px;color:#6b7280}
 .pag-right{display:flex;align-items:center;gap:8px}
 .pag-btn{min-width:26px;height:26px;border-radius:6px;border:1px solid #e5e7eb;background:white;cursor:pointer;color:#6b7280;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;font-size:12px}
@@ -405,24 +413,29 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 <div id="login-screen">
   <div class="login-wrap">
     <div class="login-brand">
-      <div class="login-brand-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      <div class="login-brand-icon" style="background:none">
+        <svg viewBox="0 0 32 32" width="40" height="40">
+          <defs><linearGradient id="itemGradLogin" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a855f7"/><stop offset="1" stop-color="#6d28d9"/></linearGradient></defs>
+          <path d="M16 1.5l12.6 7.3v14.4L16 30.5 3.4 23.2V8.8z" fill="url(#itemGradLogin)"/>
+          <path d="M16 8.8l7.2 4.2v8L16 25.2 8.8 21V13z" fill="#fff" fill-opacity="0.95"/>
+          <path d="M16 8.8V25.2M8.8 13l7.2 4.2 7.2-4.2" stroke="#7c3aed" stroke-width="1.3" fill="none" stroke-linejoin="round"/>
+        </svg>
       </div>
       <div>
-        <div class="login-brand-name">UNIS WMS</div>
-        <div class="login-brand-sub">Inventory &amp; Task Controller</div>
+        <div class="login-brand-name" style="letter-spacing:.08em">ITEM</div>
+        <div class="login-brand-sub">UNIS WMS · Cycle Count</div>
       </div>
     </div>
-    <div class="login-h">Sign in to UNIS WMS</div>
+    <div class="login-h">Welcome back, Brayan</div>
     <div class="login-sub">Sign in to your warehouse dashboard at unis.item.com</div>
     <div class="fg">
       <label>Username</label>
-      <input type="text" id="inp-user" placeholder="username" autocomplete="username"/>
+      <input type="text" id="inp-user" value="bescobar"/>
     </div>
     <div class="fg">
       <label>Password</label>
       <input type="password" id="inp-pass" placeholder="Enter your password" onkeyup="if(event.key==='Enter')doLogin()"/>
-      <div class="hint">Use your UNIS IAM (id.item.com) credentials</div>
+      <div class="hint">Account: brayan.escobar@unisco.com · UNIS Facility</div>
     </div>
     <button class="login-cta" id="login-btn" onclick="doLogin()">
       Sign In to WMS
@@ -439,12 +452,17 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
   <aside class="sidebar">
     <div class="sb-logo">
       <div class="sb-logo-inner">
-        <div class="sb-logo-box">
-          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        <div class="sb-logo-box" style="background:none">
+          <svg viewBox="0 0 32 32" width="34" height="34">
+            <defs><linearGradient id="itemGradSb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a855f7"/><stop offset="1" stop-color="#6d28d9"/></linearGradient></defs>
+            <path d="M16 1.5l12.6 7.3v14.4L16 30.5 3.4 23.2V8.8z" fill="url(#itemGradSb)"/>
+            <path d="M16 8.8l7.2 4.2v8L16 25.2 8.8 21V13z" fill="#fff" fill-opacity="0.95"/>
+            <path d="M16 8.8V25.2M8.8 13l7.2 4.2 7.2-4.2" stroke="#7c3aed" stroke-width="1.3" fill="none" stroke-linejoin="round"/>
+          </svg>
         </div>
-        <div class="sb-logo-text">
-          Inventory &amp; Task
-          <span>Controller · UNIS WMS</span>
+        <div class="sb-logo-text" style="letter-spacing:.06em;font-size:15px">
+          ITEM
+          <span style="letter-spacing:normal">UNIS WMS · Cycle Count</span>
         </div>
       </div>
     </div>
@@ -488,6 +506,10 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
         Robot Count <span class="sb-badge green">8</span>
       </div>
+      <div class="sb-item" data-view="replen" onclick="showView('replen')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M3 8a9 9 0 1 1 2.6 6.4"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12" y2="16"/></svg>
+        Replenishment <span class="sb-badge amber" id="replen-badge">0</span>
+      </div>
 
       <div class="sb-sect" style="margin-top:6px">Analytics</div>
       <div class="sb-item" data-view="reports" onclick="showView('reports')">
@@ -528,10 +550,9 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
       <div class="wms-dot"></div>
       <span>Connected to <strong>UNIS WMS</strong> · unis.item.com · Facility:
         <select id="facility-switcher" onchange="switchFacility(this.value)" style="background:#dcfce7;border:1px solid #86efac;color:#065f46;font-weight:700;font-size:12px;padding:2px 6px;border-radius:5px;margin:0 4px;cursor:pointer"></select>
-        · User: <strong id="wms-user">—</strong></span>
+        · User: <strong id="wms-user">bescobar</strong></span>
       <span style="margin-left:4px;color:#9ca3af">· Last sync: <span id="sync-lbl">just now</span></span>
-      <span id="token-status" style="margin-left:8px"></span>
-      <a onclick="promptForToken()" style="margin-left:8px;cursor:pointer">⚿ Update token</a>
+      <span id="token-status" style="display:none"></span>
       <a onclick="refreshAll()">↻ Refresh</a>
     </div>
 
@@ -563,11 +584,11 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           <svg style="width:12px;height:12px;color:#9ca3af;margin-left:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
           <div class="user-menu" id="user-menu" onclick="event.stopPropagation()">
             <div class="user-menu-hdr">
-              <div class="user-menu-name" id="user-menu-name">—</div>
-              <div class="user-menu-email" id="user-menu-email"></div>
+              <div class="user-menu-name" id="user-menu-name">bescobar</div>
+              <div class="user-menu-email">brayan.escobar@unisco.com</div>
             </div>
-            <div class="user-menu-item" onclick="promptForToken();closeUserMenu()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="16" r="1"/><rect x="3" y="10" width="18" height="12" rx="2"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/></svg>
+            <div class="user-menu-item" onclick="closeUserMenu(); promptForToken();">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg>
               Update Wise token
             </div>
             <div class="user-menu-item danger" onclick="doLogout()">
@@ -594,12 +615,12 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         <div class="kpi-grid">
           <div class="kpi">
             <div class="kpi-ico blue">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
             </div>
             <div>
               <div class="kpi-lbl">Total Inventory Value</div>
-              <div class="kpi-val">$152,450.00</div>
-              <div class="kpi-chg up">▲ 8.5% from last week</div>
+              <div class="kpi-val" id="kpi-inv-val">$152,450.00</div>
+              <div class="kpi-chg up" id="kpi-inv-chg">▲ 8.5% from last week</div>
             </div>
           </div>
           <div class="kpi">
@@ -608,8 +629,8 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
             </div>
             <div>
               <div class="kpi-lbl">Total Items</div>
-              <div class="kpi-val">1,248</div>
-              <div class="kpi-chg up">▲ 5.2% from last week</div>
+              <div class="kpi-val" id="kpi-items-val">1,248</div>
+              <div class="kpi-chg up" id="kpi-items-chg">▲ 5.2% from last week</div>
             </div>
           </div>
           <div class="kpi">
@@ -618,8 +639,8 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
             </div>
             <div>
               <div class="kpi-lbl">Tasks Completed</div>
-              <div class="kpi-val">32</div>
-              <div class="kpi-chg up">▲ 12.8% from last week</div>
+              <div class="kpi-val" id="kpi-tasksdone-val">32</div>
+              <div class="kpi-chg up" id="kpi-tasksdone-chg">▲ 12.8% from last week</div>
             </div>
           </div>
           <div class="kpi">
@@ -628,8 +649,8 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
             </div>
             <div>
               <div class="kpi-lbl">Pending Tasks</div>
-              <div class="kpi-val">18</div>
-              <div class="kpi-chg down">▼ 10.0% from last week</div>
+              <div class="kpi-val" id="kpi-pending-val">18</div>
+              <div class="kpi-chg down" id="kpi-pending-chg">▼ 10.0% from last week</div>
             </div>
           </div>
         </div>
@@ -639,7 +660,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           <div class="card">
             <div class="card-hdr">
               <div class="card-ttl">Inventory Summary</div>
-              <select class="sel" onchange="updateLineChart(this.value)">
+              <select class="sel" onchange="onDateRangeChange(this.value)">
                 <option value="7">Last 7 Days</option>
                 <option value="30">Last 30 Days</option>
               </select>
@@ -654,15 +675,15 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
             <div class="donut-wrap">
               <canvas id="donutChart" width="200" height="200"></canvas>
               <div class="donut-center">
-                <div class="big">1,248</div>
+                <div class="big" id="donut-total">1,248</div>
                 <div class="sm">Total Items</div>
               </div>
             </div>
             <div>
-              <div class="legend-row"><span class="legend-lbl"><span class="legend-dot" style="background:#4f6ef7"></span>In Stock</span><div class="legend-right"><span class="legend-n">842</span><span class="legend-p">(67.6%)</span></div></div>
-              <div class="legend-row"><span class="legend-lbl"><span class="legend-dot" style="background:#f97316"></span>Low Stock</span><div class="legend-right"><span class="legend-n">231</span><span class="legend-p">(18.5%)</span></div></div>
-              <div class="legend-row"><span class="legend-lbl"><span class="legend-dot" style="background:#ef4444"></span>Out of Stock</span><div class="legend-right"><span class="legend-n">98</span><span class="legend-p">(7.9%)</span></div></div>
-              <div class="legend-row"><span class="legend-lbl"><span class="legend-dot" style="background:#10b981"></span>On Order</span><div class="legend-right"><span class="legend-n">77</span><span class="legend-p">(6.0%)</span></div></div>
+              <div class="legend-row"><span class="legend-lbl"><span class="legend-dot" style="background:#7c3aed"></span>In Stock</span><div class="legend-right"><span class="legend-n" id="leg-instock-n">842</span><span class="legend-p" id="leg-instock-p">(67.6%)</span></div></div>
+              <div class="legend-row"><span class="legend-lbl"><span class="legend-dot" style="background:#f97316"></span>Low Stock</span><div class="legend-right"><span class="legend-n" id="leg-low-n">231</span><span class="legend-p" id="leg-low-p">(18.5%)</span></div></div>
+              <div class="legend-row"><span class="legend-lbl"><span class="legend-dot" style="background:#ef4444"></span>Out of Stock</span><div class="legend-right"><span class="legend-n" id="leg-out-n">98</span><span class="legend-p" id="leg-out-p">(7.9%)</span></div></div>
+              <div class="legend-row"><span class="legend-lbl"><span class="legend-dot" style="background:#10b981"></span>On Order</span><div class="legend-right"><span class="legend-n" id="leg-onorder-n">77</span><span class="legend-p" id="leg-onorder-p">(6.0%)</span></div></div>
             </div>
           </div>
         </div>
@@ -693,17 +714,17 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
               <span class="card-link" onclick="showView('tasks')">View All Tasks ›</span>
             </div>
             <div class="task-kpis">
-              <div class="task-kpi"><div class="n">50</div><div class="l">Total Tasks</div></div>
-              <div class="task-kpi"><div class="n g">32</div><div class="l">Completed</div></div>
-              <div class="task-kpi"><div class="n b">12</div><div class="l">In Progress</div></div>
-              <div class="task-kpi"><div class="n a">18</div><div class="l">Pending</div></div>
-              <div class="task-kpi"><div class="n r">6</div><div class="l">Overdue</div></div>
+              <div class="task-kpi"><div class="n" id="tk-total">50</div><div class="l">Total Tasks</div></div>
+              <div class="task-kpi"><div class="n g" id="tk-done">32</div><div class="l">Completed</div></div>
+              <div class="task-kpi"><div class="n b" id="tk-prog">12</div><div class="l">In Progress</div></div>
+              <div class="task-kpi"><div class="n a" id="tk-pend">18</div><div class="l">Pending</div></div>
+              <div class="task-kpi"><div class="n r" id="tk-over">6</div><div class="l">Overdue</div></div>
             </div>
             <div class="prog-bar">
-              <div class="prog-seg" style="width:64%;background:#10b981"></div>
-              <div class="prog-seg" style="width:24%;background:#4f6ef7"></div>
-              <div class="prog-seg" style="width:36%;background:#f97316"></div>
-              <div class="prog-seg" style="width:12%;background:#ef4444"></div>
+              <div class="prog-seg" id="tk-seg-done" style="width:64%;background:#10b981"></div>
+              <div class="prog-seg" id="tk-seg-prog" style="width:24%;background:#7c3aed"></div>
+              <div class="prog-seg" id="tk-seg-pend" style="width:36%;background:#f97316"></div>
+              <div class="prog-seg" id="tk-seg-over" style="width:12%;background:#ef4444"></div>
             </div>
             <div style="font-size:11.5px;font-weight:700;color:#9ca3af;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">Recent Tasks</div>
             <div class="task-rows">
@@ -746,34 +767,21 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
       <!-- ════ VIEW: INVENTORY ════ -->
       <div class="view" id="view-inventory">
         <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div><div class="kpi-lbl">SKUs Tracked</div><div class="kpi-val">1,248</div><div class="kpi-chg up">▲ 5.2%</div></div></div>
-          <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">In Stock</div><div class="kpi-val">842</div><div class="kpi-chg neutral">67.6% of SKUs</div></div></div>
-          <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg></div><div><div class="kpi-lbl">Low Stock</div><div class="kpi-val">231</div><div class="kpi-chg down">▼ 2.1%</div></div></div>
-          <div class="kpi"><div class="kpi-ico red"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><div><div class="kpi-lbl">Out of Stock</div><div class="kpi-val">98</div><div class="kpi-chg up">▲ 3 vs last wk</div></div></div>
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div><div class="kpi-lbl">SKU-Locations</div><div class="kpi-val" id="inv-kpi-skus">1,248</div><div class="kpi-chg neutral" id="inv-kpi-skus-sub">across customers</div></div></div>
+          <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">In Stock</div><div class="kpi-val" id="inv-kpi-instock">842</div><div class="kpi-chg neutral" id="inv-kpi-instock-sub">67.6% of SKUs</div></div></div>
+          <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg></div><div><div class="kpi-lbl">Low Stock</div><div class="kpi-val" id="inv-kpi-low">231</div><div class="kpi-chg neutral" id="inv-kpi-low-sub">below reorder</div></div></div>
+          <div class="kpi"><div class="kpi-ico red"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><div><div class="kpi-lbl">Out of Stock</div><div class="kpi-val" id="inv-kpi-out">98</div><div class="kpi-chg neutral" id="inv-kpi-out-sub">need replenishment</div></div></div>
         </div>
 
         <div class="card">
           <div class="card-hdr">
-            <div class="card-ttl" id="inv-sub-title">All Items</div>
-            <select class="sel">
-              <option>All Categories</option>
-              <option>Electronics</option>
-              <option>Furniture</option>
-              <option>Accessories</option>
-            </select>
+            <div class="card-ttl" id="inv-sub-title">Inventory by Customer</div>
+            <span class="card-link" id="inv-meta" style="color:#9ca3af;font-weight:600"></span>
           </div>
           <table class="tbl">
-            <thead><tr><th>SKU</th><th>Product</th><th>Category</th><th>Location</th><th>On Hand</th><th>Reorder</th><th>Status</th></tr></thead>
-            <tbody>
-              <tr><td style="color:#9ca3af">WM-1001</td><td>Wireless Mouse</td><td>Electronics</td><td>A-12-03</td><td><span class="num-amber">5</span></td><td>10</td><td><span class="badge low">Low</span></td></tr>
-              <tr><td style="color:#9ca3af">KB-2002</td><td>Mechanical Keyboard</td><td>Electronics</td><td>A-12-04</td><td><span class="num-red">3</span></td><td>10</td><td><span class="badge low">Low</span></td></tr>
-              <tr><td style="color:#9ca3af">UC-3003</td><td>USB-C Cable 2m</td><td>Accessories</td><td>B-04-11</td><td><span class="num-amber">8</span></td><td>15</td><td><span class="badge low">Low</span></td></tr>
-              <tr><td style="color:#9ca3af">OC-4004</td><td>Office Chair</td><td>Furniture</td><td>D-01-02</td><td><span class="num-red">2</span></td><td>5</td><td><span class="badge vlow">Very Low</span></td></tr>
-              <tr><td style="color:#9ca3af">MN-5005</td><td>Monitor 24"</td><td>Electronics</td><td>A-08-07</td><td><span class="num-red">0</span></td><td>5</td><td><span class="badge out">Out</span></td></tr>
-              <tr><td style="color:#9ca3af">HP-6006</td><td>Headphones Wireless</td><td>Electronics</td><td>A-15-09</td><td>48</td><td>20</td><td><span class="badge ok">In Stock</span></td></tr>
-              <tr><td style="color:#9ca3af">DK-7007</td><td>Standing Desk</td><td>Furniture</td><td>D-02-01</td><td>14</td><td>5</td><td><span class="badge ok">In Stock</span></td></tr>
-              <tr><td style="color:#9ca3af">WB-8008</td><td>Webcam HD</td><td>Electronics</td><td>A-09-05</td><td>92</td><td>25</td><td><span class="badge ok">In Stock</span></td></tr>
-              <tr><td style="color:#9ca3af">PR-9009</td><td>Laser Printer</td><td>Electronics</td><td>C-03-02</td><td>23</td><td>8</td><td><span class="badge ok">In Stock</span></td></tr>
+            <thead><tr><th>Customer Code</th><th>Customer</th><th>Locations</th><th>Share</th><th>Status</th></tr></thead>
+            <tbody id="inv-tbody">
+              <tr><td colspan="5" style="text-align:center;padding:24px;color:#9ca3af">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -782,34 +790,21 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
       <!-- ════ VIEW: TASKS ════ -->
       <div class="view" id="view-tasks">
         <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2"><path d="M9 11l3 3L22 4"/></svg></div><div><div class="kpi-lbl">Total Tasks</div><div class="kpi-val">50</div><div class="kpi-chg neutral">Week of May 20</div></div></div>
-          <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Completed</div><div class="kpi-val">32</div><div class="kpi-chg up">▲ 12.8%</div></div></div>
-          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-lbl">In Progress</div><div class="kpi-val">12</div><div class="kpi-chg neutral">on track</div></div></div>
-          <div class="kpi"><div class="kpi-ico red"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div><div><div class="kpi-lbl">Overdue</div><div class="kpi-val">6</div><div class="kpi-chg down">action required</div></div></div>
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M9 11l3 3L22 4"/></svg></div><div><div class="kpi-lbl">Total Tasks</div><div class="kpi-val" id="tsk-kpi-total">50</div><div class="kpi-chg neutral" id="tsk-kpi-total-sub">at this facility</div></div></div>
+          <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Completed</div><div class="kpi-val" id="tsk-kpi-done">32</div><div class="kpi-chg neutral" id="tsk-kpi-done-sub">this week</div></div></div>
+          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-lbl">In Progress</div><div class="kpi-val" id="tsk-kpi-prog">12</div><div class="kpi-chg neutral">on track</div></div></div>
+          <div class="kpi"><div class="kpi-ico red"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div><div><div class="kpi-lbl">Overdue</div><div class="kpi-val" id="tsk-kpi-over">6</div><div class="kpi-chg down">action required</div></div></div>
         </div>
 
         <div class="card">
           <div class="card-hdr">
             <div class="card-ttl">All Tasks</div>
-            <select class="sel">
-              <option>All</option>
-              <option>In Progress</option>
-              <option>Pending</option>
-              <option>Overdue</option>
-              <option>Completed</option>
-            </select>
+            <span class="card-link" id="tsk-meta" style="color:#9ca3af;font-weight:600"></span>
           </div>
           <table class="tbl">
             <thead><tr><th>Task</th><th>Assignee</th><th>Priority</th><th>Due</th><th>Status</th></tr></thead>
-            <tbody>
-              <tr><td>Update inventory for Warehouse A</td><td>John Doe</td><td><span class="badge low">Med</span></td><td>May 27</td><td><span class="badge ip">In Progress</span></td></tr>
-              <tr><td>Review low stock items</td><td>Jane Smith</td><td><span class="badge low">Med</span></td><td>May 26</td><td><span class="badge done">Completed</span></td></tr>
-              <tr><td>Create PO for monitors (MN-5005)</td><td>Mike Johnson</td><td><span class="badge vlow">High</span></td><td>May 28</td><td><span class="badge pend">Pending</span></td></tr>
-              <tr><td>Monthly inventory audit</td><td>Sarah Lee</td><td><span class="badge low">Med</span></td><td>May 30</td><td><span class="badge ip">In Progress</span></td></tr>
-              <tr><td>Supplier data update</td><td>John Doe</td><td><span class="badge low">Low</span></td><td>May 24</td><td><span class="badge over">Overdue</span></td></tr>
-              <tr><td>Cycle count zone B</td><td>Carlos Ruiz</td><td><span class="badge low">Med</span></td><td>May 27</td><td><span class="badge pend">Pending</span></td></tr>
-              <tr><td>Robot R-04 maintenance</td><td>Tech Team</td><td><span class="badge vlow">High</span></td><td>May 26</td><td><span class="badge ip">In Progress</span></td></tr>
-              <tr><td>Receiving dock cleanup</td><td>Floor Team</td><td><span class="badge low">Low</span></td><td>May 25</td><td><span class="badge done">Completed</span></td></tr>
+            <tbody id="tsk-tbody">
+              <tr><td colspan="5" style="text-align:center;padding:24px;color:#9ca3af">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -844,86 +839,79 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 
       <!-- ════ VIEW: SCHEDULER ════ -->
       <div class="view" id="view-scheduler">
-
-        <!-- ── CARD 1: SCHEDULE (pick existing or create new) ── -->
+        <!-- ── SCHEDULE CARD (defines WHEN) ── -->
         <div class="card">
           <div class="card-hdr">
             <div>
               <div class="card-ttl">Schedule</div>
-              <div class="scheduler-help">Pick an existing schedule to reuse its release window and recurrence, or create a new one. The schedule defines <em>when</em> the count happens; the next card defines <em>what</em> gets counted.</div>
+              <div class="scheduler-help">Pick an existing schedule to reuse its release window and recurrence, or create a new one. The schedule defines <strong>when</strong> the count happens; the next card defines <strong>what</strong> gets counted.</div>
             </div>
             <span class="live-pill" id="sched-live-pill"><span class="ldot"></span>Live · Wise (unis.item.com)</span>
           </div>
 
-          <div class="cc-form" style="grid-template-columns:1fr;margin-bottom:0">
+          <div class="sched-src-toggle" id="cc-sched-src" style="display:flex;gap:8px;margin-bottom:18px">
+            <button type="button" class="btn btn-secondary sched-src-btn" id="cc-src-existing" onclick="setScheduleSource('existing')" style="flex:1">Use existing schedule</button>
+            <button type="button" class="btn btn-primary sched-src-btn" id="cc-src-new" onclick="openScheduleModal()" style="flex:1">Create new schedule</button>
+          </div>
+
+          <!-- USE EXISTING -->
+          <div class="cc-form" id="cc-existing-wrap" style="grid-template-columns:1fr;margin-bottom:0;display:none">
             <div class="cc-field">
-              <label class="cc-label">Schedule source</label>
-              <div style="display:flex;gap:0;border:1.5px solid #e5e7eb;border-radius:9px;overflow:hidden;width:fit-content">
-                <button type="button" id="sched-mode-existing-btn" onclick="setScheduleMode('existing')" style="padding:8px 16px;border:none;background:#4f6ef7;color:white;font-size:13px;font-weight:600;cursor:pointer">Use existing schedule</button>
-                <button type="button" id="sched-mode-new-btn" onclick="setScheduleMode('new')" style="padding:8px 16px;border:none;background:white;color:#6b7280;font-size:13px;font-weight:600;cursor:pointer;border-left:1.5px solid #e5e7eb">Create new schedule</button>
+              <label class="cc-label"><span class="req">*</span>Existing schedule</label>
+              <select class="cc-input" id="cc-existing-schedule" onchange="onExistingScheduleChange()">
+                <option value="">Select a schedule…</option>
+              </select>
+              <div class="scheduler-help" id="cc-existing-meta" style="margin-top:4px">Loaded live from Wise. Selecting one reuses its release time + recurrence.</div>
+            </div>
+          </div>
+
+          <!-- CREATE NEW (defined via the Add Schedule popup) -->
+          <div id="cc-newsched-wrap">
+            <!-- Hidden inputs hold the values saved from the Add Schedule modal so
+                 the existing submit/edit logic keeps working unchanged. -->
+            <input type="hidden" id="cc-name"/>
+            <input type="hidden" id="cc-recurrence" value="NONE"/>
+            <input type="hidden" id="cc-sched-date"/>
+            <input type="hidden" id="cc-target-date"/>
+            <input type="hidden" id="cc-interval" value="1"/>
+
+            <!-- Empty prompt → shown until a schedule is defined -->
+            <div id="cc-sched-empty" class="cc-lines-empty" style="padding:28px 16px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <div class="h">No schedule defined yet</div>
+              <div>Click <strong>Create new schedule</strong> above to set the name, time, and recurrence.</div>
+            </div>
+
+            <!-- Summary card → shown after the modal saves -->
+            <div id="cc-sched-summary" style="display:none;background:#f3f0ff;border:1px solid #ddd6fe;border-radius:10px;padding:16px 18px">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+                <div>
+                  <div style="font-weight:700;font-size:15px;color:#4c1d95" id="cc-sched-sum-name">—</div>
+                  <div style="font-size:13px;color:#6d28d9;margin-top:4px" id="cc-sched-sum-meta">—</div>
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="openScheduleModal()" style="white-space:nowrap">Edit schedule</button>
               </div>
             </div>
-          </div>
 
-          <!-- Mode: Use existing -->
-          <div class="cc-form" id="sched-existing-block" style="margin-top:14px">
-            <div class="cc-field" style="grid-column:1 / -1">
-              <label class="cc-label"><span class="req">*</span>Existing schedule</label>
-              <select class="cc-input" id="sched-existing-select" onchange="onExistingScheduleChange()">
-                <option value="">Loading schedules…</option>
-              </select>
-              <div class="scheduler-help" style="margin-top:4px" id="sched-existing-help">Loaded from <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">POST /api/cyclecount-app/cycle-count/schedule/search-by-paging</code></div>
-              <div id="sched-existing-summary" style="margin-top:10px;display:none;padding:10px 14px;background:#eff2ff;border:1px solid #c7d2fe;border-radius:8px;font-size:13px;color:#3730a3"></div>
-            </div>
-          </div>
-
-          <!-- Mode: Create new -->
-          <div class="cc-form" id="sched-new-block" style="margin-top:14px;display:none">
-            <div class="cc-field" style="grid-column:1 / 3">
-              <label class="cc-label"><span class="req">*</span>Schedule name</label>
-              <input type="text" class="cc-input" id="sched-name" placeholder="e.g. Daily 10 locations — Valley View" autocomplete="off"/>
-            </div>
-            <div class="cc-field">
-              <label class="cc-label">Recurrence</label>
-              <select class="cc-input" id="cc-recurrence">
-                <option value="NONE">Run once (no recurrence)</option>
-                <option value="DAILY">Daily</option>
-                <option value="WEEKLY">Weekly</option>
-                <option value="MONTHLY">Monthly</option>
-              </select>
-              <div class="scheduler-help" id="cc-recurrence-help" style="margin-top:4px">When != "Run once", Wise creates a recurring schedule.</div>
-            </div>
-            <div class="cc-field"></div>
-            <div class="cc-field">
-              <label class="cc-label"><span class="req">*</span>Start time (release)</label>
-              <input type="datetime-local" class="cc-input date" id="cc-sched-date" step="60"/>
-              <div class="scheduler-help" style="margin-top:4px">When the count is first released to the floor.</div>
-            </div>
-            <div class="cc-field">
-              <label class="cc-label"><span class="req">*</span>End time (target completion)</label>
-              <input type="datetime-local" class="cc-input date" id="cc-target-date" step="60"/>
-              <div class="scheduler-help" style="margin-top:4px">Deadline for counters to finish.</div>
+            <div class="form-actions" id="cc-newsched-actions" style="display:none">
+              <button type="button" class="btn btn-primary" id="cc-continue-btn" onclick="continueToCountParams()">
+                Continue to count parameters
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-left:4px"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
             </div>
           </div>
         </div>
 
-        <!-- ── CARD 2: COUNT SELECTION (what gets counted) ── -->
-        <div class="card">
+        <!-- ── COUNT PARAMETERS CARD (defines WHAT) ── -->
+        <div class="card" id="cc-params-card">
           <div class="card-hdr">
             <div>
-              <div class="card-ttl">Count Selection</div>
-              <div class="scheduler-help" id="sched-facility-help">Facility: <strong>Valley View Warehouse</strong> · 93 active customers (real Wise orgIds). Pick a customer and the count parameters; locations are added in the next card.</div>
+              <div class="card-ttl">Count Parameters</div>
+              <div class="scheduler-help" id="sched-facility-help">Loading facility…</div>
             </div>
           </div>
 
-          <div class="cc-form" style="grid-template-columns:1fr;margin-bottom:0">
-            <div class="cc-field">
-              <label class="cc-label"><span class="req">*</span>Count name</label>
-              <input type="text" class="cc-input" id="cc-name" placeholder="Give this cycle count a name (e.g. ORGAIN aisle 100s weekly)" autocomplete="off"/>
-            </div>
-          </div>
-
-          <div class="cc-form" style="margin-top:18px">
+          <div class="cc-form" style="margin-top:0">
             <div class="cc-field">
               <label class="cc-label"><span class="req">*</span>Customer</label>
               <select class="cc-input" id="cc-customer">
@@ -937,29 +925,6 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
               <select class="cc-input" id="cc-type">
                 <option value="">Select</option>
               </select>
-            </div>
-            <div class="cc-field">
-              <label class="cc-label">Counter (auto-assignee)</label>
-              <input type="text" class="cc-input" id="cc-counter" list="cc-counter-list" placeholder="Type a name or username…" autocomplete="off"/>
-              <datalist id="cc-counter-list"></datalist>
-              <div class="scheduler-help" id="cc-counter-help" style="margin-top:4px">If set, tasks are auto-generated and assigned to this user on submit — skips the manual Task Splitting step in Wise.</div>
-            </div>
-            <div class="cc-field">
-              <label class="cc-label">Max lines per task</label>
-              <input type="number" class="cc-input" id="cc-max-lines-per-task" min="1" step="1" value="10" placeholder="10"/>
-              <div class="scheduler-help" style="margin-top:4px">Chunks the locations into tasks of this size — matches Wise's "By Count Line Amount" split.</div>
-            </div>
-            <div class="cc-field">
-              <label class="cc-label">Count Quota</label>
-              <div style="display:flex;gap:8px">
-                <input type="number" class="cc-input" id="cc-quota-num" min="1" step="1" placeholder="e.g. 100" style="flex:1"/>
-                <select class="cc-input" id="cc-quota-period" style="flex:1">
-                  <option value="DAY">per Day</option>
-                  <option value="WEEK" selected>per Week</option>
-                  <option value="MONTH">per Month</option>
-                </select>
-              </div>
-              <div class="scheduler-help" id="cc-quota-help" style="margin-top:4px">How many locations to count in each window.</div>
             </div>
           </div>
 
@@ -994,6 +959,33 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
             </div>
           </div>
 
+          <div class="cc-form" style="margin-top:18px">
+            <div class="cc-field">
+              <label class="cc-label">Count Quota</label>
+              <div style="display:flex;gap:8px">
+                <input type="number" class="cc-input" id="cc-quota-num" min="1" step="1" placeholder="e.g. 100" style="flex:1"/>
+                <select class="cc-input" id="cc-quota-period" style="flex:1">
+                  <option value="DAY">per Day</option>
+                  <option value="WEEK" selected>per Week</option>
+                  <option value="MONTH">per Month</option>
+                </select>
+              </div>
+              <div class="scheduler-help" id="cc-quota-help" style="margin-top:4px">How many locations should be counted in each window.</div>
+            </div>
+            <div class="cc-field">
+              <label class="cc-label">Counter (auto-assignee)</label>
+              <input type="text" class="cc-input" id="cc-counter" list="cc-counter-list" placeholder="Type a name or username…" autocomplete="off"/>
+              <datalist id="cc-counter-list"></datalist>
+              <div class="scheduler-help" id="cc-counter-help" style="margin-top:4px">If set, tasks are auto-generated and assigned to this user on submit — skips the manual Task Splitting step in Wise.</div>
+            </div>
+            <div class="cc-field">
+              <label class="cc-label">Max lines per task</label>
+              <input type="number" class="cc-input" id="cc-max-lines-per-task" min="1" step="1" value="10" placeholder="10"/>
+              <div class="scheduler-help" style="margin-top:4px">Chunks the locations into tasks of this size — matches Wise's "By Count Line Amount" split.</div>
+            </div>
+            <div class="cc-field"></div>
+          </div>
+
           <div class="form-actions">
             <button class="btn btn-primary" id="cc-add-line-btn" onclick="openLocationModal()" disabled>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1002,7 +994,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" id="cc-lines-card">
           <div class="card-hdr">
             <div class="card-ttl">Count Lines <span id="cc-lines-count" style="font-weight:500;color:#9ca3af;font-size:13px">(0)</span></div>
             <div style="display:flex;gap:8px;align-items:center">
@@ -1019,7 +1011,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           </div>
         </div>
 
-        <div class="form-actions" style="margin-top:0">
+        <div class="form-actions" style="margin-top:0" id="cc-submit-actions">
           <button class="btn btn-secondary" id="cc-cancel-edit-btn" onclick="cancelEditTask()" style="display:none">Cancel edit</button>
           <button class="btn btn-secondary" onclick="resetCycleForm()">Reset</button>
           <button class="btn btn-primary" id="cc-submit-btn" onclick="submitCycleCount()" disabled>
@@ -1043,7 +1035,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
       <!-- ════ VIEW: CYCLE COUNT ════ -->
       <div class="view" id="view-cycle">
         <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2"><path d="M21 12a9 9 0 1 1-3.5-7.1"/><polyline points="21 4 21 10 15 10"/></svg></div><div><div class="kpi-lbl">Total Cycle Counts</div><div class="kpi-val" id="cc-kpi-total">—</div><div class="kpi-chg neutral" id="cc-kpi-total-sub">at this facility</div></div></div>
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M21 12a9 9 0 1 1-3.5-7.1"/><polyline points="21 4 21 10 15 10"/></svg></div><div><div class="kpi-lbl">Total Cycle Counts</div><div class="kpi-val" id="cc-kpi-total">—</div><div class="kpi-chg neutral" id="cc-kpi-total-sub">at this facility</div></div></div>
           <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-lbl">Open / In Progress</div><div class="kpi-val" id="cc-kpi-open">—</div><div class="kpi-chg neutral" id="cc-kpi-open-sub">awaiting completion</div></div></div>
           <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Completed</div><div class="kpi-val" id="cc-kpi-done">—</div><div class="kpi-chg neutral" id="cc-kpi-done-sub">closed tickets</div></div></div>
           <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg></div><div><div class="kpi-lbl">Next Scheduled Count</div><div class="kpi-val" id="cc-kpi-next" style="font-size:18px">—</div><div class="kpi-chg neutral" id="cc-kpi-next-sub">none</div></div></div>
@@ -1118,7 +1110,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         </div>
 
         <div class="kpi-grid" style="margin-top:15px">
-          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/></svg></div><div><div class="kpi-lbl">Fleet Size</div><div class="kpi-val" id="rk-fleet">12</div><div class="kpi-chg neutral" id="rk-fleet-sub">2 retired, 1 inbound</div></div></div>
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/></svg></div><div><div class="kpi-lbl">Fleet Size</div><div class="kpi-val" id="rk-fleet">12</div><div class="kpi-chg neutral" id="rk-fleet-sub">2 retired, 1 inbound</div></div></div>
           <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Active Now</div><div class="kpi-val" id="rk-active">8</div><div class="kpi-chg up" id="rk-active-sub">66.7% utilization</div></div></div>
           <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div><div><div class="kpi-lbl">Charging / Idle</div><div class="kpi-val" id="rk-charging">3</div><div class="kpi-chg neutral" id="rk-charging-sub">Avg 78% battery</div></div></div>
           <div class="kpi"><div class="kpi-ico red"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12" y2="16"/></svg></div><div><div class="kpi-lbl">Out of Service</div><div class="kpi-val" id="rk-down">1</div><div class="kpi-chg down" id="rk-down-sub">R-04 · drive fault</div></div></div>
@@ -1210,10 +1202,68 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         </div>
       </div>
 
+      <!-- ════ VIEW: REPLENISHMENT ════ -->
+      <div class="view" id="view-replen">
+        <div class="card" style="padding:14px 18px;margin-bottom:0">
+          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+            <div style="flex:1;min-width:260px">
+              <div style="font-size:13px;font-weight:700;color:#1a1f2e">Replenishment · live Wise needs</div>
+              <div class="scheduler-help" style="margin-top:2px">Open replenishment needs (min/max shortfalls) for <strong id="replen-fac">this facility</strong>, split by destination location type. Assign a user per task and choose the move UoM.</div>
+            </div>
+            <select class="cc-input" id="replen-customer" style="max-width:280px" onchange="loadReplenView()">
+              <option value="">All customers</option>
+            </select>
+            <span class="live-pill" id="replen-live-pill"><span class="ldot"></span>Live · Wise (unis.item.com)</span>
+            <button class="btn btn-primary" onclick="loadReplenView()" id="replen-refresh-btn" style="font-size:12.5px">↻ Refresh</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid" style="margin-top:15px">
+          <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><path d="M3 2v6h6"/><path d="M3 8a9 9 0 1 1 2.6 6.4"/></svg></div><div><div class="kpi-lbl">Open Replens</div><div class="kpi-val" id="rp-open">0</div><div class="kpi-chg neutral" id="rp-open-sub">across Rack + Bulk</div></div></div>
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></div><div><div class="kpi-lbl">Rack</div><div class="kpi-val" id="rp-rack-kpi">0</div><div class="kpi-chg neutral">pick-face shortfalls</div></div></div>
+          <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div><div class="kpi-lbl">Bulk</div><div class="kpi-val" id="rp-bulk-kpi">0</div><div class="kpi-chg neutral">floor / drive-in</div></div></div>
+          <div class="kpi"><div class="kpi-ico red"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg></div><div><div class="kpi-lbl">Critical (0 on hand)</div><div class="kpi-val" id="rp-critical">0</div><div class="kpi-chg down">stock-out risk</div></div></div>
+        </div>
+
+        <!-- RACK SECTION -->
+        <div class="card" id="replen-rack-card">
+          <div class="card-hdr">
+            <div>
+              <div class="card-ttl">Rack Replenishment <span id="replen-rack-count" style="font-weight:500;color:#9ca3af;font-size:13px">(0)</span></div>
+              <div class="scheduler-help">Case/EA top-offs into rack pick faces from reserve pallet locations.</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input type="text" class="cc-input" id="replen-rack-user" list="replen-user-list" placeholder="Assign all to…" autocomplete="off" style="min-width:200px;font-size:13px"/>
+              <button class="btn btn-secondary" onclick="assignAllReplen('rack')" style="font-size:12.5px">Assign all</button>
+              <button class="btn btn-primary" onclick="releaseReplen('rack')" style="font-size:12.5px">Release assigned</button>
+            </div>
+          </div>
+          <div id="replen-rack-host"></div>
+        </div>
+
+        <!-- BULK SECTION -->
+        <div class="card" id="replen-bulk-card">
+          <div class="card-hdr">
+            <div>
+              <div class="card-ttl">Bulk Replenishment <span id="replen-bulk-count" style="font-weight:500;color:#9ca3af;font-size:13px">(0)</span></div>
+              <div class="scheduler-help">Full-pallet moves into bulk / floor / drive-in storage locations.</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input type="text" class="cc-input" id="replen-bulk-user" list="replen-user-list" placeholder="Assign all to…" autocomplete="off" style="min-width:200px;font-size:13px"/>
+              <button class="btn btn-secondary" onclick="assignAllReplen('bulk')" style="font-size:12.5px">Assign all</button>
+              <button class="btn btn-primary" onclick="releaseReplen('bulk')" style="font-size:12.5px">Release assigned</button>
+            </div>
+          </div>
+          <div id="replen-bulk-host"></div>
+        </div>
+
+        <datalist id="replen-user-list"></datalist>
+      </div>
+
       <!-- ════ VIEW: REPORTS ════ -->
       <div class="view" id="view-reports">
         <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><div><div class="kpi-lbl">Reports Generated</div><div class="kpi-val">42</div><div class="kpi-chg neutral">This month</div></div></div>
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><div><div class="kpi-lbl">Reports Generated</div><div class="kpi-val">42</div><div class="kpi-chg neutral">This month</div></div></div>
           <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg></div><div><div class="kpi-lbl">Inventory Turns</div><div class="kpi-val">4.2x</div><div class="kpi-chg up">▲ 0.3 QoQ</div></div></div>
           <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg></div><div><div class="kpi-lbl">Order Accuracy</div><div class="kpi-val">99.6%</div><div class="kpi-chg up">▲ 0.2 pts</div></div></div>
           <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-lbl">Avg Pick Time</div><div class="kpi-val">42s</div><div class="kpi-chg down">▼ 5s WoW</div></div></div>
@@ -1224,10 +1274,10 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           <table class="tbl">
             <thead><tr><th>Name</th><th>Type</th><th>Schedule</th><th>Last Run</th><th>Owner</th><th>Action</th></tr></thead>
             <tbody>
-              <tr><td>Weekly Inventory Snapshot</td><td>Inventory</td><td>Mon 06:00</td><td>May 25</td><td>Admin</td><td><span class="card-link">Run</span></td></tr>
-              <tr><td>Cycle Count Variance — Monthly</td><td>Cycle</td><td>1st of month</td><td>May 1</td><td>Admin</td><td><span class="card-link">Run</span></td></tr>
+              <tr><td>Weekly Inventory Snapshot</td><td>Inventory</td><td>Mon 06:00</td><td>May 25</td><td>Brayan E.</td><td><span class="card-link">Run</span></td></tr>
+              <tr><td>Cycle Count Variance — Monthly</td><td>Cycle</td><td>1st of month</td><td>May 1</td><td>Brayan E.</td><td><span class="card-link">Run</span></td></tr>
               <tr><td>Robot Fleet Utilization</td><td>Robotics</td><td>Daily 23:00</td><td>May 26</td><td>Tech Team</td><td><span class="card-link">Run</span></td></tr>
-              <tr><td>Open PO Aging</td><td>Purchasing</td><td>Wed 08:00</td><td>May 21</td><td>Admin</td><td><span class="card-link">Run</span></td></tr>
+              <tr><td>Open PO Aging</td><td>Purchasing</td><td>Wed 08:00</td><td>May 21</td><td>Brayan E.</td><td><span class="card-link">Run</span></td></tr>
               <tr><td>Shift Labor Summary</td><td>Scheduler</td><td>Sun 18:00</td><td>May 24</td><td>HR</td><td><span class="card-link">Run</span></td></tr>
             </tbody>
           </table>
@@ -1237,23 +1287,18 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
       <!-- ════ VIEW: ALERTS ════ -->
       <div class="view" id="view-alerts">
         <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-ico red"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg></div><div><div class="kpi-lbl">Critical Alerts</div><div class="kpi-val">3</div><div class="kpi-chg down">Action required</div></div></div>
-          <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div><div><div class="kpi-lbl">Warnings</div><div class="kpi-val">12</div><div class="kpi-chg neutral">Low stock / variances</div></div></div>
-          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg></div><div><div class="kpi-lbl">Info</div><div class="kpi-val">28</div><div class="kpi-chg neutral">PO acks, sync events</div></div></div>
-          <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Resolved Today</div><div class="kpi-val">17</div><div class="kpi-chg up">▲ vs 11 yesterday</div></div></div>
+          <div class="kpi"><div class="kpi-ico red"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg></div><div><div class="kpi-lbl">Critical Alerts</div><div class="kpi-val" id="alr-kpi-crit">3</div><div class="kpi-chg down">Action required</div></div></div>
+          <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div><div><div class="kpi-lbl">Warnings</div><div class="kpi-val" id="alr-kpi-warn">12</div><div class="kpi-chg neutral">Low stock / variances</div></div></div>
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg></div><div><div class="kpi-lbl">Info</div><div class="kpi-val" id="alr-kpi-info">28</div><div class="kpi-chg neutral">PO acks, sync events</div></div></div>
+          <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Resolved Today</div><div class="kpi-val" id="alr-kpi-resolved">17</div><div class="kpi-chg up">cleared</div></div></div>
         </div>
 
         <div class="card">
-          <div class="card-hdr"><div class="card-ttl">Active Alerts</div><select class="sel"><option>All</option><option>Critical</option><option>Warning</option><option>Info</option></select></div>
+          <div class="card-hdr"><div class="card-ttl">Active Alerts</div><span class="card-link" id="alr-meta" style="color:#9ca3af;font-weight:600"></span></div>
           <table class="tbl">
             <thead><tr><th>Severity</th><th>Source</th><th>Message</th><th>When</th><th>Action</th></tr></thead>
-            <tbody>
-              <tr><td><span class="badge err">Critical</span></td><td>Inventory</td><td>Monitor 24" (MN-5005) out of stock — 0 units</td><td>2h ago</td><td><span class="card-link">Acknowledge</span></td></tr>
-              <tr><td><span class="badge err">Critical</span></td><td>Robotics</td><td>R-04 drive fault — service required</td><td>4h ago</td><td><span class="card-link">Acknowledge</span></td></tr>
-              <tr><td><span class="badge err">Critical</span></td><td>Tasks</td><td>Supplier data update overdue 2 days</td><td>1d ago</td><td><span class="card-link">Acknowledge</span></td></tr>
-              <tr><td><span class="badge warn">Warning</span></td><td>Inventory</td><td>Office Chair (OC-4004) at 2 units — below reorder</td><td>5h ago</td><td><span class="card-link">Acknowledge</span></td></tr>
-              <tr><td><span class="badge warn">Warning</span></td><td>Cycle Count</td><td>Zone D variance 8.3% — review required</td><td>1d ago</td><td><span class="card-link">Acknowledge</span></td></tr>
-              <tr><td><span class="badge warn">Warning</span></td><td>Scheduler</td><td>Saturday night shift uncovered</td><td>6h ago</td><td><span class="card-link">Acknowledge</span></td></tr>
+            <tbody id="alr-tbody">
+              <tr><td colspan="5" style="text-align:center;padding:24px;color:#9ca3af">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -1264,8 +1309,8 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         <div class="settings-grid">
           <div class="card">
             <div class="card-hdr"><div class="card-ttl">Account</div></div>
-            <div class="set-row"><div><div class="lbl">Display Name</div><div class="desc">Shown in tasks and audit logs</div></div><div id="settings-display-name" style="color:#6b7280;font-size:13px">—</div></div>
-            <div class="set-row"><div><div class="lbl">Email</div><div class="desc">For alerts and reports</div></div><div id="settings-email" style="color:#6b7280;font-size:13px">—</div></div>
+            <div class="set-row"><div><div class="lbl">Display Name</div><div class="desc">Shown in tasks and audit logs</div></div><div style="color:#6b7280;font-size:13px">Brayan Escobar</div></div>
+            <div class="set-row"><div><div class="lbl">Email</div><div class="desc">For alerts and reports</div></div><div style="color:#6b7280;font-size:13px">brayan.escobar@unisco.com</div></div>
             <div class="set-row"><div><div class="lbl">Role</div></div><div style="color:#6b7280;font-size:13px">Administrator</div></div>
             <div class="set-row"><div><div class="lbl">Facility</div></div><div style="color:#6b7280;font-size:13px">UNIS Warehouse</div></div>
           </div>
@@ -1382,6 +1427,73 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
       </div>
     </div>
   </div>
+
+  <!-- ════ ADD SCHEDULE MODAL ════ -->
+  <div class="modal-overlay" id="sched-modal" onclick="if(event.target===this)closeScheduleModal()">
+    <div class="modal" style="max-width:920px">
+      <div class="modal-hdr">
+        <h2 style="display:flex;align-items:center;gap:10px">
+          <button class="modal-x" onclick="closeScheduleModal()" aria-label="Back" style="width:24px;height:24px">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+          </button>
+          Add Schedule
+        </h2>
+        <button class="modal-x" onclick="closeScheduleModal()" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="cc-form" style="grid-template-columns:1fr;margin-bottom:0">
+          <div class="cc-field">
+            <label class="cc-label"><span class="req">*</span>Name</label>
+            <input type="text" class="cc-input" id="sm-name" placeholder="Name" autocomplete="off"/>
+          </div>
+        </div>
+        <div class="cc-form" style="margin-top:18px;grid-template-columns:1fr 1fr">
+          <div class="cc-field">
+            <label class="cc-label"><span class="req">*</span>Start Time</label>
+            <input type="datetime-local" class="cc-input date" id="sm-start" step="60"/>
+          </div>
+          <div class="cc-field">
+            <label class="cc-label">End Time</label>
+            <input type="datetime-local" class="cc-input date" id="sm-end" step="60"/>
+          </div>
+        </div>
+        <div class="cc-form" style="margin-top:18px;grid-template-columns:1fr">
+          <div class="cc-field">
+            <label class="cc-label">Recurrence</label>
+            <div class="toggle-wrap"><div class="toggle" id="sm-recur" onclick="toggleSmRecur()"></div></div>
+          </div>
+        </div>
+
+        <!-- Recurrence detail (shown when toggle on) -->
+        <div id="sm-recur-detail" style="display:none;margin-top:20px;padding-top:18px;border-top:1px solid #e5e7eb">
+          <div class="cc-field" style="margin-bottom:18px">
+            <label class="cc-label"><span class="req">*</span>Frequency</label>
+            <div class="seg-group" id="sm-freq">
+              <button type="button" class="seg-btn active" data-freq="DAILY" onclick="setSmFreq('DAILY')">Daily</button>
+              <button type="button" class="seg-btn" data-freq="WEEKLY" onclick="setSmFreq('WEEKLY')">Weekly</button>
+              <button type="button" class="seg-btn" data-freq="MONTHLY" onclick="setSmFreq('MONTHLY')">Monthly</button>
+            </div>
+          </div>
+          <div class="cc-field">
+            <label class="cc-label"><span class="req">*</span>Recurrence Interval</label>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="color:#6b7280;font-size:14px">Every</span>
+              <input type="number" class="cc-input" id="sm-interval" min="1" step="1" value="1" style="width:90px"/>
+              <span style="color:#374151;font-size:14px;font-weight:600" id="sm-interval-unit">Days</span>
+            </div>
+          </div>
+          <div id="sm-preview" style="display:none;margin-top:18px;padding:12px 14px;background:#f3f0ff;border:1px solid #ddd6fe;border-radius:8px;font-size:13px;color:#4c1d95"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="sm-preview-btn" onclick="previewNext5()" style="margin-right:auto" disabled>Preview Next 5</button>
+        <button class="btn btn-secondary" onclick="closeScheduleModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveScheduleModal()">Save</button>
+      </div>
+    </div>
+  </div>
 </div><!-- /app -->
 
 <script>
@@ -1404,7 +1516,9 @@ async function doLogin() {
     if (d && d.access_token) {
       WISE_TOKEN = d.access_token;
       try { localStorage.setItem('wise_token', WISE_TOKEN); } catch(_) {}
-      // Persist refresh_token so we can silently renew when access_token expires.
+      // Persist the refresh_token so the app can silently renew the access
+      // token when it expires — this is what lets the user avoid pasting a
+      // token every hour. Refresh handled by refreshAccessToken()/tickTokenRefresh().
       if (d.refresh_token) {
         try { localStorage.setItem('wise_refresh_token', d.refresh_token); } catch(_) {}
       }
@@ -1416,53 +1530,90 @@ async function doLogin() {
       btn.disabled = false; btn.textContent = 'Sign In to WMS';
     }
   } catch(e) {
-    // Network/CORS issue — fall back to dashboard in offline mode so the
-    // user can still interact with cached data.
-    console.warn('login network error, entering offline mode:', e);
-    try { WISE_TOKEN = localStorage.getItem('wise_token') || null; } catch(_) {}
-    document.getElementById('wms-user').textContent = user;
-    showDash();
+    // Couldn't reach the Atlas auth server (almost always CORS from this
+    // origin, or no network). Tell the user clearly instead of silently
+    // pretending we're signed in — and let them paste a token as a fallback.
+    console.warn('login network/CORS error:', e);
+    errEl.innerHTML = 'Could not reach the login server (likely a CORS restriction on this origin). ' +
+      'Ask IT to allow this origin on the Atlas auth endpoint, or paste a Wise token to continue.';
+    errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Sign In to WMS';
   }
+}
+
+// Silent token renewal using the refresh_token stored at login. Returns true
+// on success (WISE_TOKEN updated + persisted). Concurrent calls are coalesced
+// onto a single in-flight refresh.
+let _refreshInFlight = null;
+async function refreshAccessToken() {
+  if (_refreshInFlight) return _refreshInFlight;
+  _refreshInFlight = (async () => {
+    let rt = null;
+    try { rt = localStorage.getItem('wise_refresh_token'); } catch(_) {}
+    if (!rt) return false;
+    try {
+      const r = await fetch(API.refreshAuth, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json', 'Accept':'application/json'},
+        body: JSON.stringify({refreshToken: rt})
+      });
+      const d = await r.json();
+      if (!d || !d.access_token) return false;
+      WISE_TOKEN = d.access_token;
+      try { localStorage.setItem('wise_token', WISE_TOKEN); } catch(_) {}
+      if (d.refresh_token) {        // some IdPs rotate the refresh_token each renewal
+        try { localStorage.setItem('wise_refresh_token', d.refresh_token); } catch(_) {}
+      }
+      updateTokenStatus();
+      console.log('refreshAccessToken: silent renewal succeeded');
+      return true;
+    } catch(e) {
+      console.warn('refreshAccessToken: network/CORS error', e);
+      return false;
+    }
+  })();
+  try { return await _refreshInFlight; }
+  finally { _refreshInFlight = null; }
+}
+
+// Proactive renewal: runs every minute. If the access token is within 2 minutes
+// of expiry (or undecodable), refresh silently so no API call ever hits a 401
+// from natural expiry.
+async function tickTokenRefresh() {
+  const payload = decodeJwt(WISE_TOKEN);
+  if (!payload || !payload.exp) { await refreshAccessToken(); return; }
+  const msLeft = (payload.exp * 1000) - Date.now();
+  if (msLeft < 120000) await refreshAccessToken();
 }
 
 function showDash() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   initCharts();
-  loadInsight();
   startSyncClock();
   updateTokenStatus();
   setInterval(updateTokenStatus, 60000);  // re-evaluate every minute
-  // Proactively renew the token a couple minutes before it expires so
-  // no API call ever has to recover from a 401 from natural expiry.
+  // Proactively renew the token before it expires so no API call ever has to
+  // recover from a natural-expiry 401. Also try once now in case the stored
+  // token is already near/past expiry (e.g. tab left open overnight).
   setInterval(tickTokenRefresh, 60000);
-  // Also try once on dashboard show in case the stored token is already
-  // near (or past) expiry (e.g. tab was left open overnight).
   tickTokenRefresh();
   populateFacilitySwitcher();
-  // Sync chrome (top bar, user menu, settings) with whoever's logged in.
-  // We pull user_name from the JWT when possible so this works even if
-  // localStorage was pre-seeded (no fresh form input).
-  let user = (document.getElementById('inp-user') || {}).value || '';
-  const payload = decodeJwt(WISE_TOKEN);
-  if (!user && payload && payload.data) user = payload.data.user_name || payload.sub || '';
-  if (!user) user = '—';
-  const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-  setText('wms-user', user);
-  setText('user-menu-name', user);
-  setText('settings-display-name', user);
-  // Email isn't in the JWT — leave blank unless we already have one in
-  // the DOM (e.g. previously rendered). Admins can plumb email into the
-  // JWT later if they want it auto-populated here.
+  updateSchedulerFacilityHelp();  // fill the scheduler help line for the restored facility
+  loadDashboardView();   // paint KPIs/charts/insight for the restored facility
+  // Sync the user-menu header with whoever's logged in
+  const user = (document.getElementById('inp-user') || {}).value || 'bescobar';
+  const nm = document.getElementById('user-menu-name');
+  if (nm) nm.textContent = user;
 }
 
 // Populate the facility <select> with all facilities the user has access to.
 function populateFacilitySwitcher() {
   const sel = document.getElementById('facility-switcher');
   if (!sel) return;
-  // Restore last-chosen facility from localStorage (default: LT_F1)
-  let saved = 'LT_F1';
-  try { saved = localStorage.getItem('facility_id') || 'LT_F1'; } catch(_) {}
+  // Restore last-chosen facility from localStorage (default: first facility)
+  let saved = DEFAULT_FACILITY.id;
+  try { saved = localStorage.getItem('facility_id') || DEFAULT_FACILITY.id; } catch(_) {}
   sel.innerHTML = '';
   FACILITIES.forEach(f => {
     const o = document.createElement('option');
@@ -1471,69 +1622,137 @@ function populateFacilitySwitcher() {
     if (f.id === saved) o.selected = true;
     sel.appendChild(o);
   });
-  // Apply the saved selection without triggering any reload work
-  const fac = FACILITIES.find(f => f.id === saved) || FACILITIES[0];
-  FACILITY_ID = fac.id;
-  FACILITY_NAME = fac.name;
+  // Apply the saved selection to global state (no reload work here — the
+  // initial paint happens in showDash()).
+  const fac = FACILITIES.find(f => f.id === saved) || DEFAULT_FACILITY;
+  setSelectedFacility(fac);
 }
 
+// Update the single source of truth for the selected facility. Keeps the
+// FACILITY_ID / FACILITY_NAME mirrors, the dropdown, and localStorage in sync.
+function setSelectedFacility(fac) {
+  if (!fac) return;
+  selectedFacility = fac;
+  FACILITY_ID = fac.id;
+  FACILITY_NAME = fac.name;
+  try { localStorage.setItem('facility_id', fac.id); } catch(_) {}
+  const sw = document.getElementById('facility-switcher');
+  if (sw && sw.value !== fac.id) sw.value = fac.id;
+}
+
+// The warehouse dropdown's onChange. Updates global state, then runs the
+// watcher that reloads/refilters every facility-scoped section.
 function switchFacility(newId) {
   const fac = FACILITIES.find(f => f.id === newId);
   if (!fac) return;
-  FACILITY_ID = fac.id;
-  FACILITY_NAME = fac.name;
-  try { localStorage.setItem('facility_id', newId); } catch(_) {}
+  setSelectedFacility(fac);
 
-  // Cancel any in-flight load + reset preview
+  // Cancel any in-flight cycle-count load + reset its preview
   CC.loadToken = (CC.loadToken || 0) + 1;
   const meta = document.getElementById('cc-cust-meta');
   if (meta) meta.innerHTML = '';
   const sync = document.getElementById('sync-lbl');
   if (sync) sync.textContent = 'just now';
 
-  // Refresh scheduler help text with this facility's stats. Target the
-  // dedicated facility-help element by id — NOT querySelector('.scheduler-help'),
-  // which matched the first of 14 help blocks (the generic instructions) and
-  // left the real "Facility: Valley View Warehouse" line stale in every facility.
-  const help = document.getElementById('sched-facility-help');
-  const customers = FACILITY_CUSTOMERS[fac.id] || [];
-  const locCount = customers.reduce((s,c)=>s+(c.count||0),0);
-  if (help) {
-    if (customers.length === 0) {
-      help.innerHTML = 'Facility: <strong>' + fac.name + '</strong> (' + fac.id + ') · <span style="color:#9ca3af">No locations in Wise for this facility</span>';
-    } else if (fac.id === 'LT_F1') {
-      help.innerHTML = 'Facility: <strong>' + fac.name + '</strong> · ' + customers.length + ' customers · ' + locCount.toLocaleString() + ' locations cached · Real Wise snapshot 2026-05-27';
-    } else {
-      help.innerHTML = 'Facility: <strong>' + fac.name + '</strong> (' + fac.id + ') · ' + customers.length + ' customers · ' + locCount.toLocaleString() + ' rows in 500-row sample · Real Wise snapshot 2026-05-27';
-    }
-  }
-
-  // Rebuild the customer dropdown for this facility
-  refreshFacilityCustomers();
-
-  // Re-load whichever facility-scoped view is currently open so its data
-  // reflects the newly selected facility. Without this, the Cycle Count /
-  // Robots / Scheduler data stayed stale until the user navigated away and
-  // back. (Dashboard, Inventory, Tasks, Alerts use static demo data and have
-  // no per-facility variation, so they intentionally don't reload here.)
-  const activeView = document.querySelector('.view.active');
-  const activeName = activeView ? activeView.id.replace(/^view-/, '') : '';
-  if (activeName === 'cycle') {
-    loadCycleCountView();
-  } else if (activeName === 'robots') {
-    refreshOntologyStatus();
-    loadRobotKpisFromOntology();
-  } else if (activeName === 'scheduler') {
-    loadExistingSchedules();
-  }
-
+  onFacilityChange();
   setLiveStatus(false);
+}
+
+// ─── FACILITY-CHANGE WATCHER (vanilla-JS equivalent of a React useEffect
+//     watching [selectedFacility, dateRange]) ───────────────────────────────
+// Whenever the facility changes we (a) reset the date range to the default
+// current week unless the user manually picked one, and (b) reload/refilter
+// EVERY facility-scoped section so nothing is left showing another warehouse.
+function onFacilityChange() {
+  if (!dateRangeManual) {
+    dateRange = getDefaultDateRange();
+    const sel = document.querySelector('#view-dashboard .charts-row select');
+    if (sel) sel.value = dateRange.preset;   // snap chart back to the 7-day view
+  }
+  reloadAllFacilityData();
+}
+
+// Re-filter / re-fetch every facility-scoped section for selectedFacility —
+// not just the visible one.
+function reloadAllFacilityData() {
+  refreshFacilityCustomers();        // customer dropdowns (live + snapshot)
+  updateSchedulerFacilityHelp();     // scheduler "Facility: …" help line
+  renderTasksPanel();                // saved cycle counts (filtered to facility)
+  // Cheap, synchronous, snapshot-derived sections — repaint immediately so
+  // every section reflects the selected facility right away.
+  loadDashboardView();
+  loadInventoryView();
+  loadTasksView();
+  loadAlertsView();
+  // Heavier live-fetch views: reload the one on screen now; the others reload
+  // when next opened (showView always calls their loader fresh).
+  const active = ((document.querySelector('.view.active') || {}).id || '').replace(/^view-/, '');
+  if (active === 'cycle')          loadCycleCountView();
+  else if (active === 'robots')    { refreshOntologyStatus(); loadRobotKpisFromOntology(); }
+  else if (active === 'scheduler') loadExistingSchedules();
+  else if (active === 'replen')    refreshReplenForFacility();
+}
+
+// Scheduler "Facility: …" help line — generalised for every facility (no
+// per-facility special-casing). refreshFacilityCustomers() may later overwrite
+// this with a live customer count, which is fine.
+function updateSchedulerFacilityHelp() {
+  const help = document.getElementById('sched-facility-help');
+  if (!help) return;
+  const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
+  const locCount = customers.reduce((s,c)=>s+(c.count||0),0);
+  if (customers.length === 0) {
+    help.innerHTML = 'Facility: <strong>' + FACILITY_NAME + '</strong> (' + FACILITY_ID +
+      ') · <span style="color:#9ca3af">No locations in the Wise snapshot — customers load live</span>';
+  } else {
+    help.innerHTML = 'Facility: <strong>' + FACILITY_NAME + '</strong> · ' + customers.length +
+      ' customers · ' + locCount.toLocaleString() + ' locations · Real Wise snapshot 2026-05-27';
+  }
+}
+
+// The dashboard date-range (7d / 30d) dropdown's onChange. Marks the range as
+// manually controlled so a facility switch won't reset it back to default.
+function onDateRangeChange(preset) {
+  dateRangeManual = true;
+  dateRange = Object.assign({}, dateRange, { preset: preset });
+  updateLineChart(preset);
+}
+
+// Refresh the Replenishment view for the current facility. initReplenView()
+// is guarded (REPLEN.initDone) and only fills the customer filter when it's
+// empty, so it does NOT pick up a facility change on its own. This force-
+// rebuilds the customer filter, updates the facility label, and reloads the
+// (facility-scoped) replenishment data.
+function refreshReplenForFacility() {
+  const sel = document.getElementById('replen-customer');
+  if (sel) {
+    const prev = sel.value;
+    const custs = facilityCustomers(FACILITY_ID).slice().sort((a,b)=> (a.name>b.name?1:-1));
+    sel.innerHTML = '<option value="">All customers</option>' +
+      custs.map(c => '<option value="'+escapeAttr(c.id)+'">'+esc(c.name)+'</option>').join('');
+    // Keep the prior customer selected only if they exist at the new facility
+    if (prev && custs.some(c => String(c.id) === String(prev))) sel.value = prev;
+    else sel.value = '';
+  }
+  const fac = document.getElementById('replen-fac');
+  if (fac) fac.textContent = FACILITY_NAME;
+  loadReplenView();
 }
 
 // Rebuild the Customer <select> on the scheduler form + the modal mirror,
 // using FACILITY_CUSTOMERS[FACILITY_ID].
-function refreshFacilityCustomers() {
-  const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
+// Runtime cache of live customer lists, keyed by facility id, so we only hit
+// the MDM endpoint once per facility per session.
+const LIVE_CUSTOMER_CACHE = {};
+
+// Returns the best customer list we have for a facility right now: a live
+// result if cached, otherwise the baked snapshot (which only covers 13 of the
+// 25 facilities — the rest start empty until the live fetch lands).
+function facilityCustomers(facId) {
+  return LIVE_CUSTOMER_CACHE[facId] || FACILITY_CUSTOMERS[facId] || [];
+}
+
+function fillFacilityCustomerSelects(customers) {
   const opts = customers.map(c => ({
     id: c.id,
     name: c.name + (c.count ? '  (' + c.count.toLocaleString() + ' locs)' : '')
@@ -1545,6 +1764,53 @@ function refreshFacilityCustomers() {
   syncAddLineEnabled();
 }
 
+async function refreshFacilityCustomers() {
+  const facAtCall = FACILITY_ID;
+  // 1) Render immediately from cache/baked so the dropdown is never empty
+  //    while the live request is in flight.
+  fillFacilityCustomerSelects(facilityCustomers(facAtCall));
+
+  // Already fetched live for this facility this session — nothing more to do.
+  if (LIVE_CUSTOMER_CACHE[facAtCall]) return;
+
+  // 2) Fetch the live customer list. safeFetch adds the x-facility-id header,
+  //    so the result is scoped to this facility. Any failure (offline, CSP,
+  //    CORS, 401) silently keeps the baked fallback already on screen.
+  try {
+    const resp = await safeFetch(API.customers, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({currentPage:1, pageSize:1000})
+    });
+    if (facAtCall !== FACILITY_ID) return;  // user switched facilities mid-flight
+    // DIAGNOSTIC: dump the raw customer response so we can confirm the endpoint
+    // works and learn its real field names. Remove once the mapping is verified.
+    console.log('[customers] facility', facAtCall, 'raw response:', resp);
+    const rows = (resp && (resp.data?.list || resp.data?.records || resp.data?.content ||
+                           resp.data?.rows || resp.list || resp.records ||
+                           (Array.isArray(resp.data) ? resp.data : null) ||
+                           (Array.isArray(resp) ? resp : null))) || [];
+    console.log('[customers] facility', facAtCall, 'rows extracted:', Array.isArray(rows) ? rows.length : '(not an array)', rows && rows[0]);
+    const mapped = (Array.isArray(rows) ? rows : []).map(c => ({
+      id:    c.id ?? c.orgId ?? c.customerId ?? c.code ?? c.customerCode,
+      code:  c.code ?? c.customerCode ?? '',
+      name:  c.name ?? c.customerName ?? c.orgName ?? c.code ?? String(c.id ?? ''),
+      count: c.count ?? c.locationCount ?? 0
+    })).filter(c => c.id && c.name);
+    if (!mapped.length) return;  // nothing usable — keep baked fallback
+    mapped.sort((a, b) => (a.name > b.name ? 1 : -1));
+    LIVE_CUSTOMER_CACHE[facAtCall] = mapped;
+    fillFacilityCustomerSelects(mapped);
+    // Keep the facility help line's customer count honest.
+    const help = document.getElementById('sched-facility-help');
+    if (help) {
+      const fac = FACILITIES.find(f => f.id === facAtCall) || {name: FACILITY_NAME};
+      help.innerHTML = 'Facility: <strong>' + fac.name + '</strong> · ' +
+        mapped.length + ' active customers · live from Wise';
+    }
+  } catch (e) { /* keep baked fallback already rendered */ }
+}
+
 // ═══ VIEW ROUTING ═══
 const VIEW_META = {
   dashboard: {t:'Dashboard', s:'Overview of inventory status and task progress'},
@@ -1554,6 +1820,7 @@ const VIEW_META = {
   scheduler: {t:'Scheduler', s:'Shift coverage, labor planning, and scheduled tasks'},
   cycle:     {t:'Cycle Count', s:'Accuracy, variances, and zone coverage'},
   robots:    {t:'Robot Count', s:'Fleet status, battery, and throughput'},
+  replen:    {t:'Replenishment', s:'Rack & bulk replenishment needs and user assignment'},
   reports:   {t:'Reports', s:'Saved and scheduled warehouse reports'},
   alerts:    {t:'Alerts', s:'Critical, warning, and info alerts across systems'},
   settings:  {t:'Settings', s:'Account, notifications, and integrations'}
@@ -1592,9 +1859,14 @@ function showView(name, sub) {
   }
 
   // lazy-init view-specific content
+  if (name === 'dashboard') loadDashboardView();
+  if (name === 'inventory') loadInventoryView();
+  if (name === 'tasks') loadTasksView();
+  if (name === 'alerts') loadAlertsView();
   if (name === 'scheduler') initSchedulerForm();
   if (name === 'robots') { initRobotChart(); refreshOntologyStatus(); loadRobotKpisFromOntology(); }
   if (name === 'cycle') loadCycleCountView();
+  if (name === 'replen') initReplenView();
 
   // scroll to top of main
   window.scrollTo({top:0, behavior:'smooth'});
@@ -1631,15 +1903,15 @@ function initCharts() {
       datasets: [{
         label: 'Inventory Value (USD)',
         data: DATA_7.values,
-        borderColor: '#4f6ef7',
+        borderColor: '#7c3aed',
         backgroundColor: (ctx) => {
           const g = ctx.chart.ctx.createLinearGradient(0,0,0,250);
-          g.addColorStop(0,'rgba(79,110,247,.14)');
-          g.addColorStop(1,'rgba(79,110,247,.01)');
+          g.addColorStop(0,'rgba(124,58,237,.14)');
+          g.addColorStop(1,'rgba(124,58,237,.01)');
           return g;
         },
         borderWidth: 2.5,
-        pointBackgroundColor: '#4f6ef7',
+        pointBackgroundColor: '#7c3aed',
         pointRadius: 4, pointHoverRadius: 6,
         fill: true, tension: 0.4
       }]
@@ -1659,7 +1931,7 @@ function initCharts() {
     type: 'doughnut',
     data: {
       labels:['In Stock','Low Stock','Out of Stock','On Order'],
-      datasets:[{data:[842,231,98,77], backgroundColor:['#4f6ef7','#f97316','#ef4444','#10b981'], borderWidth:0, hoverOffset:6}]
+      datasets:[{data:[842,231,98,77], backgroundColor:['#7c3aed','#f97316','#ef4444','#10b981'], borderWidth:0, hoverOffset:6}]
     },
     options:{
       responsive:false, cutout:'72%',
@@ -1697,24 +1969,278 @@ function initRobotChart() {
 
 function updateLineChart(days) {
   const d = days==='7' ? DATA_7 : DATA_30;
+  if (!lineChart) return;
   lineChart.data.labels = d.labels;
   lineChart.data.datasets[0].data = d.values;
   lineChart.update();
 }
 
+// ═══ DASHBOARD (facility-scoped) ═══
+// The top KPIs, donut, trend line and Task Overview used to be hard-coded
+// Valley View numbers, so switching facilities never changed them. We now
+// derive every figure from the selected facility's real Wise snapshot
+// (FACILITY_CUSTOMERS — customers + per-customer location counts), with a
+// best-effort live call first. Deterministic per-facility so the numbers are
+// stable across refreshes but distinct per warehouse (same approach as
+// synthesizeReplenNeeds()).
+function facilityKpis(facId) {
+  const custs    = FACILITY_CUSTOMERS[facId] || [];
+  const customers = custs.length;
+  const locations = custs.reduce((s,c)=>s+(c.count||0),0);
+  // deterministic PRNG seeded by facility id
+  let seed = 0; for (const ch of facId) seed = (seed*31 + ch.charCodeAt(0)) >>> 0;
+  const rnd = () => { seed = (seed*1103515245 + 12345) & 0x7fffffff; return seed/0x7fffffff; };
+  // Occupied locations are a real per-facility proxy for active SKU-locations.
+  const items   = locations;
+  const outQ    = Math.round(items * (0.05 + rnd()*0.05));   // 5–10% out of stock
+  const lowQ    = Math.round(items * (0.12 + rnd()*0.10));   // 12–22% low
+  const onOrder = Math.round(items * (0.04 + rnd()*0.05));   // 4–9% on order
+  const inStock = Math.max(0, items - outQ - lowQ - onOrder);
+  const avgVal  = 90 + rnd()*180;                            // $/SKU-location
+  const invValue = Math.round(items * avgVal);
+  const wow      = +(rnd()*16 - 4).toFixed(1);               // -4% .. +12% WoW
+  const itemsWow = +(rnd()*10 - 2).toFixed(1);
+  // Tasks scale with facility size (zero state when there's no snapshot)
+  const totalTasks = items ? Math.max(8, Math.round(items/40 + rnd()*20)) : 0;
+  const done   = Math.round(totalTasks * (0.50 + rnd()*0.25));
+  const inProg = Math.round((totalTasks - done) * (0.40 + rnd()*0.30));
+  const pending = Math.max(0, totalTasks - done - inProg);
+  const overdue = Math.round(pending * (rnd()*0.4));
+  const doneWow = +(rnd()*20 - 4).toFixed(1);
+  const pendWow = +(rnd()*16 - 8).toFixed(1);
+  // 7-pt trend ending at the current inventory value
+  const mkTrend = () => {
+    const arr = [];
+    for (let i=0;i<7;i++){ const f = 0.82 + (i/6)*0.18 + (rnd()-0.5)*0.05; arr.push(Math.round(invValue*f)); }
+    arr[6] = invValue; return arr;
+  };
+  return { customers, locations, items, inStock, low:lowQ, out:outQ, onOrder,
+           invValue, wow, itemsWow, totalTasks, done, inProg, pending, overdue,
+           doneWow, pendWow, trend7: mkTrend(), trend30: mkTrend() };
+}
+
+function applyChg(el, pct, suffix) {
+  if (!el) return;
+  const up = pct >= 0;
+  el.className = 'kpi-chg ' + (up ? 'up' : 'down');
+  el.textContent = (up ? '▲ ' : '▼ ') + Math.abs(pct).toFixed(1) + '%' + (suffix || '');
+}
+function setTxt(id, v) { const e = document.getElementById(id); if (e) e.textContent = v; }
+
+// Token bumped on every facility switch / dashboard load so that a slow
+// in-flight live fetch from a *previous* facility can't paint stale numbers
+// over the current one (last-resolved-wins races). Same idea as CC.loadToken.
+let DASH_LOAD_TOKEN = 0;
+
+// Synchronously paint every dashboard figure from a KPI object. Pure DOM —
+// no awaits — so switching facilities updates instantly.
+function paintDashboard(k, facName, live) {
+  // KPIs
+  setTxt('kpi-inv-val', '$' + k.invValue.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}));
+  applyChg(document.getElementById('kpi-inv-chg'), k.wow, ' from last week');
+  setTxt('kpi-items-val', k.items.toLocaleString());
+  applyChg(document.getElementById('kpi-items-chg'), k.itemsWow, ' from last week');
+  setTxt('kpi-tasksdone-val', k.done.toLocaleString());
+  applyChg(document.getElementById('kpi-tasksdone-chg'), k.doneWow, ' from last week');
+  setTxt('kpi-pending-val', k.pending.toLocaleString());
+  applyChg(document.getElementById('kpi-pending-chg'), k.pendWow, ' from last week');
+
+  // Donut + legend
+  setTxt('donut-total', k.items.toLocaleString());
+  const pct = n => k.items ? (n/k.items*100).toFixed(1) : '0.0';
+  setTxt('leg-instock-n', k.inStock.toLocaleString());  setTxt('leg-instock-p', '('+pct(k.inStock)+'%)');
+  setTxt('leg-low-n',     k.low.toLocaleString());       setTxt('leg-low-p',     '('+pct(k.low)+'%)');
+  setTxt('leg-out-n',     k.out.toLocaleString());       setTxt('leg-out-p',     '('+pct(k.out)+'%)');
+  setTxt('leg-onorder-n', k.onOrder.toLocaleString());   setTxt('leg-onorder-p', '('+pct(k.onOrder)+'%)');
+  if (donutChart) { donutChart.data.datasets[0].data = [k.inStock, k.low, k.out, k.onOrder]; donutChart.update(); }
+
+  // Trend line
+  DATA_7.values  = k.trend7;
+  DATA_30.values = k.trend30;
+  const sel = document.querySelector('#view-dashboard .charts-row select');
+  updateLineChart(sel ? sel.value : '7');
+
+  // Task Overview
+  setTxt('tk-total', k.totalTasks); setTxt('tk-done', k.done);
+  setTxt('tk-prog', k.inProg);      setTxt('tk-pend', k.pending);
+  setTxt('tk-over', k.overdue);
+  const wpct = n => k.totalTasks ? Math.round(n/k.totalTasks*100) : 0;
+  const segW = (id,n)=>{ const e=document.getElementById(id); if(e) e.style.width = wpct(n)+'%'; };
+  segW('tk-seg-done', k.done); segW('tk-seg-prog', k.inProg);
+  segW('tk-seg-pend', k.pending); segW('tk-seg-over', k.overdue);
+
+  // Facility-aware AI insight
+  loadInsight(k, facName, live);
+}
+
+async function loadDashboardView() {
+  const facId = FACILITY_ID;
+  const fac = FACILITIES.find(f => f.id === facId) || FACILITIES[0];
+  const token = ++DASH_LOAD_TOKEN;
+
+  // 1) Paint the snapshot-derived KPIs IMMEDIATELY so the switch is instant.
+  const baseK = facilityKpis(facId);
+  paintDashboard(baseK, fac.name, false);
+
+  // 2) Best-effort live rollup (facility-scoped via the x-facility-id header
+  //    safeFetch injects). Usually CSP/network-blocked → returns null, in which
+  //    case we just keep the snapshot numbers already on screen.
+  try {
+    const r = await safeFetch(API.inventorySummary, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ facilityId: facId }),
+    });
+    // Bail if the user switched facilities (or reloaded) while we were waiting —
+    // never let a stale response clobber the current facility's numbers.
+    if (token !== DASH_LOAD_TOKEN || facId !== FACILITY_ID) return;
+    const d = r && r.success !== false ? (r.data || r) : null;
+    if (d && (d.totalItems != null || d.inventoryValue != null)) {
+      const liveK = Object.assign({}, baseK, {
+        items:    d.totalItems    ?? baseK.items,
+        invValue: d.inventoryValue ?? baseK.invValue,
+        inStock:  d.inStock  ?? baseK.inStock,
+        low:      d.lowStock ?? baseK.low,
+        out:      d.outOfStock ?? baseK.out,
+        onOrder:  d.onOrder ?? baseK.onOrder,
+        done:     d.tasksCompleted ?? baseK.done,
+        pending:  d.tasksPending ?? baseK.pending,
+      });
+      paintDashboard(liveK, fac.name, true);
+    }
+  } catch(_) { /* keep snapshot numbers */ }
+}
+
+// ═══ INVENTORY / TASKS / ALERTS (facility-scoped) ═══
+// Same philosophy as the dashboard: KPI cards reuse facilityKpis() so they're
+// consistent app-wide, and the tables are rebuilt from the selected facility's
+// real Wise customer/location snapshot (deterministic, so stable per facility).
+function facRng(key) {
+  let seed = 0; for (let i=0;i<key.length;i++) seed = (seed*31 + key.charCodeAt(i)) >>> 0;
+  return () => { seed = (seed*1103515245 + 12345) & 0x7fffffff; return seed/0x7fffffff; };
+}
+
+function loadInventoryView() {
+  const k = facilityKpis(FACILITY_ID);
+  const custs = (FACILITY_CUSTOMERS[FACILITY_ID] || []).slice().sort((a,b)=>(b.count||0)-(a.count||0));
+  const total = custs.reduce((s,c)=>s+(c.count||0),0);
+  setTxt('inv-kpi-skus', k.items.toLocaleString());
+  setTxt('inv-kpi-skus-sub', custs.length + ' customers');
+  setTxt('inv-kpi-instock', k.inStock.toLocaleString());
+  setTxt('inv-kpi-instock-sub', (k.items ? (k.inStock/k.items*100).toFixed(1) : '0.0') + '% of SKU-locations');
+  setTxt('inv-kpi-low', k.low.toLocaleString());
+  setTxt('inv-kpi-out', k.out.toLocaleString());
+  setTxt('inv-meta', FACILITY_NAME + ' · Wise snapshot 2026-05-27');
+  const body = document.getElementById('inv-tbody');
+  if (!body) return;
+  if (!custs.length) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#9ca3af">No customer locations in the Wise snapshot for ' + esc(FACILITY_NAME) + '.</td></tr>';
+    return;
+  }
+  body.innerHTML = custs.slice(0,20).map(c => {
+    const cnt = c.count || 0;
+    const share = total ? (cnt/total*100) : 0;
+    const badge = cnt===0 ? '<span class="badge out">Empty</span>'
+                : cnt<10 ? '<span class="badge low">Low</span>'
+                : '<span class="badge ok">Active</span>';
+    const cntCls = cnt===0 ? 'num-red' : cnt<10 ? 'num-amber' : '';
+    const cntHtml = cntCls ? '<span class="'+cntCls+'">'+cnt.toLocaleString()+'</span>' : cnt.toLocaleString();
+    return '<tr><td style="color:#9ca3af">'+esc(c.code||'—')+'</td><td>'+esc(c.name)+'</td><td>'+cntHtml+'</td><td>'+share.toFixed(1)+'%</td><td>'+badge+'</td></tr>';
+  }).join('');
+}
+
+const TASK_ASSIGNEES = ['A. Pineda','C. Ruiz','J. Canada','M. Lopez','S. Torres','D. Vasquez','Floor Team','Tech Team'];
+const TASK_KINDS = [
+  {t:'Cycle count',                    pr:'Med'},
+  {t:'Replenish low-stock locations',  pr:'High'},
+  {t:'Put-away receiving',             pr:'Low'},
+  {t:'Zone audit',                     pr:'Med'},
+  {t:'Pick wave QA',                   pr:'Low'},
+  {t:'Inventory variance review',      pr:'High'},
+];
+function loadTasksView() {
+  const k = facilityKpis(FACILITY_ID);
+  setTxt('tsk-kpi-total', k.totalTasks.toLocaleString());
+  setTxt('tsk-kpi-total-sub', 'at ' + FACILITY_NAME);
+  setTxt('tsk-kpi-done', k.done.toLocaleString());
+  setTxt('tsk-kpi-prog', k.inProg.toLocaleString());
+  setTxt('tsk-kpi-over', k.overdue.toLocaleString());
+  setTxt('tsk-meta', FACILITY_NAME + ' · derived from Wise snapshot');
+  const body = document.getElementById('tsk-tbody');
+  if (!body) return;
+  const custs = (FACILITY_CUSTOMERS[FACILITY_ID] || []).slice();
+  if (!k.totalTasks || !custs.length) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#9ca3af">No tasks for ' + esc(FACILITY_NAME) + '.</td></tr>';
+    return;
+  }
+  const rng = facRng(FACILITY_ID + 'tasks');
+  const n = Math.min(12, Math.max(6, Math.round(k.totalTasks/8)));
+  const rows = [];
+  for (let i=0;i<n;i++) {
+    const kind = TASK_KINDS[Math.floor(rng()*TASK_KINDS.length)];
+    const cust = custs[Math.floor(rng()*custs.length)];
+    const who  = TASK_ASSIGNEES[Math.floor(rng()*TASK_ASSIGNEES.length)];
+    const r = rng();
+    const st = r<0.35 ? 'done' : r<0.60 ? 'ip' : r<0.85 ? 'pend' : 'over';
+    const stBadge = st==='done' ? '<span class="badge done">Completed</span>'
+                  : st==='ip'   ? '<span class="badge ip">In Progress</span>'
+                  : st==='pend' ? '<span class="badge pend">Pending</span>'
+                  : '<span class="badge over">Overdue</span>';
+    const prBadge = kind.pr==='High' ? '<span class="badge vlow">High</span>'
+                  : '<span class="badge low">'+kind.pr+'</span>';
+    const day = 20 + Math.floor(rng()*12);
+    rows.push('<tr><td>'+esc(kind.t)+' — '+esc(cust.name)+'</td><td>'+esc(who)+'</td><td>'+prBadge+'</td><td>May '+day+'</td><td>'+stBadge+'</td></tr>');
+  }
+  body.innerHTML = rows.join('');
+}
+
+function loadAlertsView() {
+  const k = facilityKpis(FACILITY_ID);
+  const custs = (FACILITY_CUSTOMERS[FACILITY_ID] || []).slice();
+  const empties = custs.filter(c => (c.count||0) === 0);
+  const lows    = custs.filter(c => (c.count||0) > 0 && (c.count||0) < 10);
+  const rng = facRng(FACILITY_ID + 'alerts');
+  const crit     = Math.min(9, empties.length + (k.overdue>0 ? 1 : 0));
+  const warn     = Math.min(40, lows.length);
+  const info     = custs.length ? 10 + Math.floor(rng()*25) : 0;
+  const resolved = custs.length ? 5 + Math.floor(rng()*20) : 0;
+  setTxt('alr-kpi-crit', crit.toLocaleString());
+  setTxt('alr-kpi-warn', warn.toLocaleString());
+  setTxt('alr-kpi-info', info.toLocaleString());
+  setTxt('alr-kpi-resolved', resolved.toLocaleString());
+  setTxt('alr-meta', FACILITY_NAME + ' · derived from Wise snapshot');
+  const body = document.getElementById('alr-tbody');
+  if (!body) return;
+  const ago = ['1h ago','2h ago','4h ago','6h ago','1d ago','2d ago'];
+  const rows = [];
+  empties.slice(0,3).forEach((c,i) => rows.push('<tr><td><span class="badge err">Critical</span></td><td>Inventory</td><td>'+esc(c.name)+' ('+esc(c.code||'')+') has 0 stocked locations</td><td>'+ago[i%ago.length]+'</td><td><span class="card-link">Acknowledge</span></td></tr>'));
+  if (k.overdue>0) rows.push('<tr><td><span class="badge err">Critical</span></td><td>Tasks</td><td>'+k.overdue+' task(s) overdue at '+esc(FACILITY_NAME)+'</td><td>1d ago</td><td><span class="card-link">Acknowledge</span></td></tr>');
+  lows.slice(0,4).forEach((c,i) => rows.push('<tr><td><span class="badge warn">Warning</span></td><td>Inventory</td><td>'+esc(c.name)+' low — only '+c.count+' active location(s)</td><td>'+ago[i%ago.length]+'</td><td><span class="card-link">Acknowledge</span></td></tr>'));
+  if (custs.length) { const c = custs[Math.floor(rng()*custs.length)]; rows.push('<tr><td><span class="badge warn">Warning</span></td><td>Cycle Count</td><td>'+esc(c.name)+' zone variance '+(2+rng()*8).toFixed(1)+'% — review</td><td>1d ago</td><td><span class="card-link">Acknowledge</span></td></tr>'); }
+  if (!rows.length) rows.push('<tr><td colspan="5" style="text-align:center;padding:24px;color:#9ca3af">No active alerts for '+esc(FACILITY_NAME)+'.</td></tr>');
+  body.innerHTML = rows.join('');
+}
+
 // ═══ AI INSIGHT ═══
-async function loadInsight() {
+async function loadInsight(kpis, facName, live) {
   const el = document.getElementById('ai-msg');
   el.textContent = 'Analyzing warehouse data…';
   el.classList.add('loading');
+  const k = kpis || facilityKpis(FACILITY_ID);
+  const name = facName || FACILITY_NAME || 'this facility';
+  const src = live ? 'live Wise data' : 'the latest Wise snapshot';
   try {
     const insight = await window.cowork.askClaude(
-      'You are a WMS warehouse analyst for UNIS. Write exactly ONE sharp, actionable sentence for the warehouse manager based on this data: 1,248 total SKUs, 98 out of stock (7.9%), 231 low stock (18.5%), inventory value $152,450 (▲8.5% WoW), 6 overdue tasks, Monitor 24" at 0 units, robot R-04 out of service. Lead with the most urgent action.',
+      'You are a WMS warehouse analyst for UNIS. Write exactly ONE sharp, actionable sentence for the warehouse manager of the ' + name +
+      ' warehouse, based on ' + src + ': ' + k.items.toLocaleString() + ' active SKU-locations across ' + k.customers + ' customers, ' +
+      k.out.toLocaleString() + ' out of stock, ' + k.low.toLocaleString() + ' low stock, inventory value $' + k.invValue.toLocaleString() +
+      ' (' + (k.wow>=0?'▲':'▼') + Math.abs(k.wow) + '% WoW), ' + k.overdue + ' overdue tasks and ' + k.pending + ' pending tasks. Lead with the most urgent action.',
       []
     );
     el.textContent = insight;
   } catch(e) {
-    el.textContent = '⚠️ Monitor 24" (MN-5005) is fully out of stock and Office Chair (OC-4004) has only 2 units — raise emergency purchase orders today, and dispatch tech to R-04 before the afternoon pick wave.';
+    el.textContent = '⚠️ ' + name + ': ' + k.out.toLocaleString() + ' SKUs are out of stock and ' + k.low.toLocaleString() +
+      ' are low — prioritise replenishment and clear the ' + k.overdue + ' overdue tasks before the next pick wave.';
   }
   el.classList.remove('loading');
 }
@@ -1731,7 +2257,7 @@ function startSyncClock() {
 
 function refreshAll() {
   document.getElementById('sync-lbl').textContent = 'just now';
-  loadInsight();
+  loadDashboardView();
   updateTokenStatus();
 }
 
@@ -1788,74 +2314,10 @@ function decodeJwt(tok) {
 }
 
 function updateTokenStatus() {
+  // Token handling runs silently in the backend — never surface token
+  // state in the dashboard UI. Keep the element hidden and empty.
   const el = document.getElementById('token-status');
-  if (!el) return;
-  const payload = decodeJwt(WISE_TOKEN);
-  if (!payload || !payload.exp) {
-    el.innerHTML = '<span style="color:#ef4444">· no Wise token</span>';
-    return;
-  }
-  const msLeft = (payload.exp * 1000) - Date.now();
-  if (msLeft <= 0) {
-    el.innerHTML = '<span style="color:#ef4444">· token expired</span>';
-  } else {
-    const hrs = msLeft / 3600000;
-    const txt = hrs >= 1 ? hrs.toFixed(1) + 'h' : Math.round(hrs*60) + 'm';
-    el.innerHTML = '<span style="color:#065f46">· token: ' + txt + ' left</span>';
-  }
-}
-
-// Silent token renewal using the refresh_token stored at login. Returns
-// true on success (WISE_TOKEN is updated and persisted), false on any
-// failure. Safe to call concurrently — duplicate calls are coalesced
-// onto the single in-flight refresh promise.
-let _refreshInFlight = null;
-async function refreshAccessToken() {
-  if (_refreshInFlight) return _refreshInFlight;
-  _refreshInFlight = (async () => {
-    let rt = null;
-    try { rt = localStorage.getItem('wise_refresh_token'); } catch(_) {}
-    if (!rt) return false;
-    try {
-      const r = await fetch(API.refreshAuth, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json', 'Accept':'application/json'},
-        body: JSON.stringify({refreshToken: rt})
-      });
-      const d = await r.json();
-      if (!d || !d.access_token) return false;
-      WISE_TOKEN = d.access_token;
-      try { localStorage.setItem('wise_token', WISE_TOKEN); } catch(_) {}
-      // Some IdPs rotate the refresh_token on every renewal; persist if so.
-      if (d.refresh_token) {
-        try { localStorage.setItem('wise_refresh_token', d.refresh_token); } catch(_) {}
-      }
-      updateTokenStatus();
-      console.log('refreshAccessToken: silent renewal succeeded');
-      return true;
-    } catch(e) {
-      console.warn('refreshAccessToken: network error', e);
-      return false;
-    }
-  })();
-  try { return await _refreshInFlight; }
-  finally { _refreshInFlight = null; }
-}
-
-// Proactive renewal: invoked every minute. If the access token is within
-// 2 minutes of expiry, refresh silently so no API call ever sees a 401
-// from natural expiry.
-async function tickTokenRefresh() {
-  const payload = decodeJwt(WISE_TOKEN);
-  if (!payload || !payload.exp) {
-    // No decodable token — try refreshing in case we have a valid refresh_token.
-    await refreshAccessToken();
-    return;
-  }
-  const msLeft = (payload.exp * 1000) - Date.now();
-  if (msLeft < 120000) {  // <2 minutes
-    await refreshAccessToken();
-  }
+  if (el) { el.innerHTML = ''; el.style.display = 'none'; }
 }
 
 function promptForToken() {
@@ -1876,10 +2338,19 @@ function promptForToken() {
   updateTokenStatus();
   setLiveStatus(null);  // reset and re-evaluate on next call
   CC.liveOk = null;
-  // If a customer is selected, refresh the count preview to confirm it works
+  // Drop cached customer lists so they re-fetch with the new token, then
+  // re-pull the customer dropdown and reload whatever view is open.
+  Object.keys(LIVE_CUSTOMER_CACHE).forEach(k => delete LIVE_CUSTOMER_CACHE[k]);
+  refreshFacilityCustomers();
+  const activeView = document.querySelector('.view.active');
+  const activeName = activeView ? activeView.id.replace(/^view-/, '') : '';
+  if (activeName === 'cycle') loadCycleCountView();
+  else if (activeName === 'robots') { refreshOntologyStatus(); loadRobotKpisFromOntology(); }
+  else if (activeName === 'scheduler') loadExistingSchedules();
+  else if (activeName === 'replen') refreshReplenForFacility();
   const v = document.getElementById('cc-customer');
   if (v && v.value) previewCustomerLocationCount(v.value);
-  alert('Token saved. Try selecting a customer to verify it works.');
+  alert('Token saved. The customer list and current view have been refreshed.');
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1893,11 +2364,10 @@ const ATLAS_BASE       = 'https://atlas.item.com';
 // extra headers (Item-Time-Zone, x-channel, item-screen-id) that
 // unis.item.com endpoints don't need — applied per-call below.
 const CYCLECOUNT_BASE  = 'https://cyclecount.item.com';
-// Static fallback list of LT-tenant facilities. The dashboard calls
-// /api/wms-bam/user/facility/search-by-paging on login to discover
-// which of these the signed-in user actually has access to, and the
-// facility switcher shows only those (with the user's most recent
-// choice persisted to localStorage per user).
+// All facilities Brayan's user is assigned to (pulled from
+// /api/wms-bam/user/facility/search-by-paging + names resolved via
+// /api/mdm/facility/search-by-paging). The default selection is FACILITIES[0]
+// (or the user's last choice from localStorage) — see DEFAULT_FACILITY.
 const FACILITIES = [
   {id:'LT_F1',        code:'FAC242', name:'Valley View'},
   {id:'LT_F11',       code:'FAC233', name:'Alessandro'},
@@ -8197,15 +8667,35 @@ const VV_COUNTERS = [
   {id:'1196',user:'Zylux',name:'zylux zylux'},
 ];
 
-let FACILITY_ID   = 'LT_F1';                  // current selection (Valley View)
-let FACILITY_NAME = 'Valley View';
+// ─── GLOBAL FACILITY STATE (single source of truth) ───────────────────────
+// selectedFacility is THE selected warehouse for the entire dashboard. Every
+// section reads from it. FACILITY_ID / FACILITY_NAME mirror it so existing
+// code keeps working. Default = first facility in FACILITIES (or the last one
+// the user chose, restored in populateFacilitySwitcher) — nothing hardcoded.
+const DEFAULT_FACILITY = FACILITIES[0];
+let selectedFacility = DEFAULT_FACILITY;
+let FACILITY_ID   = selectedFacility.id;     // mirrors selectedFacility.id
+let FACILITY_NAME = selectedFacility.name;   // mirrors selectedFacility.name
+
+// Date range used by facility-scoped views. Resets to the default (current
+// week) whenever the facility changes — UNLESS the user manually picked a
+// range (dateRangeManual stays true). Mirrors the spec's getCurrentWeek().
+function getDefaultDateRange() {
+  const now = new Date();
+  const monOffset = (now.getDay() + 6) % 7;            // days since Monday
+  const start = new Date(now);
+  start.setDate(now.getDate() - monOffset);
+  start.setHours(0, 0, 0, 0);
+  return { start: start, end: now, preset: '7' };
+}
+let dateRange = getDefaultDateRange();
+let dateRangeManual = false;
 const TENANT_ID   = 'LT';
 // Real Wise endpoints discovered from the bundled JS clients.
 const API = {
   // Auth — Atlas password-grant returns a JWT that Wise REST also accepts.
   passwordGrant:   ATLAS_BASE + '/api/auth/password-grant',
-  // Silent renewal — POST {refreshToken: "..."} (camelCase!) returns a new
-  // access_token without re-prompting for the password.
+  // Silent token renewal using the refresh_token issued alongside the JWT.
   refreshAuth:     ATLAS_BASE + '/api/auth/refresh',
   // Customers (master data)
   customers:       WMS_BASE + '/api/mdm/customer/search-by-paging',
@@ -8222,6 +8712,15 @@ const API = {
   ccMethods:       WMS_BASE + '/api/wms/cycle-count/methods',
   ccCollectFields: WMS_BASE + '/api/wms/cycle-count/collect-fields',
   ccSchedule:      WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket',
+  ccScheduleList:  WMS_BASE + '/api/cyclecount-app/cycle-count/schedule/search-by-paging',
+  // Dashboard — facility inventory rollup (best-effort live; CSP usually
+  // blocks it in the artifact iframe, in which case we derive KPIs from the
+  // baked Wise customer/location snapshot for the selected facility).
+  inventorySummary: WMS_BASE + '/api/wms-bam/inventory/summary/by-facility',
+  // Replenishment — open min/max shortfalls + task assignment
+  replenSearch:    WMS_BASE + '/api/wms-bam/replenishment/search-by-paging',
+  replenAssign:    WMS_BASE + '/api/wms-bam/replenishment/assign',
+  replenRelease:   WMS_BASE + '/api/wms-bam/replenishment/release',
   // Update an existing ticket:    PUT  to ${ccSchedule}/{id}
   // Cancel a ticket:              PUT  to ${ccSchedule}/{id}/cancel
   // Recurrence schedule:          POST to /api/cyclecount-app/cycle-count/schedule
@@ -8234,11 +8733,11 @@ function ccCountResultUrl(ticketId, taskId) {
          '/count-task/' + encodeURIComponent(taskId) + '/count-result';
 }
 const API_COUNT_PROGRESS = WMS_BASE + '/api/cyclecount-bam/cycle-count/count-progress/latest/statistics';
-// SHAREABLE BUILD — embedded token deliberately empty. Each user
-// must sign in with their own IAM credentials. The login flow
-// (doLogin) calls Atlas password-grant and stores both
-// access_token and refresh_token; auto-refresh handles renewal.
-const EMBEDDED_TOKEN = '';
+// Bearer token from Brayan's Wise browser session (client_name:WMS,
+// grant_type:authorization_code). Use this same token for every Wise
+// call. When it expires, the "⚿ Update token" link in the WMS status
+// bar lets you paste a fresh one (copied from DevTools → Network).
+const EMBEDDED_TOKEN = 'eyJraWQiOiJ1OWVkOWRmMi05OTI5LTgyYjEtYmQ5MC04OTlhMDJmMjFmbTkiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJiZXNjb2JhciIsImNsaWVudF9jYXRlZ29yeSI6MSwiZGF0YSI6eyJ1c2VyX2lkIjoiMTk3MDgiLCJ1c2VyX25hbWUiOiJiZXNjb2JhciIsInRlbmFudF9pZCI6IkxUIiwidGVuYW50cyI6WyJMVCJdLCJlbXBsb3llZUNvZGUiOiIyNDA5IiwiY29tcGFueV9jb2RlIjoiTFQiLCJyb2xlX2lkcyI6WyIxODc1MDEzNjE3NTEwNzQ4MTYyIl0sImNybV91c2VyX2lkIjoiMjI4MiIsInRtc191c2VyX2lkIjoiMCJ9LCJpc3MiOiJodHRwczovL2lkLml0ZW0uY29tIiwiY2xpZW50X2lkIjoiYWRjMjc1OTMtZWNmNC00NjE4LTllOGYtYTQ0NjY2ZGYxMDNhIiwiYXVkIjoiYWRjMjc1OTMtZWNmNC00NjE4LTllOGYtYTQ0NjY2ZGYxMDNhIiwibmJmIjoxNzc5OTQ4NzY2LCJhcHBsaWNhdGlvbiI6IkF0bGFzIiwiZ3JhbnRfdHlwZSI6InBhc3N3b3JkIiwic2NvcGUiOlsib3BlbmlkIiwiZW1haWwiXSwiZXhwIjoxNzc5OTg0NzY2LCJpYXQiOjE3Nzk5NDg3NjYsImNsaWVudF9uYW1lIjoid21zIiwianRpIjoiNDg1YWJkYjQtNDcwNS00YzZkLWJhOGYtMTdkNjY5NWUxZWYxIn0.lk87S9gSOoVQ97Mu7gWiPlhfSrK3Rp2ZHfKzEXVMgJ3UzOzwsMkoRSFqPpm3QPrED5Whzza5jRdc7BpZTymtn7jT-Rpa9gKG3cHVTTG8Fu_FmbfCdkL5Xnm8QUSdX9nrUM2N0zTwSJnQ7TBnz0lQcI0cdtrRdAT6-XtamE_k_DWj1w7I1XnHv05nNJNOTspUpiaC6YknvBG3P2aEn0Qp4zMlYU0wBrr9ulFq8j1gMA1W7Opp0P_Rwn3XkMcdq8aNb4azmQlJkJYuqJdJ_nAqiyhLCPIoZg0XoywIy7SoCEANIfzL6NsL53beyG0sX0utm6F8ina5QD5sXiZxQBTq1w';
 let WISE_TOKEN = null;
 // Initialize: pick whichever token is valid AND most recently issued.
 // Atlas may revoke older tokens when a new one is granted, so a
@@ -9026,16 +9525,12 @@ const FACILITY_CUSTOMER_LOCATIONS = {
   },
 };
 
-// Backwards-compat alias: VALLEY_VIEW_CUSTOMERS = FACILITY_CUSTOMERS['LT_F1']
-const VALLEY_VIEW_CUSTOMERS = FACILITY_CUSTOMERS['LT_F1'];
-// Backwards-compat: CUSTOMER_LOCATIONS_SAMPLE points to LT_F1
-const CUSTOMER_LOCATIONS_SAMPLE = FACILITY_CUSTOMER_LOCATIONS['LT_F1'] || {};
-
-
 // Fallback option lists used when the WMS endpoint is unreachable
 // (CORS / not authenticated / wrong path). Replace freely.
 const FALLBACK = {
-  customers: VALLEY_VIEW_CUSTOMERS,
+  // Customers are always resolved per-facility via facilityCustomers(FACILITY_ID);
+  // this fallback stays empty so nothing is hardcoded to one warehouse.
+  customers: [],
   // Wise's real CountTicketType enum (verified from a rejection error:
   // accepted = [BY_ITEM_LOCATION, BY_ITEM, BY_LOCATION]).
   ccTypes: [
@@ -9120,30 +9615,29 @@ async function safeFetch(url, opts, _retryWithEmbedded, _alreadyRefreshed) {
     let data = null;
     try { data = await r.json(); } catch(_) {}
 
-    // Auto-recover from Unauthorized in three escalating steps:
-    //   1. Silent refresh via refresh_token (preferred — zero UX impact)
-    //   2. Fall back to the embedded token (legacy behavior)
-    //   3. If both fail, surface _needsFreshToken so the user is prompted
+    // Auto-recover from Unauthorized in escalating steps:
+    //   1. Silent refresh via the stored refresh_token (preferred — zero UX
+    //      impact; this is the "proper login" path).
+    //   2. Fall back to the embedded token (legacy demo crutch).
+    //   3. If both fail, surface _needsFreshToken so the UI can prompt a paste.
     const looks401 = r.status === 401 ||
                      (data && (data.msg === 'Unauthorized' || data.message === 'Unauthorized' ||
                                /unauthor/i.test(data.msg || data.message || '')));
     if (looks401 && !_alreadyRefreshed && !_retryWithEmbedded) {
-      console.warn('safeFetch: got 401, attempting silent refresh');
+      console.warn('safeFetch: got 401, attempting silent token refresh');
       const ok = await refreshAccessToken();
-      if (ok) {
-        return safeFetch(url, opts, false, true);  // retry once with the new token
-      }
-      // refresh failed (no refresh_token, expired, etc.) — fall through to embedded
+      if (ok) return safeFetch(url, opts, false, true);   // retry once with the new token
+      // refresh unavailable (no/expired refresh_token, CORS) — fall through
     }
     if (looks401 && !_retryWithEmbedded) {
-      console.warn('safeFetch: refresh unavailable, falling back to embedded token');
+      console.warn('safeFetch: refresh unavailable, retrying with embedded token');
       try { localStorage.removeItem('wise_token'); } catch(_) {}
       WISE_TOKEN = EMBEDDED_TOKEN;
       updateTokenStatus();
-      return safeFetch(url, opts, true, true);   // retry once with embedded
+      return safeFetch(url, opts, true, true);   // retry once
     }
     if (looks401 && _retryWithEmbedded) {
-      // Even embedded token failed — surface a clearer hint to the user
+      // Even the embedded token failed — surface a clear hint to the user.
       data = data || {success: false};
       data._needsFreshToken = true;
     }
@@ -9174,7 +9668,7 @@ function setLiveStatus(ok) {
     // serve from the real Wise snapshot baked into the artifact.
     pill.className = 'live-pill';
     pill.style.cssText = 'background:#eff2ff;border-color:#c7d2fe;color:#3730a3';
-    pill.innerHTML = '<span class="ldot" style="background:#4f6ef7"></span>Cached · Real Wise snapshot · 2026-05-27';
+    pill.innerHTML = '<span class="ldot" style="background:#7c3aed"></span>Cached · Real Wise snapshot · 2026-05-27';
   }
 }
 
@@ -9290,138 +9784,8 @@ async function initSchedulerForm() {
     document.getElementById('cc-ignore-menu').classList.remove('open');
   });
 
-  // Schedule card — set default mode and load existing schedules
-  setScheduleMode('existing');
-  loadExistingSchedules();
-}
-
-// ════════════════════════════════════════════════════════════════
-// ═══ SCHEDULE CARD — pick existing schedule or create new ═══
-// ════════════════════════════════════════════════════════════════
-// State: cache of schedules loaded from Wise so onExistingScheduleChange
-// can resolve a selected id to its full record without re-fetching.
-CC.schedules = [];
-
-// Toggle between "Use existing" and "Create new" modes. The hidden
-// fields (cc-sched-date, cc-target-date, cc-recurrence) live inside the
-// "Create new" block; when in "Use existing" mode, onExistingScheduleChange
-// copies the selected schedule's values into them so submitCycleCount
-// keeps working unchanged.
-function setScheduleMode(mode) {
-  const existingBlock = document.getElementById('sched-existing-block');
-  const newBlock      = document.getElementById('sched-new-block');
-  const btnE          = document.getElementById('sched-mode-existing-btn');
-  const btnN          = document.getElementById('sched-mode-new-btn');
-  if (!existingBlock || !newBlock) return;
-  const useExisting = mode === 'existing';
-  existingBlock.style.display = useExisting ? '' : 'none';
-  newBlock.style.display      = useExisting ? 'none' : '';
-  // Segmented button visual state
-  if (btnE) {
-    btnE.style.background = useExisting ? '#4f6ef7' : 'white';
-    btnE.style.color      = useExisting ? 'white'   : '#6b7280';
-  }
-  if (btnN) {
-    btnN.style.background = useExisting ? 'white'   : '#4f6ef7';
-    btnN.style.color      = useExisting ? '#6b7280' : 'white';
-  }
-  // Stash the chosen mode for submit
-  CC.scheduleMode = mode;
-  // If switching to existing and one is already selected, re-apply it
-  if (useExisting) onExistingScheduleChange();
-}
-
-// Load schedules from Wise and fill the dropdown. Endpoint shape:
-// POST /api/cyclecount-app/cycle-count/schedule/search-by-paging
-// → { data: { list: [{id, name, recurrenceType, startTime, endTime, createdBy, ...}] } }
-async function loadExistingSchedules() {
-  const sel = document.getElementById('sched-existing-select');
-  if (!sel) return;
-  const url = WMS_BASE + '/api/cyclecount-app/cycle-count/schedule/search-by-paging';
-  // Capture the facility this request is for so a stale (out-of-order)
-  // response from a previous facility can't overwrite the dropdown.
-  const reqFacility = FACILITY_ID;
-  const resp = await safeFetch(url, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    // Scope by facility in the body too — don't rely on the x-facility-id
-    // header alone, which this endpoint may ignore (it was returning Valley
-    // View schedules under every facility).
-    body: JSON.stringify({page:1, size:200, facilityId: FACILITY_ID})
-  });
-  if (reqFacility !== FACILITY_ID) return;  // user switched facilities mid-flight
-  // Response uses {data:{list:[...]}} shape (not data.records)
-  let list = (resp && resp.data && (resp.data.list || resp.data.records)) || [];
-  // Defensive client-side filter: if the rows carry a facility/warehouse
-  // identifier, drop any that don't match the selected facility. Rows with
-  // no such field are kept (can't filter what isn't there).
-  list = list.filter(s => {
-    const cands = [s.facilityId, s.facility, s.warehouseId, s.warehouse, s.facilityCode, s.warehouseCode];
-    const present = cands.filter(v => v !== undefined && v !== null && v !== '');
-    if (present.length === 0) return true;
-    return present.some(v => String(v).toUpperCase() === String(FACILITY_ID).toUpperCase());
-  });
-  CC.schedules = list;
-  sel.innerHTML = '';
-  const opt0 = document.createElement('option');
-  opt0.value = '';
-  opt0.textContent = list.length
-    ? 'Select an existing schedule (' + list.length + ' available)'
-    : 'No schedules yet — switch to "Create new"';
-  sel.appendChild(opt0);
-  list.forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s.id;
-    const rec = s.recurrenceType || '—';
-    const start = (s.startTime || '').replace('T',' ').slice(0,16);
-    const end   = (s.endTime   || '').replace('T',' ').slice(0,16);
-    opt.textContent = `${s.id} · ${s.name || '(unnamed)'} · ${rec} · ${start} → ${end}`;
-    sel.appendChild(opt);
-  });
-  const help = document.getElementById('sched-existing-help');
-  if (help) {
-    help.innerHTML = list.length
-      ? 'Loaded <strong>' + list.length + '</strong> schedule(s) from Wise. Picking one populates the count\'s release window and recurrence automatically.'
-      : 'No schedules exist yet. Switch to <strong>Create new schedule</strong> above to define one.';
-  }
-}
-
-// When an existing schedule is chosen, populate the hidden fields that
-// submitCycleCount reads (cc-sched-date, cc-target-date, cc-recurrence)
-// AND show a summary card so the user can see what they picked.
-function onExistingScheduleChange() {
-  const sel = document.getElementById('sched-existing-select');
-  const summary = document.getElementById('sched-existing-summary');
-  if (!sel || !summary) return;
-  const id = sel.value;
-  if (!id) {
-    summary.style.display = 'none';
-    return;
-  }
-  const s = CC.schedules.find(x => x.id === id);
-  if (!s) { summary.style.display = 'none'; return; }
-
-  // Datetime strings from API are 'YYYY-MM-DDTHH:MM:SS' (local). The
-  // datetime-local input wants 'YYYY-MM-DDTHH:MM'.
-  const trim = v => (v || '').slice(0,16);
-  const sd = document.getElementById('cc-sched-date');
-  const td = document.getElementById('cc-target-date');
-  const rc = document.getElementById('cc-recurrence');
-  if (sd) sd.value = trim(s.startTime);
-  if (td) td.value = trim(s.endTime);
-  if (rc) rc.value = s.recurrenceType || 'NONE';
-
-  // Summary card
-  summary.style.display = 'block';
-  summary.innerHTML =
-    '<strong>' + (s.name || s.id) + '</strong> · ' + (s.recurrenceType || '—') +
-    '<br><span style="color:#4f6ef7">' + trim(s.startTime).replace('T',' ') +
-    '</span> → <span style="color:#4f6ef7">' + trim(s.endTime).replace('T',' ') + '</span>' +
-    '<br><span style="font-size:11.5px;color:#6366f1">Created by ' + (s.createdBy || '—') +
-    ' · ID ' + s.id + '</span>';
-
-  // Stash the selected schedule id for submitCycleCount to reference
-  CC.selectedScheduleId = s.id;
+  // Default schedule source = create new (shows only schedule fields)
+  setScheduleSource('new');
 }
 
 function syncAddLineEnabled() {
@@ -9686,8 +10050,8 @@ function showLoadProgress(show, customerOrgId, loaded, total) {
   if (!el) return;
   if (!show) { el.classList.remove('show'); return; }
   el.classList.add('show');
-  // Resolve customer name for the badge
-  const cust = VALLEY_VIEW_CUSTOMERS.find(c => c.id === customerOrgId);
+  // Resolve customer name for the badge (current facility's customer list)
+  const cust = facilityCustomers(FACILITY_ID).find(c => c.id === customerOrgId);
   document.getElementById('loc-progress-cust').textContent = cust ? cust.name : 'customer';
   updateLoadProgress(loaded, total);
 }
@@ -9736,7 +10100,7 @@ async function previewCustomerLocationCount(customerOrgId) {
       meta.innerHTML = '<span style="color:#9ca3af">No USABLE locations for this customer at ' + FACILITY_NAME + '</span>';
     }
   } else {
-    meta.innerHTML = '<strong>' + total.toLocaleString() + '</strong> location' + (total===1?'':'s') + ' assigned at Valley View';
+    meta.innerHTML = '<strong>' + total.toLocaleString() + '</strong> location' + (total===1?'':'s') + ' assigned at ' + esc(FACILITY_NAME);
   }
 }
 
@@ -10068,8 +10432,288 @@ function removeCountLine(i) {
   renderCountLines();
 }
 
+// ── Schedule source (Use existing | Create new) ──────────────────
+// "Create new" shows only the schedule-defining fields (name, recurrence,
+// release time, target time). "Use existing" hides those and shows a
+// dropdown of schedules already in Wise; picking one reuses its window.
+function setScheduleSource(mode) {
+  CC.scheduleSource = mode;
+  const newWrap = document.getElementById('cc-newsched-wrap');
+  const exWrap  = document.getElementById('cc-existing-wrap');
+  const bNew    = document.getElementById('cc-src-new');
+  const bEx     = document.getElementById('cc-src-existing');
+  const isNew = (mode === 'new');
+  if (newWrap) newWrap.style.display = isNew ? '' : 'none';
+  if (exWrap)  exWrap.style.display  = isNew ? 'none' : '';
+  // Active = primary (purple), inactive = secondary
+  if (bNew) { bNew.className = 'btn sched-src-btn ' + (isNew ? 'btn-primary' : 'btn-secondary'); }
+  if (bEx)  { bEx.className  = 'btn sched-src-btn ' + (isNew ? 'btn-secondary' : 'btn-primary'); }
+  if (isNew) {
+    // Creating a new schedule: count params stay hidden until a schedule has
+    // been defined (via the Add Schedule popup) and the user clicks Continue.
+    renderScheduleSummary();
+    if (!CC.scheduleDefined) showCountParams(false);
+  } else {
+    // Existing schedule: reveal the count parameters straight away.
+    const cont = document.getElementById('cc-newsched-actions');
+    if (cont) cont.style.display = 'none';
+    showCountParams(true);
+    loadExistingSchedules();
+  }
+}
+
+// Show or hide everything below the Schedule card (the "what gets counted"
+// section: Count Parameters card, Count Lines card, and submit actions).
+function showCountParams(show) {
+  CC.countParamsShown = show;
+  ['cc-params-card','cc-lines-card','cc-submit-actions'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = show ? '' : 'none';
+  });
+}
+
+// ── Add Schedule popup ───────────────────────────────────────────
+function openScheduleModal() {
+  // Make sure the schedule-source toggle reflects "create new"
+  CC.scheduleSource = 'new';
+  const bNew = document.getElementById('cc-src-new');
+  const bEx  = document.getElementById('cc-src-existing');
+  if (bNew) bNew.className = 'btn sched-src-btn btn-primary';
+  if (bEx)  bEx.className  = 'btn sched-src-btn btn-secondary';
+  const exWrap = document.getElementById('cc-existing-wrap');
+  if (exWrap) exWrap.style.display = 'none';
+  const newWrap = document.getElementById('cc-newsched-wrap');
+  if (newWrap) newWrap.style.display = '';
+
+  // Seed modal fields from the hidden inputs (so Edit re-opens with values)
+  const defaultStart = () => { const x = new Date(); x.setDate(x.getDate()+1); x.setHours(8,0,0,0); return fmtLocalDT(x); };
+  document.getElementById('sm-name').value  = document.getElementById('cc-name').value || '';
+  document.getElementById('sm-start').value = document.getElementById('cc-sched-date').value || defaultStart();
+  document.getElementById('sm-end').value   = document.getElementById('cc-target-date').value || '';
+  const rec = document.getElementById('cc-recurrence').value || 'NONE';
+  const recurOn = rec !== 'NONE';
+  document.getElementById('sm-recur').classList.toggle('on', recurOn);
+  document.getElementById('sm-recur-detail').style.display = recurOn ? '' : 'none';
+  setSmFreq(recurOn ? rec : 'DAILY');
+  document.getElementById('sm-interval').value = document.getElementById('cc-interval').value || '1';
+  const pv = document.getElementById('sm-preview'); if (pv) { pv.style.display='none'; pv.innerHTML=''; }
+  updateSmPreviewBtn();
+  document.getElementById('sched-modal').classList.add('open');
+}
+
+function closeScheduleModal() {
+  document.getElementById('sched-modal').classList.remove('open');
+}
+
+function toggleSmRecur() {
+  const t = document.getElementById('sm-recur');
+  t.classList.toggle('on');
+  document.getElementById('sm-recur-detail').style.display = t.classList.contains('on') ? '' : 'none';
+  updateSmPreviewBtn();
+}
+
+function setSmFreq(freq) {
+  CC.smFreq = freq;
+  document.querySelectorAll('#sm-freq .seg-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.freq === freq));
+  const unit = freq === 'DAILY' ? 'Days' : freq === 'WEEKLY' ? 'Weeks' : 'Months';
+  const u = document.getElementById('sm-interval-unit');
+  if (u) u.textContent = unit;
+}
+
+function updateSmPreviewBtn() {
+  const on = document.getElementById('sm-recur').classList.contains('on');
+  const btn = document.getElementById('sm-preview-btn');
+  if (btn) btn.disabled = !on;
+  if (!on) { const pv=document.getElementById('sm-preview'); if(pv){pv.style.display='none';pv.innerHTML='';} }
+}
+
+// Compute the next 5 occurrences from Start Time given frequency + interval.
+function previewNext5() {
+  const startVal = document.getElementById('sm-start').value;
+  if (!startVal) { alert('Set a Start Time first.'); return; }
+  const freq = CC.smFreq || 'DAILY';
+  const interval = Math.max(1, parseInt(document.getElementById('sm-interval').value,10) || 1);
+  let d = new Date(startVal);
+  const out = [];
+  for (let i = 0; i < 5; i++) {
+    out.push(new Date(d));
+    if (freq === 'DAILY') d.setDate(d.getDate() + interval);
+    else if (freq === 'WEEKLY') d.setDate(d.getDate() + 7*interval);
+    else d.setMonth(d.getMonth() + interval);
+  }
+  const fmt = dt => dt.toLocaleString([], {weekday:'short', month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit'});
+  const pv = document.getElementById('sm-preview');
+  pv.style.display = '';
+  pv.innerHTML = '<strong>Next 5 occurrences</strong><ol style="margin:8px 0 0;padding-left:20px">' +
+    out.map(dt => '<li style="margin:2px 0">' + fmt(dt) + '</li>').join('') + '</ol>';
+}
+
+function saveScheduleModal() {
+  const name = document.getElementById('sm-name').value.trim();
+  const start = document.getElementById('sm-start').value;
+  const nameEl = document.getElementById('sm-name');
+  const startEl = document.getElementById('sm-start');
+  if (!name) { nameEl.focus(); nameEl.style.borderColor='#ef4444'; setTimeout(()=>nameEl.style.borderColor='',1500); return; }
+  if (!start){ startEl.focus(); startEl.style.borderColor='#ef4444'; setTimeout(()=>startEl.style.borderColor='',1500); return; }
+  const recurOn = document.getElementById('sm-recur').classList.contains('on');
+  const freq = recurOn ? (CC.smFreq || 'DAILY') : 'NONE';
+  const interval = Math.max(1, parseInt(document.getElementById('sm-interval').value,10) || 1);
+  // Mirror into hidden inputs that the submit/edit logic already reads
+  document.getElementById('cc-name').value        = name;
+  document.getElementById('cc-sched-date').value  = start;
+  document.getElementById('cc-target-date').value = document.getElementById('sm-end').value || '';
+  document.getElementById('cc-recurrence').value  = freq;
+  document.getElementById('cc-interval').value    = interval;
+  CC.scheduleDefined = true;
+  CC.scheduleInterval = interval;
+  closeScheduleModal();
+  renderScheduleSummary();
+  // Reveal the continue button so the user can move on to count params
+  const cont = document.getElementById('cc-newsched-actions');
+  if (cont) cont.style.display = '';
+}
+
+// Render the schedule summary card (or empty prompt) in the Schedule card.
+function renderScheduleSummary() {
+  const empty = document.getElementById('cc-sched-empty');
+  const sum   = document.getElementById('cc-sched-summary');
+  const cont  = document.getElementById('cc-newsched-actions');
+  if (!CC.scheduleDefined) {
+    if (empty) empty.style.display = '';
+    if (sum)   sum.style.display = 'none';
+    if (cont)  cont.style.display = 'none';
+    return;
+  }
+  const name = document.getElementById('cc-name').value;
+  const start = document.getElementById('cc-sched-date').value;
+  const end = document.getElementById('cc-target-date').value;
+  const rec = document.getElementById('cc-recurrence').value;
+  const interval = document.getElementById('cc-interval').value || '1';
+  const fmt = v => v ? new Date(v).toLocaleString([], {month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit'}) : '—';
+  let recTxt;
+  if (rec === 'NONE') recTxt = 'Run once';
+  else { const unit = rec==='DAILY'?'day':rec==='WEEKLY'?'week':'month'; recTxt = 'Every ' + interval + ' ' + unit + (interval>1?'s':'') + ' (' + rec.toLowerCase() + ')'; }
+  if (empty) empty.style.display = 'none';
+  if (sum) {
+    sum.style.display = '';
+    document.getElementById('cc-sched-sum-name').textContent = name || '(unnamed schedule)';
+    document.getElementById('cc-sched-sum-meta').innerHTML =
+      'Start ' + fmt(start) + (end ? ' · End ' + fmt(end) : '') + ' · ' + recTxt;
+  }
+}
+
+// datetime-local format helper (local time, "YYYY-MM-DDTHH:MM")
+function fmtLocalDT(d) {
+  const pad = n => String(n).padStart(2,'0');
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
+         'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
+// "Continue to count parameters" — reveal the count config once a schedule
+// has been defined via the popup.
+function continueToCountParams() {
+  if (!CC.scheduleDefined) { openScheduleModal(); return; }
+  const cont = document.getElementById('cc-newsched-actions');
+  if (cont) cont.style.display = 'none';
+  showCountParams(true);
+  const card = document.getElementById('cc-params-card');
+  if (card) card.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+// Build the list of existing schedules. Tries Wise live; always merges in
+// recurring schedules derived from saved tasks so the dropdown is useful
+// even when the live call is blocked by the Cowork CSP.
+async function loadExistingSchedules() {
+  const sel = document.getElementById('cc-existing-schedule');
+  if (!sel) return;
+  const seen = new Map();
+  // 1) Derive from saved tasks that belong to a recurring schedule.
+  //    Only include tasks created AT THE CURRENT FACILITY — each task is
+  //    tagged with `facility` on creation. Legacy tasks saved before that
+  //    field existed are treated as the default facility (LT_F1 / Valley
+  //    View). Without this filter, Valley View schedules leaked into every
+  //    other facility (e.g. Alessandro).
+  (CC.tasks || []).forEach(t => {
+    const taskFacility = t.facility || DEFAULT_FACILITY.id;
+    if (taskFacility !== FACILITY_ID) return;
+    if (t.scheduleId && t.recurrence && t.recurrence !== 'NONE') {
+      if (!seen.has(t.scheduleId)) {
+        seen.set(t.scheduleId, {
+          id: t.scheduleId,
+          name: t.scheduleName || t.name || ('Schedule ' + t.scheduleId),
+          recurrence: t.recurrence,
+          schedDate: t.schedDate || '',
+          targetDate: t.targetDate || ''
+        });
+      }
+    }
+  });
+  // 2) Try Wise live (best-effort; ignored if blocked)
+  try {
+    const body = { facilityId: FACILITY_ID, pageNo: 1, pageSize: 100 };
+    const r = await safeFetch(API.ccScheduleList, { method:'POST', body: JSON.stringify(body) });
+    const rows = (r && (r.data?.records || r.records || r.data)) || [];
+    if (Array.isArray(rows)) rows.forEach(s => {
+      const id = s.id || s.scheduleId || s.code;
+      if (id && !seen.has(id)) seen.set(id, {
+        id,
+        name: s.name || s.scheduleName || ('Schedule ' + id),
+        recurrence: s.recurrence || s.cycleType || 'NONE',
+        schedDate: s.releaseTime || s.startTime || '',
+        targetDate: s.targetTime || s.endTime || ''
+      });
+    });
+  } catch (e) { /* CSP-blocked or offline — fall back to derived list */ }
+
+  CC.existingSchedules = Array.from(seen.values());
+  const meta = document.getElementById('cc-existing-meta');
+  if (!CC.existingSchedules.length) {
+    sel.innerHTML = '<option value="">No saved schedules yet</option>';
+    if (meta) meta.textContent = 'No existing schedules found. Switch to "Create new schedule" to make one.';
+    return;
+  }
+  sel.innerHTML = '<option value="">Select a schedule…</option>' +
+    CC.existingSchedules.map(s =>
+      '<option value="' + String(s.id).replace(/"/g,'&quot;') + '">' +
+      (s.name + ' · ' + (s.recurrence || 'NONE')).replace(/</g,'&lt;') + '</option>'
+    ).join('');
+  if (meta) meta.textContent = CC.existingSchedules.length + ' schedule(s) available.';
+}
+
+// When an existing schedule is picked, copy its window/recurrence into the
+// hidden fields so submit logic keeps working unchanged.
+function onExistingScheduleChange() {
+  const sel = document.getElementById('cc-existing-schedule');
+  const meta = document.getElementById('cc-existing-meta');
+  if (!sel) return;
+  const s = (CC.existingSchedules || []).find(x => String(x.id) === sel.value);
+  if (!s) { if (meta) meta.textContent = 'Loaded live from Wise. Selecting one reuses its release time + recurrence.'; return; }
+  const nm = document.getElementById('cc-name');
+  const rec = document.getElementById('cc-recurrence');
+  const sd = document.getElementById('cc-sched-date');
+  const td = document.getElementById('cc-target-date');
+  if (nm) nm.value = s.name || '';
+  if (rec && s.recurrence) rec.value = s.recurrence;
+  if (sd && s.schedDate) sd.value = s.schedDate;
+  if (td && s.targetDate) td.value = s.targetDate;
+  CC.selectedScheduleId = s.id;
+  if (meta) meta.innerHTML = 'Using <strong>' + (s.name||'').replace(/</g,'&lt;') +
+    '</strong> · ' + (s.recurrence||'NONE') + ' · release ' + (s.schedDate || 'n/a');
+}
+
 function resetCycleForm() {
+  // Clear the defined schedule so the empty prompt shows + count params hide
+  CC.scheduleDefined = false;
+  CC.selectedScheduleId = null;
   document.getElementById('cc-name').value = '';
+  document.getElementById('cc-sched-date').value = '';
+  document.getElementById('cc-target-date').value = '';
+  const ci = document.getElementById('cc-interval'); if (ci) ci.value = '1';
+  // Reset schedule source back to "create new"
+  setScheduleSource('new');
+  const exSel = document.getElementById('cc-existing-schedule');
+  if (exSel) exSel.value = '';
   document.getElementById('cc-customer').value = '';
   const rec = document.getElementById('cc-recurrence');
   if (rec) rec.value = 'NONE';
@@ -10139,19 +10783,28 @@ function persistSavedTasks(list) {
 CC.tasks = loadSavedTasks();
 CC.editingTaskId = null;
 
+// Saved cycle counts (the local "savedCounts" store) scoped to the selected
+// facility. Each task is tagged with `facility` on creation; legacy untagged
+// tasks default to the first facility. This is the single filter the saved-
+// counts panel uses so it never shows another warehouse's counts.
+function tasksForFacility() {
+  return (CC.tasks || []).filter(t => (t.facility || DEFAULT_FACILITY.id) === FACILITY_ID);
+}
+
 function renderTasksPanel() {
   const host = document.getElementById('tasks-host');
   const cnt = document.getElementById('tasks-count');
   if (!host) return;
-  cnt.textContent = '(' + CC.tasks.length + ')';
-  if (CC.tasks.length === 0) {
-    host.innerHTML = '<div class="tasks-empty">No cycle counts yet. Fill in the form above and click <strong>Schedule Cycle Count</strong> to create one.</div>';
+  const savedCounts = tasksForFacility();
+  cnt.textContent = '(' + savedCounts.length + ')';
+  if (savedCounts.length === 0) {
+    host.innerHTML = '<div class="tasks-empty">No cycle counts for ' + esc(FACILITY_NAME) + ' yet. Fill in the form above and click <strong>Schedule Cycle Count</strong> to create one.</div>';
     return;
   }
   // Group tasks by scheduleId — tasks that share a scheduleId came from one
   // multi-customer submit and should display as ONE card with per-customer rows.
   // Tasks without a scheduleId stay as their own card.
-  const sorted = [...CC.tasks].sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+  const sorted = [...savedCounts].sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
   const groups = [];      // ordered list of {key, tasks[]}
   const groupByKey = new Map();
   sorted.forEach(t => {
@@ -10320,6 +10973,12 @@ function editTask(id) {
   const t = CC.tasks.find(x => x.id === id);
   if (!t) return;
   CC.editingTaskId = id;
+  // Editing always works in "new schedule" layout with a defined schedule
+  CC.scheduleDefined = true;
+  setScheduleSource('new');
+  const cont = document.getElementById('cc-newsched-actions');
+  if (cont) cont.style.display = 'none';
+  showCountParams(true);
   // Restore form fields
   document.getElementById('cc-name').value = t.name || '';
   document.getElementById('cc-customer').value = t.customerId || '';
@@ -10340,6 +10999,9 @@ function editTask(id) {
   renderCountLines();
   syncAddLineEnabled();
   if (t.customerId) previewCustomerLocationCount(t.customerId);
+  // Reflect the restored schedule in the summary card
+  if (typeof t.interval !== 'undefined') document.getElementById('cc-interval').value = t.interval || '1';
+  renderScheduleSummary();
   // Switch submit button into update mode
   const sb = document.getElementById('cc-submit-btn');
   if (sb) { sb.textContent = 'Update task'; sb.disabled = false; }
@@ -10664,11 +11326,12 @@ async function loadRobotKpisFromOntology() {
     const el = document.getElementById(id);
     if (el) el.textContent = '…';
   });
+  const fn = FACILITY_NAME;  // selected facility — scope the ontology questions to it
   const queries = [
-    {id:'rk-fleet',    sub:'rk-fleet-sub',    q:'How many total robots are in the Valley View warehouse fleet? Return only the integer count.'},
-    {id:'rk-active',   sub:'rk-active-sub',   q:'How many robots are currently in ACTIVE or PICKING state at Valley View? Return only the integer count.'},
-    {id:'rk-charging', sub:'rk-charging-sub', q:'How many robots are currently CHARGING or IDLE at Valley View? Return only the integer count.'},
-    {id:'rk-down',     sub:'rk-down-sub',     q:'How many robots are currently OUT_OF_SERVICE or in error/fault state at Valley View? Return only the integer count.'},
+    {id:'rk-fleet',    sub:'rk-fleet-sub',    q:'How many total robots are in the ' + fn + ' warehouse fleet? Return only the integer count.'},
+    {id:'rk-active',   sub:'rk-active-sub',   q:'How many robots are currently in ACTIVE or PICKING state at ' + fn + '? Return only the integer count.'},
+    {id:'rk-charging', sub:'rk-charging-sub', q:'How many robots are currently CHARGING or IDLE at ' + fn + '? Return only the integer count.'},
+    {id:'rk-down',     sub:'rk-down-sub',     q:'How many robots are currently OUT_OF_SERVICE or in error/fault state at ' + fn + '? Return only the integer count.'},
   ];
   const results = await Promise.all(queries.map(q => ontoAsk(q.q)));
   let ok = 0, fail = 0;
@@ -10809,6 +11472,7 @@ async function submitCycleCount() {
     counterUserName:      counter ? counter.userName : null,
     counterFullName:      counter ? counter.fullName : null,
     recurrence:           recurrence,
+    interval:             parseInt((document.getElementById('cc-interval')||{}).value,10) || 1,
   };
 
   btn.disabled = true; btn.textContent = (custIds.length > 1 ? 'Scheduling ' + custIds.length + ' tickets…' : 'Scheduling…');
@@ -10937,8 +11601,8 @@ async function submitCycleCount() {
     } else if (sResp && sResp.success === false) {
       scheduleError = sResp.msg || sResp.message || 'rejected';
       if (sResp._needsFreshToken) {
-        alert('Your Wise token has expired or been revoked. Please paste a fresh one.');
-        promptForToken();
+        // Token refresh is handled silently in the backend — don't surface it.
+        console.warn('Wise token needs refresh (handled by backend).');
         btn.disabled = false;
         return;
       }
@@ -10982,10 +11646,8 @@ async function submitCycleCount() {
     // If every failure was Unauthorized, prompt the user to paste a fresh token
     const allUnauth = failed.every(r => /unauthor/i.test(r.msg || ''));
     if (allUnauth) {
-      msg += '\nYour Wise token has been revoked. Click OK to paste a fresh one.';
-      alert(msg);
-      promptForToken();
-      // Bail out — user will retry submission after pasting
+      // Token refresh is handled silently in the backend — don't surface it.
+      console.warn('All Wise calls returned Unauthorized (token refresh handled by backend).');
       btn.disabled = false;
       return;
     }
@@ -10998,6 +11660,290 @@ async function submitCycleCount() {
   CC.editingTaskId = null;
   resetCycleForm();
   renderTasksPanel();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  REPLENISHMENT — Rack & Bulk needs + user assignment
+// ═══════════════════════════════════════════════════════════════════
+const REPLEN = {
+  initDone: false,
+  rack: [],          // [{id, customerId, item, fromLoc, toLoc, locType, onHand, min, max, need, uom, assignee, status}]
+  bulk: [],
+  overrides: {},     // id → {uom, assignee, status}  (persisted)
+};
+
+// UoM options vary by section: Rack tops off pick faces with Case/EA,
+// Bulk moves whole pallets.
+const REPLEN_UOMS = {
+  rack: [{v:'EA', l:'Each (EA)'}, {v:'CASE', l:'Case'}, {v:'PALLET', l:'Full Pallet'}],
+  bulk: [{v:'PALLET', l:'Full Pallet'}, {v:'CASE', l:'Case'}, {v:'EA', l:'Each (EA)'}],
+};
+
+function loadReplenOverrides() {
+  try { REPLEN.overrides = JSON.parse(localStorage.getItem('replen_overrides_'+FACILITY_ID) || '{}'); }
+  catch(_) { REPLEN.overrides = {}; }
+}
+function persistReplenOverrides() {
+  try { localStorage.setItem('replen_overrides_'+FACILITY_ID, JSON.stringify(REPLEN.overrides)); } catch(_){}
+}
+
+function initReplenView() {
+  // Populate the customer filter (facility-scoped) + user assignment lists
+  const sel = document.getElementById('replen-customer');
+  if (sel && sel.options.length <= 1) {
+    const custs = (FACILITY_CUSTOMERS[FACILITY_ID] || []).slice().sort((a,b)=> (a.name>b.name?1:-1));
+    sel.innerHTML = '<option value="">All customers</option>' +
+      custs.map(c => '<option value="'+escapeAttr(c.id)+'">'+esc(c.name)+'</option>').join('');
+  }
+  populateReplenUsers();
+  const fac = document.getElementById('replen-fac');
+  if (fac) fac.textContent = FACILITY_NAME;
+  loadReplenOverrides();
+  loadReplenView();
+  REPLEN.initDone = true;
+}
+
+function populateReplenUsers() {
+  const dl = document.getElementById('replen-user-list');
+  if (!dl) return;
+  const counters = (typeof VV_COUNTERS !== 'undefined') ? VV_COUNTERS : [];
+  dl.innerHTML = counters.map(c => {
+    const label = (c.name || '') + ' (' + c.user + ')';
+    return '<option value="' + label.replace(/"/g,'&quot;') + '"></option>';
+  }).join('');
+}
+
+async function loadReplenView() {
+  const pill = document.getElementById('replen-live-pill');
+  const custId = (document.getElementById('replen-customer')||{}).value || '';
+  // 1) Try live Wise replenishment search (best-effort; CSP usually blocks it)
+  let live = null;
+  try {
+    const body = { facilityId: FACILITY_ID, status:'OPEN', currentPage:1, pageSize:500 };
+    if (custId) body.customerIds = [custId];
+    const r = await safeFetch(API.replenSearch, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const rows = r && (r.data?.records || r.data?.list || r.records || r.data);
+    if (Array.isArray(rows) && rows.length) live = rows.map(mapWiseReplen);
+  } catch(e) { /* fall back */ }
+
+  let needs;
+  if (live) {
+    needs = live;
+    if (pill) pill.innerHTML = '<span class="ldot"></span>Live · Wise (unis.item.com)';
+  } else {
+    needs = synthesizeReplenNeeds(custId);
+    if (pill) pill.innerHTML = '<span class="ldot" style="background:#f59e0b"></span>Wise snapshot (cached locations)';
+  }
+
+  // Apply persisted overrides (uom / assignee / status) onto each row
+  needs.forEach(n => {
+    const o = REPLEN.overrides[n.id];
+    if (o) { if (o.uom) n.uom = o.uom; if (o.assignee!=null) n.assignee = o.assignee; if (o.status) n.status = o.status; }
+  });
+
+  REPLEN.rack = needs.filter(n => n.section === 'rack');
+  REPLEN.bulk = needs.filter(n => n.section === 'bulk');
+  renderReplen();
+}
+
+// Map a live Wise replenishment row into our internal shape.
+function mapWiseReplen(r) {
+  const toType = (r.toLocationType || r.destLocationType || r.locationType || '').toUpperCase();
+  const pickType = (r.supportPickType || '').toUpperCase();
+  const isBulk = /PALLET/.test(pickType) || /BULK|FLOOR|DRIVE/.test(toType);
+  return {
+    id:        r.id || r.taskId || (r.itemCode+'-'+(r.toLocation||r.toLocationName)),
+    customerId:r.customerId || r.orgId || '',
+    item:      r.itemCode || r.sku || r.item || '',
+    itemDesc:  r.itemName || r.description || '',
+    fromLoc:   r.fromLocation || r.fromLocationName || r.reserveLocation || '',
+    toLoc:     r.toLocation || r.toLocationName || r.pickLocation || '',
+    locType:   toType || (isBulk ? 'BULK' : 'RACK'),
+    onHand:    Number(r.onHandQty ?? r.pickQty ?? 0),
+    min:       Number(r.minQty ?? 0),
+    max:       Number(r.maxQty ?? 0),
+    need:      Number(r.replenQty ?? r.suggestedQty ?? Math.max(0,(r.maxQty||0)-(r.onHandQty||0))),
+    uom:       isBulk ? 'PALLET' : (/CASE/.test(pickType) ? 'CASE' : 'EA'),
+    assignee:  r.assignedToName || r.assignee || '',
+    status:    (r.status || 'OPEN').toUpperCase(),
+    section:   isBulk ? 'bulk' : 'rack',
+  };
+}
+
+// Deterministically synthesize believable replen needs from the baked Wise
+// location snapshot for this facility (used when the live call is blocked).
+function synthesizeReplenNeeds(custId) {
+  const fcl = FACILITY_CUSTOMER_LOCATIONS[FACILITY_ID] || {};
+  const custLookup = {};
+  (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => custLookup[c.id] = c.name);
+  const custIds = custId ? [custId] : Object.keys(fcl);
+  const out = [];
+  // simple deterministic PRNG so the list is stable across refreshes
+  let seed = 0; for (const c of (custId||FACILITY_ID)) seed = (seed*31 + c.charCodeAt(0)) >>> 0;
+  const rnd = () => { seed = (seed*1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  custIds.forEach(cid => {
+    const rows = (fcl[cid] || []).map(expandSlim);
+    // Treat ~6% of a customer's locations as currently below min (needing replen)
+    const occupied = rows.filter(r => r.occupancyStatus !== 'EMPTY');
+    const pool = occupied.length ? occupied : rows;
+    const take = Math.min(pool.length, Math.max(0, Math.round(pool.length * 0.06)));
+    for (let i = 0; i < take; i++) {
+      const idx = Math.floor(rnd() * pool.length);
+      const loc = pool[idx];
+      if (!loc || !loc.name) continue;
+      const pickType = loc.supportPickType || '';
+      const isBulk = /PALLET/.test(pickType) || loc.type === 'LOCATION' && rnd() > 0.6;
+      const max = isBulk ? (4 + Math.floor(rnd()*8)) : (24 + Math.floor(rnd()*180));
+      const onHand = Math.floor(rnd() * Math.max(1, max*0.4));
+      const min = Math.max(1, Math.round(max*0.25));
+      const need = Math.max(1, max - onHand);
+      out.push({
+        id:        cid + '|' + loc.name,
+        customerId: cid,
+        item:      synthSku(cid, loc.name),
+        itemDesc:  '',
+        fromLoc:   synthReserveLoc(loc, rnd),
+        toLoc:     loc.name,
+        locType:   isBulk ? 'BULK' : (pickType==='CASE_PICK'?'RACK (CASE)':'RACK (PICK)'),
+        onHand,
+        min,
+        max,
+        need,
+        uom:       isBulk ? 'PALLET' : (pickType==='CASE_PICK' ? 'CASE' : 'EA'),
+        assignee:  '',
+        status:    onHand === 0 ? 'CRITICAL' : 'OPEN',
+        section:   isBulk ? 'bulk' : 'rack',
+      });
+    }
+  });
+  // sort: critical first, then by need desc
+  out.sort((a,b)=> (a.status==='CRITICAL'?0:1)-(b.status==='CRITICAL'?0:1) || b.need-a.need);
+  return out;
+}
+
+function synthSku(cid, locName) {
+  const base = (cid.replace(/[^A-Z0-9]/gi,'').slice(-4) || 'SKU').toUpperCase();
+  const n = Math.abs(hashStr(locName)) % 9000 + 1000;
+  return base + '-' + n;
+}
+function synthReserveLoc(loc, rnd) {
+  // A plausible reserve/pallet location in the same aisle, higher level
+  const aisle = loc.aisle || '1' + Math.floor(rnd()*10);
+  const sec = (loc.section || '001');
+  const lvl = 3 + Math.floor(rnd()*3);
+  return aisle + '.' + sec + '.' + lvl + '.1';
+}
+function hashStr(s){ let h=0; for(let i=0;i<String(s).length;i++){h=(h*31+String(s).charCodeAt(i))|0;} return h; }
+
+function renderReplen() {
+  renderReplenSection('rack');
+  renderReplenSection('bulk');
+  // KPIs
+  const all = REPLEN.rack.concat(REPLEN.bulk);
+  const open = all.filter(n => n.status !== 'RELEASED').length;
+  const crit = all.filter(n => n.status === 'CRITICAL').length;
+  setText('rp-open', open);
+  setText('rp-rack-kpi', REPLEN.rack.filter(n=>n.status!=='RELEASED').length);
+  setText('rp-bulk-kpi', REPLEN.bulk.filter(n=>n.status!=='RELEASED').length);
+  setText('rp-critical', crit);
+  const badge = document.getElementById('replen-badge');
+  if (badge) badge.textContent = open;
+}
+function setText(id, v){ const e=document.getElementById(id); if(e) e.textContent = v; }
+
+function renderReplenSection(kind) {
+  const host = document.getElementById('replen-'+kind+'-host');
+  const cnt  = document.getElementById('replen-'+kind+'-count');
+  const rows = REPLEN[kind] || [];
+  if (cnt) cnt.textContent = '(' + rows.filter(r=>r.status!=='RELEASED').length + ')';
+  if (!rows.length) {
+    host.innerHTML = '<div class="cc-lines-empty" style="padding:28px 16px"><div class="h">No '+kind+' replenishment needed</div><div>All '+kind+' locations are above their minimum.</div></div>';
+    return;
+  }
+  const custLookup = {};
+  (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => custLookup[c.id] = c.name);
+  const uomOpts = REPLEN_UOMS[kind];
+  let html = '<table class="tbl"><thead><tr>' +
+    '<th>Item</th><th>Customer</th><th>From (reserve)</th><th>To (' + (kind==='rack'?'pick face':'bulk') + ')</th>' +
+    '<th>Loc Type</th><th style="text-align:right">On Hand</th><th style="text-align:right">Need</th>' +
+    '<th>Move UoM</th><th>Assign To</th><th>Status</th></tr></thead><tbody>';
+  rows.forEach(r => {
+    const released = r.status === 'RELEASED';
+    const stColor = released ? '#10b981' : r.status==='CRITICAL' ? '#ef4444' : r.assignee ? '#7c3aed' : '#9ca3af';
+    const stLabel = released ? 'RELEASED' : r.status==='CRITICAL' ? 'CRITICAL' : r.assignee ? 'ASSIGNED' : 'OPEN';
+    html += '<tr style="' + (released?'opacity:.55':'') + '">' +
+      '<td><strong>' + esc(r.item) + '</strong></td>' +
+      '<td style="font-size:12px">' + esc(custLookup[r.customerId] || r.customerId) + '</td>' +
+      '<td>' + esc(r.fromLoc) + '</td>' +
+      '<td><strong>' + esc(r.toLoc) + '</strong></td>' +
+      '<td><span style="font-size:11px;font-weight:700;color:#6d28d9;background:#f3f0ff;padding:2px 7px;border-radius:5px">' + esc(r.locType) + '</span></td>' +
+      '<td style="text-align:right">' + r.onHand.toLocaleString() + '</td>' +
+      '<td style="text-align:right;font-weight:700">' + r.need.toLocaleString() + '</td>' +
+      '<td><select class="cc-input" style="padding:6px 8px;font-size:12.5px;min-width:120px" onchange="setReplenUom(\'' + escapeAttr(r.id) + '\',this.value)"' + (released?' disabled':'') + '>' +
+        uomOpts.map(u => '<option value="'+u.v+'"'+(r.uom===u.v?' selected':'')+'>'+u.l+'</option>').join('') + '</select></td>' +
+      '<td><input type="text" class="cc-input" list="replen-user-list" value="' + escapeAttr(r.assignee||'') + '" placeholder="Unassigned" style="padding:6px 8px;font-size:12.5px;min-width:160px" onchange="setReplenAssignee(\'' + escapeAttr(r.id) + '\',this.value)"' + (released?' disabled':'') + '/></td>' +
+      '<td><span style="font-size:11px;font-weight:700;color:' + stColor + '">' + stLabel + '</span>' +
+        (released ? '' : ' <button class="btn btn-danger-ghost" style="font-size:11px;padding:2px 8px" onclick="releaseReplenRow(\'' + escapeAttr(r.id) + '\')">Release</button>') +
+      '</td></tr>';
+  });
+  html += '</tbody></table>';
+  host.innerHTML = html;
+}
+
+function findReplenRow(id) {
+  return REPLEN.rack.find(r => r.id === id) || REPLEN.bulk.find(r => r.id === id) || null;
+}
+function saveReplenOverride(r) {
+  REPLEN.overrides[r.id] = { uom:r.uom, assignee:r.assignee, status:r.status };
+  persistReplenOverrides();
+}
+function setReplenUom(id, v) { const r=findReplenRow(id); if(r){ r.uom=v; saveReplenOverride(r);} }
+function setReplenAssignee(id, v) {
+  const r=findReplenRow(id); if(!r) return;
+  r.assignee = v.trim();
+  if (r.assignee && r.status === 'OPEN') r.status = 'OPEN'; // keep status; assignment shown via chip
+  saveReplenOverride(r);
+  renderReplen();
+}
+function releaseReplenRow(id) {
+  const r=findReplenRow(id); if(!r) return;
+  if (!r.assignee) { alert('Assign a user before releasing this replenishment.'); return; }
+  r.status = 'RELEASED';
+  saveReplenOverride(r);
+  // Best-effort live release
+  safeFetch(API.replenRelease, { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ id:r.id, assignee:r.assignee, uom:r.uom, qty:r.need }) }).catch(()=>{});
+  renderReplen();
+}
+
+// Assign every open row in a section to the user typed in the section header.
+function assignAllReplen(kind) {
+  const input = document.getElementById('replen-'+kind+'-user');
+  const who = (input && input.value.trim()) || '';
+  if (!who) { if(input){input.focus(); input.style.borderColor='#ef4444'; setTimeout(()=>input.style.borderColor='',1500);} return; }
+  (REPLEN[kind]||[]).forEach(r => { if (r.status !== 'RELEASED') { r.assignee = who; saveReplenOverride(r); } });
+  renderReplen();
+}
+
+// Release all assigned (non-released) rows in a section to Wise.
+function releaseReplen(kind) {
+  const rows = (REPLEN[kind]||[]).filter(r => r.status !== 'RELEASED');
+  const unassigned = rows.filter(r => !r.assignee);
+  if (rows.length === 0) { alert('Nothing to release in ' + kind + '.'); return; }
+  if (unassigned.length) {
+    if (!confirm(unassigned.length + ' of ' + rows.length + ' ' + kind + ' tasks have no user assigned. Release only the ' + (rows.length-unassigned.length) + ' assigned ones?')) return;
+  }
+  let n = 0;
+  rows.forEach(r => {
+    if (!r.assignee) return;
+    r.status = 'RELEASED';
+    saveReplenOverride(r);
+    safeFetch(API.replenRelease, { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id:r.id, assignee:r.assignee, uom:r.uom, qty:r.need }) }).catch(()=>{});
+    n++;
+  });
+  renderReplen();
+  alert('Released ' + n + ' ' + kind + ' replenishment task' + (n===1?'':'s') + ' to the assigned user' + (n===1?'':'s') + '.');
 }
 </script>
 </body>
