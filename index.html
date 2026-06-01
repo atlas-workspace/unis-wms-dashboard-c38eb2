@@ -531,7 +531,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         · User: <strong id="wms-user">—</strong></span>
       <span style="margin-left:4px;color:#9ca3af">· Last sync: <span id="sync-lbl">just now</span></span>
       <span id="token-status" style="margin-left:8px"></span>
-      <a onclick="promptForToken()" style="margin-left:8px;cursor:pointer">⚿ Update token</a>
+      <a onclick="showReconnect()" style="margin-left:8px;cursor:pointer">⚿ Reconnect</a>
       <a onclick="refreshAll()">↻ Refresh</a>
     </div>
 
@@ -566,9 +566,9 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
               <div class="user-menu-name" id="user-menu-name">—</div>
               <div class="user-menu-email" id="user-menu-email"></div>
             </div>
-            <div class="user-menu-item" onclick="promptForToken();closeUserMenu()">
+            <div class="user-menu-item" onclick="showReconnect()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="16" r="1"/><rect x="3" y="10" width="18" height="12" rx="2"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/></svg>
-              Update Wise token
+              Refresh session
             </div>
             <div class="user-menu-item danger" onclick="doLogout()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -1385,6 +1385,24 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 </div><!-- /app -->
 
 <script>
+// ═══ TOKEN HELPERS ═══
+// Extract access_token and refresh_token from various API response shapes.
+// Supports: access_token | accessToken | token | jwt  at root or inside .data
+//           refresh_token | refreshToken at root or inside .data
+function _extractTokens(obj) {
+  if (!obj || typeof obj !== 'object') return { at: null, rt: null };
+  // Check root level first
+  let at = obj.access_token || obj.accessToken || obj.token || obj.jwt || null;
+  let rt = obj.refresh_token || obj.refreshToken || null;
+  // Check .data nesting
+  const d = obj.data;
+  if (d && typeof d === 'object') {
+    if (!at) at = d.access_token || d.accessToken || d.token || d.jwt || null;
+    if (!rt) rt = d.refresh_token || d.refreshToken || null;
+  }
+  return { at, rt };
+}
+
 // ═══ LOGIN ═══
 async function doLogin() {
   const btn = document.getElementById('login-btn');
@@ -1401,12 +1419,12 @@ async function doLogin() {
       body: JSON.stringify({username: user, password: pass})
     });
     const d = await r.json();
-    if (d && d.access_token) {
-      WISE_TOKEN = d.access_token;
+    const tk = _extractTokens(d);
+    if (tk.at) {
+      WISE_TOKEN = tk.at;
       try { localStorage.setItem('wise_token', WISE_TOKEN); } catch(_) {}
-      // Persist refresh_token so we can silently renew when access_token expires.
-      if (d.refresh_token) {
-        try { localStorage.setItem('wise_refresh_token', d.refresh_token); } catch(_) {}
+      if (tk.rt) {
+        try { localStorage.setItem('wise_refresh_token', tk.rt); } catch(_) {}
       }
       document.getElementById('wms-user').textContent = user;
       showDash();
@@ -1416,12 +1434,16 @@ async function doLogin() {
       btn.disabled = false; btn.textContent = 'Sign In to WMS';
     }
   } catch(e) {
-    // Network/CORS issue — fall back to dashboard in offline mode so the
-    // user can still interact with cached data.
-    console.warn('login network error, entering offline mode:', e);
-    try { WISE_TOKEN = localStorage.getItem('wise_token') || null; } catch(_) {}
-    document.getElementById('wms-user').textContent = user;
-    showDash();
+    console.warn('login network error:', e);
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      document.getElementById('wms-user').textContent = user;
+      showDash();
+    } else {
+      errEl.textContent = 'Unable to start your WMS session. Please check your sign-in and try again.';
+      errEl.style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Sign In to WMS';
+    }
   }
 }
 
@@ -1432,10 +1454,13 @@ function showDash() {
   loadInsight();
   startSyncClock();
   updateTokenStatus();
-  setInterval(updateTokenStatus, 60000);  // re-evaluate every minute
-  // Proactively renew the token a couple minutes before it expires so
-  // no API call ever has to recover from a 401 from natural expiry.
-  setInterval(tickTokenRefresh, 60000);
+  if (!window.__wmsTokenTimersStarted) {
+    window.__wmsTokenTimersStarted = true;
+    setInterval(updateTokenStatus, 60000);  // re-evaluate every minute
+    // Proactively renew the token before it expires so API calls do not
+    // require users to paste bearer tokens.
+    setInterval(tickTokenRefresh, 60000);
+  }
   // Also try once on dashboard show in case the stored token is already
   // near (or past) expiry (e.g. tab was left open overnight).
   tickTokenRefresh();
@@ -1729,8 +1754,9 @@ function startSyncClock() {
   },1000);
 }
 
-function refreshAll() {
+async function refreshAll() {
   document.getElementById('sync-lbl').textContent = 'just now';
+  await tickTokenRefresh();
   loadInsight();
   updateTokenStatus();
 }
@@ -1757,6 +1783,7 @@ function doLogout() {
   // Clear stored credentials and per-user state
   try {
     localStorage.removeItem('wise_token');
+    localStorage.removeItem('wise_refresh_token');
     localStorage.removeItem('facility_id');
   } catch(_) {}
   WISE_TOKEN = null;
@@ -1787,21 +1814,38 @@ function decodeJwt(tok) {
   } catch(e) { return null; }
 }
 
+function hasStoredRefreshToken() {
+  try { return !!localStorage.getItem('wise_refresh_token'); } catch(_) { return false; }
+}
+
+function tokenMsLeft(tok) {
+  const payload = decodeJwt(tok);
+  if (!payload || !payload.exp) return -Infinity;
+  return (payload.exp * 1000) - Date.now();
+}
+
+function tokenNeedsRefresh(tok, thresholdMs) {
+  thresholdMs = thresholdMs == null ? 120000 : thresholdMs;
+  return tokenMsLeft(tok) < thresholdMs;
+}
+
 function updateTokenStatus() {
   const el = document.getElementById('token-status');
   if (!el) return;
   const payload = decodeJwt(WISE_TOKEN);
   if (!payload || !payload.exp) {
-    el.innerHTML = '<span style="color:#ef4444">· no Wise token</span>';
+    if (hasStoredRefreshToken()) el.innerHTML = '<span style="color:#92400e">· session ready</span>';
+    else el.innerHTML = '<span style="color:#ef4444">· reconnect required</span>';
     return;
   }
   const msLeft = (payload.exp * 1000) - Date.now();
   if (msLeft <= 0) {
-    el.innerHTML = '<span style="color:#ef4444">· token expired</span>';
+    el.innerHTML = hasStoredRefreshToken()
+      ? '<span style="color:#92400e">· refreshing session</span>'
+      : '<span style="color:#ef4444">· reconnect required</span>';
   } else {
-    const hrs = msLeft / 3600000;
-    const txt = hrs >= 1 ? hrs.toFixed(1) + 'h' : Math.round(hrs*60) + 'm';
-    el.innerHTML = '<span style="color:#065f46">· token: ' + txt + ' left</span>';
+    // Keep the status business-facing; the app refreshes automatically in the background.
+    el.innerHTML = '<span style="color:#065f46">· session active</span>';
   }
 }
 
@@ -1815,26 +1859,40 @@ async function refreshAccessToken() {
   _refreshInFlight = (async () => {
     let rt = null;
     try { rt = localStorage.getItem('wise_refresh_token'); } catch(_) {}
-    if (!rt) return false;
+    if (!rt) { updateTokenStatus(); return false; }
     try {
-      const r = await fetch(API.refreshAuth, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json', 'Accept':'application/json'},
-        body: JSON.stringify({refreshToken: rt})
-      });
-      const d = await r.json();
-      if (!d || !d.access_token) return false;
-      WISE_TOKEN = d.access_token;
-      try { localStorage.setItem('wise_token', WISE_TOKEN); } catch(_) {}
-      // Some IdPs rotate the refresh_token on every renewal; persist if so.
-      if (d.refresh_token) {
-        try { localStorage.setItem('wise_refresh_token', d.refresh_token); } catch(_) {}
+      // Primary contract is camelCase refreshToken. A snake_case retry is kept
+      // for compatibility with older IAM responses without exposing any secret.
+      const payloads = [{refreshToken: rt}, {refresh_token: rt}];
+      for (const payload of payloads) {
+        const r = await fetch(API.refreshAuth, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json', 'Accept':'application/json'},
+          body: JSON.stringify(payload)
+        });
+        let d = null;
+        try { d = await r.json(); } catch(_) {}
+        const tk = _extractTokens(d);
+        if (tk.at) {
+          WISE_TOKEN = tk.at;
+          try { localStorage.setItem('wise_token', WISE_TOKEN); } catch(_) {}
+          // Some IdPs rotate the refresh_token on every renewal; persist if so.
+          if (tk.rt) {
+            try { localStorage.setItem('wise_refresh_token', tk.rt); } catch(_) {}
+          }
+          updateTokenStatus();
+          console.log('refreshAccessToken: silent renewal succeeded');
+          return true;
+        }
+        // If the server explicitly accepted the request but did not return a token,
+        // do not keep retrying alternative shapes.
+        if (r.ok) break;
       }
       updateTokenStatus();
-      console.log('refreshAccessToken: silent renewal succeeded');
-      return true;
+      return false;
     } catch(e) {
       console.warn('refreshAccessToken: network error', e);
+      updateTokenStatus();
       return false;
     }
   })();
@@ -1842,44 +1900,47 @@ async function refreshAccessToken() {
   finally { _refreshInFlight = null; }
 }
 
+async function ensureWiseToken(force) {
+  if (!force && WISE_TOKEN && !tokenNeedsRefresh(WISE_TOKEN, 120000)) return true;
+  const ok = await refreshAccessToken();
+  if (ok) return true;
+  // If the token is still usable, allow the current request to proceed.
+  return !!(WISE_TOKEN && !tokenNeedsRefresh(WISE_TOKEN, 0));
+}
+
 // Proactive renewal: invoked every minute. If the access token is within
 // 2 minutes of expiry, refresh silently so no API call ever sees a 401
 // from natural expiry.
 async function tickTokenRefresh() {
-  const payload = decodeJwt(WISE_TOKEN);
-  if (!payload || !payload.exp) {
-    // No decodable token — try refreshing in case we have a valid refresh_token.
-    await refreshAccessToken();
-    return;
-  }
-  const msLeft = (payload.exp * 1000) - Date.now();
-  if (msLeft < 120000) {  // <2 minutes
-    await refreshAccessToken();
-  }
+  await ensureWiseToken(false);
 }
 
-function promptForToken() {
-  const cur = WISE_TOKEN || '';
-  const t = prompt(
-    'Paste a fresh Wise bearer token (JWT).\n\n' +
-    'To get one: open https://unis.item.com in another tab while signed in, ' +
-    'open DevTools → Network, click any API call, copy the Authorization header value ' +
-    '(everything after "Bearer ").\n\n' +
-    'Current token: ' + (cur ? cur.substring(0, 20) + '… (' + cur.length + ' chars)' : '(none)'),
-    ''
-  );
-  if (!t) return;
-  let cleaned = t.trim();
-  if (cleaned.toLowerCase().startsWith('bearer ')) cleaned = cleaned.substring(7).trim();
-  WISE_TOKEN = cleaned;
-  try { localStorage.setItem('wise_token', WISE_TOKEN); } catch(_) {}
-  updateTokenStatus();
-  setLiveStatus(null);  // reset and re-evaluate on next call
-  CC.liveOk = null;
-  // If a customer is selected, refresh the count preview to confirm it works
-  const v = document.getElementById('cc-customer');
-  if (v && v.value) previewCustomerLocationCount(v.value);
-  alert('Token saved. Try selecting a customer to verify it works.');
+// Reconnect: silently try refresh; if that fails, return to sign-in.
+async function showReconnect() {
+  closeUserMenu();
+  const ok = await refreshAccessToken();
+  if (ok) {
+    updateTokenStatus();
+    setLiveStatus(null);
+    CC.liveOk = null;
+    const v = document.getElementById('cc-customer');
+    if (v && v.value) previewCustomerLocationCount(v.value);
+    return;
+  }
+  // No usable refresh token — clear session and return to sign-in
+  try {
+    localStorage.removeItem('wise_token');
+    localStorage.removeItem('wise_refresh_token');
+  } catch(_) {}
+  WISE_TOKEN = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  const pw = document.getElementById('inp-pass');
+  if (pw) pw.value = '';
+  const btn = document.getElementById('login-btn');
+  if (btn) { btn.disabled = false; btn.textContent = 'Sign In to WMS'; }
+  const err = document.getElementById('login-err');
+  if (err) { err.style.display = 'none'; }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -8240,40 +8301,11 @@ const API_COUNT_PROGRESS = WMS_BASE + '/api/cyclecount-bam/cycle-count/count-pro
 // access_token and refresh_token; auto-refresh handles renewal.
 const EMBEDDED_TOKEN = '';
 let WISE_TOKEN = null;
-// Initialize: pick whichever token is valid AND most recently issued.
-// Atlas may revoke older tokens when a new one is granted, so a
-// localStorage token that's still within its exp can be dead server-side.
-// Using iat (issued-at) lets us pick the newest token. The embedded one
-// in this file is the canonical choice unless the user has just pasted a
-// fresher one via the "⚿ Update token" link.
-function _tokenInfo(t) {
-  if (!t) return null;
-  try {
-    const parts = t.split('.');
-    if (parts.length < 2) return null;
-    let mid = parts[1].replace(/-/g,'+').replace(/_/g,'/');
-    while (mid.length % 4) mid += '=';
-    const p = JSON.parse(atob(mid));
-    return { iat: p.iat || 0, exp: p.exp || 0, valid: !!(p.exp && p.exp * 1000 > Date.now()) };
-  } catch(_) { return null; }
-}
-function _tokenValid(t) { const i = _tokenInfo(t); return !!(i && i.valid); }
+// Initialize: load token from localStorage. Expiry / auto-refresh is
+// handled by tickTokenRefresh when the dashboard becomes visible.
 try {
-  const stored = localStorage.getItem('wise_token');
-  const si = _tokenInfo(stored), ei = _tokenInfo(EMBEDDED_TOKEN);
-  if (si && si.valid && ei && ei.valid) {
-    WISE_TOKEN = (si.iat >= ei.iat) ? stored : EMBEDDED_TOKEN;
-    // If the embedded one is newer, drop the stale stored token.
-    if (ei.iat > si.iat) try { localStorage.removeItem('wise_token'); } catch(_) {}
-  } else if (si && si.valid) {
-    WISE_TOKEN = stored;
-  } else if (ei && ei.valid) {
-    WISE_TOKEN = EMBEDDED_TOKEN;
-    try { localStorage.removeItem('wise_token'); } catch(_) {}
-  } else {
-    WISE_TOKEN = stored || EMBEDDED_TOKEN;
-  }
-} catch(_) { WISE_TOKEN = EMBEDDED_TOKEN; }
+  WISE_TOKEN = localStorage.getItem('wise_token') || null;
+} catch(_) { WISE_TOKEN = null; }
 
 // All customers known across all facilities (orgId → {code, name}).
 const ALL_CUSTOMERS_MASTER = {
@@ -9161,8 +9193,11 @@ const CC = {
   schedulerInitDone: false
 };
 
-async function safeFetch(url, opts, _retryWithEmbedded, _alreadyRefreshed) {
+async function safeFetch(url, opts, _alreadyRefreshed) {
   opts = opts || {};
+  // Before every live request, silently refresh if the access token is
+  // missing, expired, or close to expiry. Users should never paste tokens.
+  await ensureWiseToken(false);
   const headers = Object.assign({
     'Accept':'application/json',
     'x-tenant-id': TENANT_ID,
@@ -9180,37 +9215,36 @@ async function safeFetch(url, opts, _retryWithEmbedded, _alreadyRefreshed) {
     let data = null;
     try { data = await r.json(); } catch(_) {}
 
-    // Auto-recover from Unauthorized in three escalating steps:
+    // Auto-recover from Unauthorized:
     //   1. Silent refresh via refresh_token (preferred — zero UX impact)
-    //   2. Fall back to the embedded token (legacy behavior)
-    //   3. If both fail, surface _needsFreshToken so the user is prompted
+    //   2. If that fails, surface _needsAuth so callers can trigger reconnect
     const looks401 = r.status === 401 ||
                      (data && (data.msg === 'Unauthorized' || data.message === 'Unauthorized' ||
                                /unauthor/i.test(data.msg || data.message || '')));
-    if (looks401 && !_alreadyRefreshed && !_retryWithEmbedded) {
+    if (looks401 && !_alreadyRefreshed) {
       console.warn('safeFetch: got 401, attempting silent refresh');
       const ok = await refreshAccessToken();
       if (ok) {
-        return safeFetch(url, opts, false, true);  // retry once with the new token
+        return safeFetch(url, opts, true);  // retry once with the new token
       }
-      // refresh failed (no refresh_token, expired, etc.) — fall through to embedded
-    }
-    if (looks401 && !_retryWithEmbedded) {
-      console.warn('safeFetch: refresh unavailable, falling back to embedded token');
+      // refresh failed (no refresh_token, expired, etc.)
+      console.warn('safeFetch: refresh unavailable or failed');
       try { localStorage.removeItem('wise_token'); } catch(_) {}
-      WISE_TOKEN = EMBEDDED_TOKEN;
+      WISE_TOKEN = null;
       updateTokenStatus();
-      return safeFetch(url, opts, true, true);   // retry once with embedded
     }
-    if (looks401 && _retryWithEmbedded) {
-      // Even embedded token failed — surface a clearer hint to the user
+    if (looks401) {
+      setLiveStatus(false);
       data = data || {success: false};
-      data._needsFreshToken = true;
+      data.success = false;
+      data._needsAuth = true;
+      data.msg = data.msg || data.message || 'Session expired';
+      return data;
     }
 
     setLiveStatus(true);
     if (data == null) {
-      return {success: false, code: r.status, msg: 'HTTP ' + r.status + ' ' + r.statusText};
+      return {success: false, code: r.status, msg: 'Request unavailable'};
     }
     return data;
   } catch(e) {
@@ -10996,9 +11030,9 @@ async function submitCycleCount() {
       scheduleId = (sResp.data && (sResp.data.id || sResp.data.scheduleId)) || sResp.id || null;
     } else if (sResp && sResp.success === false) {
       scheduleError = sResp.msg || sResp.message || 'rejected';
-      if (sResp._needsFreshToken) {
-        alert('Your Wise token has expired or been revoked. Please paste a fresh one.');
-        promptForToken();
+      if (sResp._needsAuth) {
+        alert('Your session has expired. You will be returned to the sign-in screen.');
+        showReconnect();
         btn.disabled = false;
         return;
       }
@@ -11039,13 +11073,12 @@ async function submitCycleCount() {
   if (scheduleError) msg += '⚠ Schedule creation failed: ' + scheduleError + '.\n';
   if (failed.length) {
     msg += '✗ ' + failed.length + ' rejected by Wise:\n  ' + failed.map(r=>r.msg).join('\n  ') + '\n';
-    // If every failure was Unauthorized, prompt the user to paste a fresh token
+    // If every failure was Unauthorized, reconnect via sign-in
     const allUnauth = failed.every(r => /unauthor/i.test(r.msg || ''));
     if (allUnauth) {
-      msg += '\nYour Wise token has been revoked. Click OK to paste a fresh one.';
+      msg += '\nYour session has expired. You will be returned to the sign-in screen.';
       alert(msg);
-      promptForToken();
-      // Bail out — user will retry submission after pasting
+      showReconnect();
       btn.disabled = false;
       return;
     }
