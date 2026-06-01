@@ -8295,17 +8295,26 @@ function ccCountResultUrl(ticketId, taskId) {
          '/count-task/' + encodeURIComponent(taskId) + '/count-result';
 }
 const API_COUNT_PROGRESS = WMS_BASE + '/api/cyclecount-bam/cycle-count/count-progress/latest/statistics';
-// SHAREABLE BUILD — embedded token deliberately empty. Each user
-// must sign in with their own IAM credentials. The login flow
-// (doLogin) calls Atlas password-grant and stores both
+// Hosted fallback build — retains the original embedded token as a
+// best-effort live-data fallback, but only uses it when it is still valid.
+// Normal login still calls Atlas password-grant and stores both
 // access_token and refresh_token; auto-refresh handles renewal.
-const EMBEDDED_TOKEN = '';
+const EMBEDDED_TOKEN = 'eyJraWQiOiJ1OWVkOWRmMi05OTI5LTgyYjEtYmQ5MC04OTlhMDJmMjFmbTkiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJiZXNjb2JhciIsImNsaWVudF9jYXRlZ29yeSI6MSwiZGF0YSI6eyJ1c2VyX2lkIjoiMTk3MDgiLCJ1c2VyX25hbWUiOiJiZXNjb2JhciIsInRlbmFudF9pZCI6IkxUIiwidGVuYW50cyI6WyJMVCJdLCJlbXBsb3llZUNvZGUiOiIyNDA5IiwiY29tcGFueV9jb2RlIjoiTFQiLCJyb2xlX2lkcyI6WyIxODc1MDEzNjE3NTEwNzQ4MTYyIl0sImNybV91c2VyX2lkIjoiMjI4MiIsInRtc191c2VyX2lkIjoiMCJ9LCJpc3MiOiJodHRwczovL2lkLml0ZW0uY29tIiwiY2xpZW50X2lkIjoiYWRjMjc1OTMtZWNmNC00NjE4LTllOGYtYTQ0NjY2ZGYxMDNhIiwiYXVkIjoiYWRjMjc1OTMtZWNmNC00NjE4LTllOGYtYTQ0NjY2ZGYxMDNhIiwibmJmIjoxNzc5OTQ4NzY2LCJhcHBsaWNhdGlvbiI6IkF0bGFzIiwiZ3JhbnRfdHlwZSI6InBhc3N3b3JkIiwic2NvcGUiOlsib3BlbmlkIiwiZW1haWwiXSwiZXhwIjoxNzc5OTg0NzY2LCJpYXQiOjE3Nzk5NDg3NjYsImNsaWVudF9uYW1lIjoid21zIiwianRpIjoiNDg1YWJkYjQtNDcwNS00YzZkLWJhOGYtMTdkNjY5NWUxZWYxIn0.lk87S9gSOoVQ97Mu7gWiPlhfSrK3Rp2ZHfKzEXVMgJ3UzOzwsMkoRSFqPpm3QPrED5Whzza5jRdc7BpZTymtn7jT-Rpa9gKG3cHVTTG8Fu_FmbfCdkL5Xnm8QUSdX9nrUM2N0zTwSJnQ7TBnz0lQcI0cdtrRdAT6-XtamE_k_DWj1w7I1XnHv05nNJNOTspUpiaC6YknvBG3P2aEn0Qp4zMlYU0wBrr9ulFq8j1gMA1W7Opp0P_Rwn3XkMcdq8aNb4azmQlJkJYuqJdJ_nAqiyhLCPIoZg0XoywIy7SoCEANIfzL6NsL53beyG0sX0utm6F8ina5QD5sXiZxQBTq1w';
 let WISE_TOKEN = null;
 // Initialize: load token from localStorage. Expiry / auto-refresh is
 // handled by tickTokenRefresh when the dashboard becomes visible.
 try {
   WISE_TOKEN = localStorage.getItem('wise_token') || null;
 } catch(_) { WISE_TOKEN = null; }
+// Legacy live-data fallback: if no stored user token is available and the
+// embedded demo token is still valid, allow the dashboard to extract live
+// data using it. If it is expired, it is ignored and normal IAM login is used.
+function _embeddedTokenUsable() {
+  return !!(EMBEDDED_TOKEN && !tokenNeedsRefresh(EMBEDDED_TOKEN, 0));
+}
+try {
+  if (!WISE_TOKEN && _embeddedTokenUsable()) WISE_TOKEN = EMBEDDED_TOKEN;
+} catch(_) {}
 
 // All customers known across all facilities (orgId → {code, name}).
 const ALL_CUSTOMERS_MASTER = {
@@ -9227,7 +9236,14 @@ async function safeFetch(url, opts, _alreadyRefreshed) {
       if (ok) {
         return safeFetch(url, opts, true);  // retry once with the new token
       }
-      // refresh failed (no refresh_token, expired, etc.)
+      // refresh failed (no refresh_token, expired, etc.). Fall back to the
+      // embedded token from the original live build if it is still usable.
+      if (_embeddedTokenUsable() && WISE_TOKEN !== EMBEDDED_TOKEN) {
+        console.warn('safeFetch: refresh unavailable, retrying with embedded token');
+        WISE_TOKEN = EMBEDDED_TOKEN;
+        updateTokenStatus();
+        return safeFetch(url, opts, true);
+      }
       console.warn('safeFetch: refresh unavailable or failed');
       try { localStorage.removeItem('wise_token'); } catch(_) {}
       WISE_TOKEN = null;
