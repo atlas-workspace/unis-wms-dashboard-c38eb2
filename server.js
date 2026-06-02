@@ -57,11 +57,6 @@ async function handleApi(req, res, url) {
       const out = await upstreamJson('POST', 'atlas.item.com', '/api/auth/refresh', raw);
       return send(res, out.status, out.json || out.raw || {success:false,msg:'empty upstream response'});
     }
-    if (req.method === 'GET' && url.pathname === '/api/proxy/iam/token/code') {
-      const q = '?' + url.searchParams.toString();
-      const out = await upstreamJson('GET', 'id.item.com', '/api/iam/auth/token/code', null, q);
-      return send(res, out.status, out.json || out.raw || {success:false,msg:'empty upstream response'});
-    }
     return send(res, 404, {success:false,msg:'Unknown API route'});
   } catch (e) {
     return send(res, 500, {success:false,msg:e.message});
