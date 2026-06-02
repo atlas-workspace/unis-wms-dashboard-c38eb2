@@ -1356,6 +1356,30 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
   </div><!-- /main -->
 
   <!-- ═══════════════ SELECT LOCATIONS MODAL ═══════════════ -->
+
+  <div class="modal-overlay" id="count-results-modal" onclick="if(event.target===this)closeCountResultsModal()">
+    <div class="modal" style="max-width:1280px">
+      <div class="modal-hdr">
+        <h2 id="count-results-title">Count Results</h2>
+        <button class="modal-x" onclick="closeCountResultsModal()" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;gap:26px;align-items:center;border-bottom:3px solid #e5e7eb;margin-bottom:22px">
+          <div style="padding:0 0 12px;color:#6b7280;font-weight:700;font-size:15px">Task Lines</div>
+          <div style="padding:0 0 12px;color:#1f2937;font-weight:800;font-size:16px;border-bottom:4px solid #753BBD;margin-bottom:-3px">Count Result</div>
+        </div>
+        <div class="results-wrap" style="border-radius:0">
+          <table class="tbl" id="count-results-table">
+            <thead><tr><th>Location</th><th>Item</th><th>UOM</th><th>Base Qty</th><th>System UOM</th><th>System UOM Qty</th><th>Item Diff Base Qty</th><th>Status</th></tr></thead>
+            <tbody id="count-results-body"><tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af">Select a ticket to load count results…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="loc-modal" onclick="if(event.target===this)closeLocationModal()">
     <div class="modal">
       <div class="modal-hdr">
@@ -11076,10 +11100,60 @@ async function loadCycleCountView() {
       '<td>' + esc(cust) + '</td>' +
       '<td>' + esc(r.type || '—') + '</td>' +
       '<td>' + locs.toLocaleString() + '</td>' +
-      '<td>' + esc(resultTxt) + '</td>' +
+      '<td><span class="card-link" onclick="openCountResultsModal(\'' + escAttr(r.id) + '\')">' + esc(resultTxt === '—' ? 'View' : resultTxt) + '</span></td>' +
       '<td>' + esc(sched) + '</td>' +
       '<td>' + esc(r.createdBy || '—') + '</td>' +
       '<td><span class="badge ' + badge + '">' + esc(status) + '</span></td>' +
+    '</tr>';
+  }).join('');
+}
+
+
+function closeCountResultsModal() {
+  const m = document.getElementById('count-results-modal');
+  if (m) m.classList.remove('open');
+}
+async function openCountResultsModal(ticketId) {
+  const m = document.getElementById('count-results-modal');
+  const title = document.getElementById('count-results-title');
+  const body = document.getElementById('count-results-body');
+  if (title) title.textContent = 'Count Results · ' + ticketId;
+  if (body) body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af">Loading count results…</td></tr>';
+  if (m) m.classList.add('open');
+  const resp = await safeFetch(API_COUNT_RESULTS, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Accept':'application/json'},
+    body: JSON.stringify({currentPage:1,pageSize:500,searchCount:true,ticketIds:[ticketId],sortingFields:[{field:'createdTime',orderBy:'DESC'}]}),
+  });
+  if (!body) return;
+  if (!resp || resp.success === false) {
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:#ef4444">Could not load count results.</td></tr>';
+    return;
+  }
+  const payload = resp.data || resp;
+  const list = payload.list || payload.records || payload.results || payload.items || [];
+  if (!list.length) {
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af">No count results have been submitted for this ticket yet.</td></tr>';
+    return;
+  }
+  body.innerHTML = list.map(r => {
+    const loc = r.locationName || r.location || r.locationId || r.systemLocationName || r.systemLocationId || '—';
+    const item = r.itemName || r.itemCode || r.itemId || '—';
+    const uom = r.countUomName || r.countUomCode || r.countUomId || r.uom || '—';
+    const baseQty = r.countItemQty ?? r.countBaseQty ?? r.baseQty ?? '—';
+    const sysUom = r.systemUomName || r.systemUomCode || r.systemUomId || '—';
+    const sysQty = r.systemItemQty ?? r.systemBaseQty ?? r.systemUomQty ?? '—';
+    const diff = r.itemDiffBaseQty ?? r.diffBaseQty ?? r.qtyDiff ?? '—';
+    const status = r.status || r.type || '—';
+    return '<tr>' +
+      '<td>' + esc(loc) + '</td>' +
+      '<td>' + esc(item) + '</td>' +
+      '<td>' + esc(uom) + '</td>' +
+      '<td>' + esc(baseQty) + '</td>' +
+      '<td>' + esc(sysUom) + '</td>' +
+      '<td>' + esc(sysQty) + '</td>' +
+      '<td>' + esc(diff) + '</td>' +
+      '<td>' + esc(status) + '</td>' +
     '</tr>';
   }).join('');
 }
