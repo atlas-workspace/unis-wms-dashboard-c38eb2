@@ -9481,7 +9481,9 @@ async function saveWiseSchedule() {
     return;
   }
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  const localId = 'local-' + Date.now();
   const payload = {
+    id: localId,
     name,
     recurrenceType: recurrence,
     recurrenceInterval: 1,
@@ -9491,6 +9493,12 @@ async function saveWiseSchedule() {
     facilityId: FACILITY_ID,
     warehouseId: FACILITY_ID,
   };
+
+  // Save locally first so the schedule appears immediately in both the table
+  // and the "Use existing schedule" dropdown, even if Wise search is delayed.
+  saveLocalSchedule(Object.assign({}, payload), FACILITY_ID);
+  await loadExistingSchedules();
+
   const resp = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/schedule', {
     method:'POST',
     headers:{'Content-Type':'application/json','Accept':'application/json'},
@@ -9498,13 +9506,11 @@ async function saveWiseSchedule() {
   });
   if (btn) { btn.disabled = false; btn.textContent = 'Save Schedule'; }
   if (resp && resp._needsAuth) { showReconnect(); return; }
-  if (!resp || resp.success === false) {
-    alert('Could not save the schedule. Please check the required fields and try again.');
-    return;
+  if (resp && resp.success !== false) {
+    const savedRow = Object.assign({}, payload, (resp.data || resp || {}));
+    savedRow.id = savedRow.id || savedRow.scheduleId || localId;
+    saveLocalSchedule(savedRow, FACILITY_ID);
   }
-  const savedRow = Object.assign({}, payload, (resp.data || resp || {}));
-  savedRow.id = savedRow.id || savedRow.scheduleId || ('local-' + Date.now());
-  saveLocalSchedule(savedRow, FACILITY_ID);
   document.getElementById('sched-wise-add-form').style.display = 'none';
   const search = document.getElementById('sched-wise-search-name');
   if (search) search.value = '';
@@ -9611,8 +9617,10 @@ function setScheduleMode(mode) {
   }
   // Stash the chosen mode for submit
   CC.scheduleMode = mode;
-  // If switching to existing and one is already selected, re-apply it
-  if (useExisting) onExistingScheduleChange();
+  // If switching to existing, reload schedules first so newly saved schedules appear.
+  if (useExisting) {
+    loadExistingSchedules().then(onExistingScheduleChange);
+  }
 }
 
 // Load schedules from Wise and fill the dropdown. Endpoint shape:
