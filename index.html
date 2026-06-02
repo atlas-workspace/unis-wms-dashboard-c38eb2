@@ -9549,6 +9549,15 @@ function savedSchedulesKey(facilityId) {
 function loadLocalSchedules(facilityId) {
   try { return JSON.parse(localStorage.getItem(savedSchedulesKey(facilityId)) || '[]'); } catch(_) { return []; }
 }
+function scheduleSignature(s) {
+  return [
+    String(s.name || '').trim().toUpperCase(),
+    String(s.recurrenceType || 'NONE').trim().toUpperCase(),
+    String(s.startTime || '').slice(0,16),
+    String(s.endTime || '').slice(0,16),
+    String(s.facilityId || s.warehouseId || FACILITY_ID).trim().toUpperCase(),
+  ].join('|');
+}
 function saveLocalSchedule(row, facilityId) {
   try {
     const key = savedSchedulesKey(facilityId);
@@ -9556,8 +9565,9 @@ function saveLocalSchedule(row, facilityId) {
     const id = row.id || row.scheduleId || ('local-' + Date.now());
     row.id = id;
     row.facilityId = facilityId || FACILITY_ID;
-    const idx = list.findIndex(s => String(s.id) === String(id));
-    if (idx >= 0) list[idx] = row; else list.unshift(row);
+    const sig = scheduleSignature(row);
+    const idx = list.findIndex(s => String(s.id) === String(id) || scheduleSignature(s) === sig);
+    if (idx >= 0) list[idx] = Object.assign({}, list[idx], row); else list.unshift(row);
     localStorage.setItem(key, JSON.stringify(list));
   } catch(_) {}
 }
@@ -9707,9 +9717,14 @@ async function loadExistingSchedules() {
   // the user sees it immediately even if Wise search lags or omits facility data.
   list = list.filter(rowMatchesCurrentFacility);
   const local = loadLocalSchedules(FACILITY_ID);
-  const byId = new Map();
-  local.concat(list).forEach(s => byId.set(String(s.id || s.scheduleId || s.name), s));
-  list = Array.from(byId.values());
+  const bySig = new Map();
+  // Merge local optimistic rows with Wise rows by schedule identity, not only ID.
+  // This prevents duplicates when local row uses local-* ID and Wise later returns a real ID.
+  local.concat(list).forEach(s => {
+    const key = scheduleSignature(s) || String(s.id || s.scheduleId || s.name);
+    bySig.set(key, Object.assign({}, bySig.get(key) || {}, s));
+  });
+  list = Array.from(bySig.values());
   const q = ((document.getElementById('sched-wise-search-name') || {}).value || '').trim().toLowerCase();
   if (q) list = list.filter(s => String(s.name || '').toLowerCase().includes(q));
   CC.schedules = list;
