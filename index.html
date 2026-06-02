@@ -10341,17 +10341,24 @@ function renderTasksPanel() {
   const host = document.getElementById('tasks-host');
   const cnt = document.getElementById('tasks-count');
   if (!host) return;
-  // HARD warehouse scope for browser-saved cards: only show tasks that were
-  // explicitly created for the currently selected facility. Do not infer from
-  // customer, schedule, or missing fields because customers/schedules can overlap
-  // and old localStorage entries caused Alessandro cards to leak into Valley.
-  const currentCustomerIds = new Set((FACILITY_CUSTOMERS[FACILITY_ID] || []).map(c => String(c.id)));
+
+  // Source of truth is the visible warehouse selector, not only the global.
+  // This prevents stale global state from leaking saved cards after a facility switch.
+  const sel = document.getElementById('facility-switcher');
+  const activeFacilityId = (sel && sel.value) || FACILITY_ID;
+  const activeFacility = FACILITIES.find(f => f.id === activeFacilityId) || {id:activeFacilityId, name:FACILITY_NAME};
+  const activeCustomerIds = new Set((FACILITY_CUSTOMERS[activeFacilityId] || []).map(c => String(c.id)));
+
+  // HARD warehouse scope for browser-saved cards. A card is visible ONLY when
+  // it has an explicit facility matching the selected warehouse AND its customer
+  // belongs to that same warehouse. Old/malformed localStorage cards are hidden.
   const visibleTasks = CC.tasks.filter(t => {
-    const explicitFacilityOk = normFacility(t.facility || t.facilityId || t.warehouseId) === normFacility(FACILITY_ID);
-    const customerOk = t.customerId ? currentCustomerIds.has(String(t.customerId)) : false;
-    return explicitFacilityOk && customerOk;
+    const taskFacility = normFacility(t.facility || t.facilityId || t.warehouseId || '');
+    if (!taskFacility || taskFacility !== normFacility(activeFacilityId)) return false;
+    if (!t.customerId) return false;
+    return activeCustomerIds.has(String(t.customerId));
   });
-  cnt.textContent = '(' + visibleTasks.length + ')';
+  if (cnt) cnt.textContent = '(' + visibleTasks.length + ')';
   if (visibleTasks.length === 0) {
     host.innerHTML = '<div class="tasks-empty">No saved cycle counts at <strong>' + esc(FACILITY_NAME) + '</strong> yet.</div>';
     return;
