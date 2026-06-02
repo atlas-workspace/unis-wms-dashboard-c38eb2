@@ -11288,7 +11288,10 @@ async function submitCycleCount() {
   // Common payload fields — duplicated per customer below
   const commonFields = {
     type:                 document.getElementById('cc-type').value || 'BY_LOCATION',
-    countCategory:        document.getElementById('cc-type').value || 'BY_LOCATION',
+    // Wise CountCategory enum is NOT the same as ticket type (BY_LOCATION/BY_ITEM).
+    // Accepted values include DAILY_COUNT / CYCLE_COUNT / FULL_AIR_ROB_COUNT, etc.
+    // Use DAILY_COUNT for scheduled dashboard counts to avoid CountCategory enum rejection.
+    countCategory:        'DAILY_COUNT',
     cycleCountType:       document.getElementById('cc-type').value || 'BY_LOCATION',
     countMethod:          document.getElementById('cc-method').value || 'PIECE',
     method:               document.getElementById('cc-method').value || 'PIECE',
@@ -11380,7 +11383,7 @@ async function submitCycleCount() {
             customerId,
             customerName: custName ? custName.name : customerId,
             countType: commonFields.type,
-            countCategory: commonFields.type,
+            countCategory: commonFields.countCategory,
             type: commonFields.type,
             countMethod: commonFields.countMethod,
             method: commonFields.countMethod,
