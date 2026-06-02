@@ -1500,6 +1500,22 @@ function populateFacilitySwitcher() {
   const fac = FACILITIES.find(f => f.id === saved) || FACILITIES[0];
   FACILITY_ID = fac.id;
   FACILITY_NAME = fac.name;
+  updateSchedulerFacilityHelp(fac);
+  refreshFacilityCustomers();
+}
+
+function updateSchedulerFacilityHelp(fac) {
+  const help = document.getElementById('sched-facility-help');
+  if (!help || !fac) return;
+  const customers = FACILITY_CUSTOMERS[fac.id] || [];
+  const locCount = customers.reduce((s,c)=>s+(c.count||0),0);
+  if (customers.length === 0) {
+    help.innerHTML = 'Facility: <strong>' + fac.name + '</strong> (' + fac.id + ') · <span style="color:#9ca3af">No locations in Wise for this facility</span>';
+  } else if (fac.id === 'LT_F1') {
+    help.innerHTML = 'Facility: <strong>' + fac.name + '</strong> · ' + customers.length + ' customers · ' + locCount.toLocaleString() + ' locations cached · Real Wise snapshot 2026-05-27';
+  } else {
+    help.innerHTML = 'Facility: <strong>' + fac.name + '</strong> (' + fac.id + ') · ' + customers.length + ' customers · ' + locCount.toLocaleString() + ' rows in 500-row sample · Real Wise snapshot 2026-05-27';
+  }
 }
 
 function switchFacility(newId) {
@@ -1520,18 +1536,7 @@ function switchFacility(newId) {
   // dedicated facility-help element by id — NOT querySelector('.scheduler-help'),
   // which matched the first of 14 help blocks (the generic instructions) and
   // left the real "Facility: Valley View Warehouse" line stale in every facility.
-  const help = document.getElementById('sched-facility-help');
-  const customers = FACILITY_CUSTOMERS[fac.id] || [];
-  const locCount = customers.reduce((s,c)=>s+(c.count||0),0);
-  if (help) {
-    if (customers.length === 0) {
-      help.innerHTML = 'Facility: <strong>' + fac.name + '</strong> (' + fac.id + ') · <span style="color:#9ca3af">No locations in Wise for this facility</span>';
-    } else if (fac.id === 'LT_F1') {
-      help.innerHTML = 'Facility: <strong>' + fac.name + '</strong> · ' + customers.length + ' customers · ' + locCount.toLocaleString() + ' locations cached · Real Wise snapshot 2026-05-27';
-    } else {
-      help.innerHTML = 'Facility: <strong>' + fac.name + '</strong> (' + fac.id + ') · ' + customers.length + ' customers · ' + locCount.toLocaleString() + ' rows in 500-row sample · Real Wise snapshot 2026-05-27';
-    }
-  }
+  updateSchedulerFacilityHelp(fac);
 
   // Rebuild the customer dropdown for this facility
   refreshFacilityCustomers();
