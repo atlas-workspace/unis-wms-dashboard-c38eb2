@@ -10327,12 +10327,20 @@ function resolveCounter(raw) {
   return {userId: null, userName: null, fullName: txt, label: raw};
 }
 
-// ─── SAVED TASKS (localStorage-backed, per-browser) ───
-function loadSavedTasks() {
-  try { return JSON.parse(localStorage.getItem('cc_tasks') || '[]'); } catch(_) { return []; }
+// ─── SAVED TASKS (localStorage-backed, per-browser, hard-separated by warehouse) ───
+function selectedFacilityIdForStorage() {
+  const sel = document.getElementById('facility-switcher');
+  if (sel && sel.value) return sel.value;
+  try { return localStorage.getItem('facility_id') || FACILITY_ID; } catch(_) { return FACILITY_ID; }
 }
-function persistSavedTasks(list) {
-  try { localStorage.setItem('cc_tasks', JSON.stringify(list)); } catch(_) {}
+function savedTasksKey(facilityId) {
+  return 'cc_tasks__' + String(facilityId || selectedFacilityIdForStorage()).replace(/[^A-Za-z0-9_-]/g, '_');
+}
+function loadSavedTasks(facilityId) {
+  try { return JSON.parse(localStorage.getItem(savedTasksKey(facilityId)) || '[]'); } catch(_) { return []; }
+}
+function persistSavedTasks(list, facilityId) {
+  try { localStorage.setItem(savedTasksKey(facilityId), JSON.stringify(list)); } catch(_) {}
 }
 CC.tasks = loadSavedTasks();
 CC.editingTaskId = null;
@@ -10347,6 +10355,9 @@ function renderTasksPanel() {
   const sel = document.getElementById('facility-switcher');
   const activeFacilityId = (sel && sel.value) || FACILITY_ID;
   const activeFacility = FACILITIES.find(f => f.id === activeFacilityId) || {id:activeFacilityId, name:FACILITY_NAME};
+  // Reload from the warehouse-specific storage key every render. This ignores
+  // the legacy shared cc_tasks bucket that contains the leaked old card.
+  CC.tasks = loadSavedTasks(activeFacilityId);
   const activeCustomerIds = new Set((FACILITY_CUSTOMERS[activeFacilityId] || []).map(c => String(c.id)));
 
   // HARD warehouse scope for browser-saved cards. A card is visible ONLY when
@@ -10360,7 +10371,7 @@ function renderTasksPanel() {
   });
   if (cnt) cnt.textContent = '(' + visibleTasks.length + ')';
   if (visibleTasks.length === 0) {
-    host.innerHTML = '<div class="tasks-empty">No saved cycle counts at <strong>' + esc(FACILITY_NAME) + '</strong> yet.</div>';
+    host.innerHTML = '<div class="tasks-empty">No saved cycle counts at <strong>' + esc(activeFacility.name || activeFacilityId) + '</strong> yet.</div>';
     return;
   }
   // Group tasks by scheduleId — tasks that share a scheduleId came from one
