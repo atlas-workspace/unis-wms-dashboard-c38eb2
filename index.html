@@ -1363,6 +1363,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           <div class="cc-field"><label class="cc-label">Customer</label><select class="cc-input" id="loc-customer"><option value="">Select</option></select></div>
           <div class="cc-field" style="display:none"><input id="loc-name" type="hidden"/></div>
           <div class="cc-field"><label class="cc-label">Location Type</label><select class="cc-input" id="loc-type"><option value="">Select</option></select></div>
+          <div class="cc-field"><label class="cc-label">Storage Zone</label><select class="cc-input" id="loc-storage-zone"><option value="">Rack + Bulk</option><option value="RACK">RACK only</option><option value="BULK">BULK only</option></select></div>
           <div class="cc-field"><label class="cc-label">Support Pick Type</label><select class="cc-input" id="loc-pick-type"><option value="">Select</option></select></div>
           <div class="cc-field"><label class="cc-label">Status</label><select class="cc-input" id="loc-status"><option value="">Select</option></select></div>
           <div class="cc-field"><label class="cc-label">Occupancy Status</label><select class="cc-input" id="loc-occ"><option value="">Select</option></select></div>
@@ -9913,7 +9914,7 @@ function closeLocationModal() {
 
 function resetLocFilters(preserveCustomer) {
   ['loc-name','loc-aisle','loc-bay','loc-level','loc-slot'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
-  ['loc-type','loc-pick-type','loc-status','loc-occ'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  ['loc-type','loc-storage-zone','loc-pick-type','loc-status','loc-occ'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   if (!preserveCustomer) {
     const lc = document.getElementById('loc-customer');
     if (lc) lc.value = '';
@@ -9928,6 +9929,10 @@ function buildLocSearchBody(page, pageSize) {
   const v = id => document.getElementById(id).value;
   if (v('loc-name'))      body.name            = v('loc-name');
   if (v('loc-type'))      body.type            = v('loc-type');
+  if (v('loc-storage-zone')) {
+    body.storageZone = v('loc-storage-zone');
+    body.locationStorageType = v('loc-storage-zone');
+  }
   if (v('loc-pick-type')) body.supportPickType = v('loc-pick-type');
   if (v('loc-status'))    body.status          = v('loc-status');
   if (v('loc-occ'))       body.spaceStatus     = v('loc-occ');
@@ -9974,7 +9979,7 @@ async function searchLocations() {
     const payload = data.data || data;
     const list = payload.list || payload.results || payload.items || [];
     total = payload.totalCount ?? payload.total ?? payload.count ?? list.length;
-    firstRows = list.map(mapWiseLocation);
+    firstRows = applyStorageZoneFilter(list.map(mapWiseLocation));
     live = true;
   } else if (customerOrgId) {
     // Wise unreachable — fall back to baked sample (real ORGAIN data) +
@@ -10008,11 +10013,15 @@ async function searchLocations() {
       const payload = more.data || more;
       const list = payload.list || payload.results || payload.items || [];
       if (!list.length) break;
-      CC.modalResults = CC.modalResults.concat(list.map(mapWiseLocation));
+      CC.modalResults = CC.modalResults.concat(applyStorageZoneFilter(list.map(mapWiseLocation)));
       updateLoadProgress(CC.modalResults.length, totalToLoad);
       renderLocResults();
     }
     showLoadProgress(false);
+    if ((document.getElementById('loc-storage-zone') || {}).value) {
+      CC.modalTotal = CC.modalResults.length;
+      renderLocResults();
+    }
     // Show a small note if we capped
     if (total > CAP) {
       const cnt = document.getElementById('loc-results-count');
@@ -10087,7 +10096,7 @@ async function previewCustomerLocationCount(customerOrgId) {
 
 // Normalize Wise's location row into the modal's expected shape.
 function mapWiseLocation(r) {
-  return {
+  const row = {
     name:            r.name,
     aisle:           r.aisle == null ? '' : String(r.aisle),
     section:         r.section == null ? '' : String(r.section),
@@ -10100,6 +10109,23 @@ function mapWiseLocation(r) {
     occupancyStatus: r.spaceStatus || '',
     akaName:         r.akaName || '',
   };
+  row.storageZone = classifyStorageZone(row);
+  return row;
+}
+
+function classifyStorageZone(r) {
+  const text = [r.type, r.name, r.akaName, r.aisle, r.section, r.bay].map(v => String(v || '').toUpperCase()).join(' ');
+  if (/\bBULK\b|BULK|^B|\bBK\b/.test(text)) return 'BULK';
+  if (/\bRACK\b|RACK|^R|\bRK\b/.test(text)) return 'RACK';
+  // Most numbered warehouse locations are rack positions; staging/dock/station are not.
+  if (/^(STAGING|DOCK|STATION)$/i.test(String(r.type || ''))) return '';
+  if (/^\d{1,3}[.\-]\d{1,3}/.test(String(r.name || ''))) return 'RACK';
+  return '';
+}
+function applyStorageZoneFilter(rows) {
+  const zone = (document.getElementById('loc-storage-zone') || {}).value || '';
+  if (!zone) return rows;
+  return rows.filter(r => (r.storageZone || classifyStorageZone(r)) === zone);
 }
 
 // Cached synthetic location universe so pagination is consistent
@@ -10197,10 +10223,12 @@ function synthLocations(filter) {
   // sends to the API). Supports both legacy and Wise keys for safety.
   let filt = universe;
   const ftype   = filter.type   ?? filter.locationType;
+  const fzone   = filter.storageZone ?? filter.locationStorageType;
   const fspace  = filter.spaceStatus ?? filter.occupancyStatus;
   const fbay    = filter.section ?? filter.bay;
   if (filter.name)         filt = filt.filter(r => (r.name||'').toLowerCase().includes(String(filter.name).toLowerCase()));
   if (ftype)               filt = filt.filter(r => r.type === ftype);
+  if (fzone)               filt = applyStorageZoneFilter(filt);
   if (filter.supportPickType) filt = filt.filter(r => r.supportPickType === filter.supportPickType);
   if (filter.status)       filt = filt.filter(r => r.status === filter.status);
   if (fspace)              filt = filt.filter(r => r.occupancyStatus === fspace);
@@ -10224,6 +10252,7 @@ function renderLocResults() {
     const activeFilters = [];
     const f = id => (document.getElementById(id) || {}).value || '';
     if (f('loc-type'))      activeFilters.push(`Type = ${f('loc-type')}`);
+    if (f('loc-storage-zone')) activeFilters.push(`Storage Zone = ${f('loc-storage-zone')}`);
     if (f('loc-pick-type')) activeFilters.push(`Support Pick = ${f('loc-pick-type')}`);
     if (f('loc-status'))    activeFilters.push(`Status = ${f('loc-status')}`);
     if (f('loc-occ'))       activeFilters.push(`Occupancy = ${f('loc-occ')}`);
