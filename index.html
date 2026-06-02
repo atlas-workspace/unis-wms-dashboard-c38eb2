@@ -908,7 +908,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         </div>
 
         <!-- ── CARD 2: COUNT SELECTION (what gets counted) ── -->
-        <div class="card">
+        <div class="card" id="count-plan-card">
           <div class="card-hdr">
             <div>
               <div class="card-ttl">Count Selection</div>
@@ -1002,7 +1002,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" id="count-lines-card">
           <div class="card-hdr">
             <div class="card-ttl">Count Lines <span id="cc-lines-count" style="font-weight:500;color:#9ca3af;font-size:13px">(0)</span></div>
             <div style="display:flex;gap:8px;align-items:center">
@@ -1019,7 +1019,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           </div>
         </div>
 
-        <div class="form-actions" style="margin-top:0">
+        <div class="form-actions" id="count-plan-actions" style="margin-top:0">
           <button class="btn btn-secondary" id="cc-cancel-edit-btn" onclick="cancelEditTask()" style="display:none">Cancel edit</button>
           <button class="btn btn-secondary" onclick="resetCycleForm()">Reset</button>
           <button class="btn btn-primary" id="cc-submit-btn" onclick="submitCycleCount()" disabled>
@@ -1027,7 +1027,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           </button>
         </div>
 
-        <div class="card">
+        <div class="card" id="saved-cycle-counts-card">
           <div class="card-hdr">
             <div>
               <div class="card-ttl">Saved Cycle Counts <span id="tasks-count" style="font-weight:500;color:#9ca3af;font-size:13px">(0)</span></div>
@@ -9431,6 +9431,15 @@ function setScheduleMode(mode) {
   const useExisting = mode === 'existing';
   existingBlock.style.display = useExisting ? '' : 'none';
   newBlock.style.display      = useExisting ? 'none' : '';
+
+  // When creating only the schedule, keep this page focused on the highlighted
+  // Schedule card. The count-plan UI belongs to the next step (setting up what
+  // gets counted), so it should only be visible when the user is using a
+  // schedule to build a count plan.
+  ['count-plan-card','count-lines-card','count-plan-actions','saved-cycle-counts-card'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = useExisting ? '' : 'none';
+  });
   // Segmented button visual state
   if (btnE) {
     btnE.style.background = useExisting ? '#753BBD' : 'white';
