@@ -10336,8 +10336,31 @@ function selectedFacilityIdForStorage() {
 function savedTasksKey(facilityId) {
   return 'cc_tasks__' + String(facilityId || selectedFacilityIdForStorage()).replace(/[^A-Za-z0-9_-]/g, '_');
 }
+function migrateLegacySavedTasks() {
+  try {
+    const legacy = JSON.parse(localStorage.getItem('cc_tasks') || '[]');
+    if (!Array.isArray(legacy) || legacy.length === 0) return;
+    const byFacility = new Map();
+    legacy.forEach(t => {
+      const fid = t.facility || t.facilityId || t.warehouseId;
+      if (!fid) return;
+      if (!byFacility.has(fid)) byFacility.set(fid, []);
+      byFacility.get(fid).push(t);
+    });
+    byFacility.forEach((items, fid) => {
+      const key = savedTasksKey(fid);
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
+      const seen = new Set(existing.map(t => t.id || (t.ticketId + '|' + t.customerId + '|' + t.name)));
+      items.forEach(t => {
+        const sig = t.id || (t.ticketId + '|' + t.customerId + '|' + t.name);
+        if (!seen.has(sig)) existing.push(t);
+      });
+      localStorage.setItem(key, JSON.stringify(existing));
+    });
+  } catch(_) {}
+}
 function loadSavedTasks(facilityId) {
-  try { localStorage.removeItem('cc_tasks'); } catch(_) {} // delete legacy shared bucket that leaked across warehouses
+  migrateLegacySavedTasks();
   try { return JSON.parse(localStorage.getItem(savedTasksKey(facilityId)) || '[]'); } catch(_) { return []; }
 }
 function persistSavedTasks(list, facilityId) {
