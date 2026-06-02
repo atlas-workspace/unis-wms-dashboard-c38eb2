@@ -9502,6 +9502,9 @@ async function saveWiseSchedule() {
     alert('Could not save the schedule. Please check the required fields and try again.');
     return;
   }
+  const savedRow = Object.assign({}, payload, (resp.data || resp || {}));
+  savedRow.id = savedRow.id || savedRow.scheduleId || ('local-' + Date.now());
+  saveLocalSchedule(savedRow, FACILITY_ID);
   document.getElementById('sched-wise-add-form').style.display = 'none';
   const search = document.getElementById('sched-wise-search-name');
   if (search) search.value = '';
@@ -9513,6 +9516,45 @@ function resetWiseScheduleSearch() {
   const input = document.getElementById('sched-wise-search-name');
   if (input) input.value = '';
   loadExistingSchedules();
+}
+function savedSchedulesKey(facilityId) {
+  return 'cc_schedules__' + String(facilityId || FACILITY_ID).replace(/[^A-Za-z0-9_-]/g, '_');
+}
+function loadLocalSchedules(facilityId) {
+  try { return JSON.parse(localStorage.getItem(savedSchedulesKey(facilityId)) || '[]'); } catch(_) { return []; }
+}
+function saveLocalSchedule(row, facilityId) {
+  try {
+    const key = savedSchedulesKey(facilityId);
+    const list = JSON.parse(localStorage.getItem(key) || '[]');
+    const id = row.id || row.scheduleId || ('local-' + Date.now());
+    row.id = id;
+    row.facilityId = facilityId || FACILITY_ID;
+    const idx = list.findIndex(s => String(s.id) === String(id));
+    if (idx >= 0) list[idx] = row; else list.unshift(row);
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch(_) {}
+}
+function renderWiseScheduleTable(list) {
+  const tbody = document.getElementById('sched-wise-table-body');
+  const results = document.getElementById('sched-wise-results');
+  if (results) results.textContent = list.length + ' Result' + (list.length === 1 ? '' : 's');
+  if (!tbody) return;
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="padding:26px;text-align:center;color:#6b7280;font-weight:600">No Data</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(s => {
+    const start = s.startTime ? new Date(s.startTime).toLocaleString([], {dateStyle:'medium', timeStyle:'short'}) : '—';
+    const end = s.endTime ? new Date(s.endTime).toLocaleString([], {dateStyle:'medium', timeStyle:'short'}) : '—';
+    return '<tr>' +
+      '<td style="padding:14px 16px;border-top:1px solid #e5e7eb">' + esc(s.name || '(unnamed)') + '</td>' +
+      '<td style="padding:14px 16px;border-top:1px solid #e5e7eb">' + esc(s.recurrenceType || 'NONE') + '</td>' +
+      '<td style="padding:14px 16px;border-top:1px solid #e5e7eb">' + esc(start) + '</td>' +
+      '<td style="padding:14px 16px;border-top:1px solid #e5e7eb">' + esc(end) + '</td>' +
+      '<td style="padding:14px 16px;border-top:1px solid #e5e7eb;color:#6b7280">Saved</td>' +
+    '</tr>';
+  }).join('');
 }
 
 function normFacility(v) { return String(v == null ? '' : v).trim().toUpperCase(); }
@@ -9594,14 +9636,18 @@ async function loadExistingSchedules() {
   if (reqFacility !== FACILITY_ID) return;  // user switched facilities mid-flight
   // Response uses {data:{list:[...]}} shape (not data.records)
   let list = (resp && resp.data && (resp.data.list || resp.data.records)) || [];
-  // Defensive client-side filter: if the rows carry a facility/warehouse
-  // identifier, drop any that don't match the selected facility. Rows with
-  // no such field are kept (can't filter what isn't there).
-  // Strict warehouse isolation: never show records from another warehouse.
-  // If the API does not provide a facility marker for a schedule, hide it
-  // rather than risking cross-warehouse leakage.
+  // Wise sometimes returns schedule rows without facility fields; keep only rows
+  // clearly scoped to this facility, then merge the local just-saved schedule so
+  // the user sees it immediately even if Wise search lags or omits facility data.
   list = list.filter(rowMatchesCurrentFacility);
+  const local = loadLocalSchedules(FACILITY_ID);
+  const byId = new Map();
+  local.concat(list).forEach(s => byId.set(String(s.id || s.scheduleId || s.name), s));
+  list = Array.from(byId.values());
+  const q = ((document.getElementById('sched-wise-search-name') || {}).value || '').trim().toLowerCase();
+  if (q) list = list.filter(s => String(s.name || '').toLowerCase().includes(q));
   CC.schedules = list;
+  renderWiseScheduleTable(list);
   sel.innerHTML = '';
   const opt0 = document.createElement('option');
   opt0.value = '';
