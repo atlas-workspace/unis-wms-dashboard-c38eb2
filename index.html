@@ -10345,7 +10345,12 @@ function renderTasksPanel() {
   // explicitly created for the currently selected facility. Do not infer from
   // customer, schedule, or missing fields because customers/schedules can overlap
   // and old localStorage entries caused Alessandro cards to leak into Valley.
-  const visibleTasks = CC.tasks.filter(t => normFacility(t.facility || t.facilityId || t.warehouseId) === normFacility(FACILITY_ID));
+  const currentCustomerIds = new Set((FACILITY_CUSTOMERS[FACILITY_ID] || []).map(c => String(c.id)));
+  const visibleTasks = CC.tasks.filter(t => {
+    const explicitFacilityOk = normFacility(t.facility || t.facilityId || t.warehouseId) === normFacility(FACILITY_ID);
+    const customerOk = t.customerId ? currentCustomerIds.has(String(t.customerId)) : false;
+    return explicitFacilityOk && customerOk;
+  });
   cnt.textContent = '(' + visibleTasks.length + ')';
   if (visibleTasks.length === 0) {
     host.innerHTML = '<div class="tasks-empty">No saved cycle counts at <strong>' + esc(FACILITY_NAME) + '</strong> yet.</div>';
