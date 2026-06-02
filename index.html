@@ -917,6 +917,10 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
                   <input type="datetime-local" class="cc-input date" id="cc-target-date" step="60"/>
                 </div>
               </div>
+              <div class="form-actions" style="margin-top:18px;justify-content:flex-end">
+                <button type="button" class="btn btn-secondary" onclick="showWiseAddScheduleForm()">Cancel</button>
+                <button type="button" class="btn btn-primary" id="sched-save-btn" onclick="saveWiseSchedule()">Save Schedule</button>
+              </div>
             </div>
 
             <div style="border:1px solid #d1d5db;border-radius:2px;overflow:hidden">
@@ -9465,6 +9469,44 @@ CC.schedules = [];
 function showWiseAddScheduleForm() {
   const form = document.getElementById('sched-wise-add-form');
   if (form) form.style.display = form.style.display === 'none' ? '' : 'none';
+}
+async function saveWiseSchedule() {
+  const btn = document.getElementById('sched-save-btn');
+  const name = (document.getElementById('sched-name') || {}).value?.trim() || '';
+  const recurrence = (document.getElementById('cc-recurrence') || {}).value || 'NONE';
+  const startTime = toIsoSchedule((document.getElementById('cc-sched-date') || {}).value || '');
+  const endTime = toIsoSchedule((document.getElementById('cc-target-date') || {}).value || '');
+  if (!name || !startTime || !endTime) {
+    alert('Please enter schedule name, start time, and end time.');
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  const payload = {
+    name,
+    recurrenceType: recurrence,
+    recurrenceInterval: 1,
+    recurrenceDays: recurrence === 'WEEKLY' ? ['MONDAY'] : (recurrence === 'MONTHLY' ? ['1'] : null),
+    startTime,
+    endTime,
+    facilityId: FACILITY_ID,
+    warehouseId: FACILITY_ID,
+  };
+  const resp = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/schedule', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Accept':'application/json'},
+    body: JSON.stringify(payload),
+  });
+  if (btn) { btn.disabled = false; btn.textContent = 'Save Schedule'; }
+  if (resp && resp._needsAuth) { showReconnect(); return; }
+  if (!resp || resp.success === false) {
+    alert('Could not save the schedule. Please check the required fields and try again.');
+    return;
+  }
+  document.getElementById('sched-wise-add-form').style.display = 'none';
+  const search = document.getElementById('sched-wise-search-name');
+  if (search) search.value = '';
+  await loadExistingSchedules();
+  alert('Schedule saved.');
 }
 function filterWiseScheduleTable() { loadExistingSchedules(); }
 function resetWiseScheduleSearch() {
