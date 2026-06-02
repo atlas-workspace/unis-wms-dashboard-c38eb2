@@ -480,9 +480,14 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         Scheduler <span class="sb-badge blue">12</span>
       </div>
-      <div class="sb-item" data-view="cycle" onclick="showView('cycle')">
+      <div class="sb-item" data-view="cycle" onclick="toggleCycle(event)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3.5-7.1"/><polyline points="21 4 21 10 15 10"/></svg>
         Cycle Count <span class="sb-badge amber">3</span>
+        <svg class="caret" id="cycle-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="sb-sub" id="cycle-sub">
+        <div class="sb-item" onclick="showView('cycle')">Cycle Count Dashboard</div>
+        <div class="sb-item" onclick="showView('countApproval')">Count Result Approval</div>
       </div>
       <div class="sb-item" data-view="robots" onclick="showView('robots')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
@@ -1163,6 +1168,41 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         </div>
       </div>
 
+
+      <!-- ════ VIEW: COUNT RESULT APPROVAL ════ -->
+      <div class="view" id="view-countApproval">
+        <div class="card">
+          <div class="card-hdr"><div><div class="card-ttl">Count Result Approve</div><div class="scheduler-help">Review pending count result variances and approve or reject them.</div></div><span class="card-link" onclick="loadCountApprovalView()">↻ Refresh</span></div>
+          <div class="cc-form" style="margin-top:8px">
+            <div class="cc-field"><label class="cc-label">Customer</label><select class="cc-input" id="cra-customer"><option value="">Select</option></select></div>
+            <div class="cc-field"><label class="cc-label">Task</label><input class="cc-input" id="cra-task" placeholder="Task"/></div>
+            <div class="cc-field"><label class="cc-label">Ticket</label><input class="cc-input" id="cra-ticket" placeholder="Ticket"/></div>
+            <div class="cc-field"><label class="cc-label">Items</label><input class="cc-input" id="cra-item" placeholder="Item"/></div>
+            <div class="cc-field"><label class="cc-label">Locations</label><input class="cc-input" id="cra-location" placeholder="Location"/></div>
+            <div class="cc-field"><label class="cc-label">Status</label><select class="cc-input" id="cra-status"><option value="PENDING">PENDING</option><option value="ALL">All</option><option value="CLOSED">CLOSED</option><option value="REJECTED">REJECTED</option></select></div>
+            <div class="cc-field"><label class="cc-label">Count Type</label><select class="cc-input" id="cra-type"><option value="">Select</option><option value="MATCH">MATCH</option><option value="QTY_DIFF">QTY_DIFF</option><option value="PROPERTY_CHANGE">PROPERTY_CHANGE</option><option value="MISSING">MISSING</option><option value="NEW_ITEM">NEW_ITEM</option><option value="LOCATION_DIFF">LOCATION_DIFF</option></select></div>
+            <div class="cc-field"><label class="cc-label">Create Time Range</label><div style="display:flex;gap:8px"><input class="cc-input" type="date" id="cra-from"/><input class="cc-input" type="date" id="cra-to"/></div></div>
+          </div>
+          <div class="form-actions" style="justify-content:flex-end">
+            <button class="btn btn-secondary" onclick="exportCountApprovalCsv()">Export</button>
+            <button class="btn btn-secondary" onclick="alert('Report generation is not configured yet.')">Report</button>
+            <button class="btn btn-primary" onclick="alert('Select rejected result rows to create recount tasks.')">Create Recount Task</button>
+            <button class="btn" style="background:#15803d;color:white" onclick="batchApproveCountResults()">Batch Approve</button>
+            <button class="btn" style="background:#dc2626;color:white" onclick="batchRejectCountResults()">Batch Reject</button>
+            <button class="btn btn-primary" onclick="loadCountApprovalView()">Search</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="results-wrap" style="border-radius:0;overflow:auto">
+            <table class="tbl" id="cra-table" style="min-width:1400px">
+              <thead><tr><th><input type="checkbox" id="cra-select-all" onchange="toggleAllApprovalRows(this.checked)"/></th><th>Task</th><th>Ticket</th><th>Location</th><th>Status</th><th>Count Type</th><th>Type</th><th>Adjustment ID</th><th>Item</th><th>Count Qty</th><th>System Qty</th><th>Diff</th></tr></thead>
+              <tbody id="cra-body"><tr><td colspan="12" style="text-align:center;padding:32px;color:#9ca3af">Click Search to load count results.</td></tr></tbody>
+            </table>
+          </div>
+          <div class="pagination"><span id="cra-results-count">0 Results</span><div class="pag-right"><span>Show:</span><select class="cc-input" id="cra-page-size" style="width:86px" onchange="loadCountApprovalView()"><option>10</option><option>25</option><option>50</option></select><button class="pag-btn" disabled>‹</button><button class="pag-btn active">1</button><button class="pag-btn" disabled>›</button></div></div>
+        </div>
+      </div>
+
       <!-- ════ VIEW: ROBOT COUNT ════ -->
       <div class="view" id="view-robots">
         <!-- Ontology API config strip — paste URL + token to wire live data -->
@@ -1669,6 +1709,7 @@ const VIEW_META = {
   calendar:  {t:'Calendar', s:'Scheduled events, cycle counts, and shipments'},
   scheduler: {t:'Scheduler', s:'Shift coverage, labor planning, and scheduled tasks'},
   cycle:     {t:'Cycle Count', s:'Accuracy, variances, and zone coverage'},
+  countApproval: {t:'Count Result Approve', s:'Review and approve cycle count results'},
   robots:    {t:'Robot Count', s:'Fleet status, battery, and throughput'},
   reports:   {t:'Reports', s:'Saved and scheduled warehouse reports'},
   alerts:    {t:'Alerts', s:'Critical, warning, and info alerts across systems'},
@@ -1711,6 +1752,7 @@ function showView(name, sub) {
   if (name === 'scheduler') initSchedulerForm();
   if (name === 'robots') { initRobotChart(); refreshOntologyStatus(); loadRobotKpisFromOntology(); }
   if (name === 'cycle') loadCycleCountView();
+  if (name === 'countApproval') initCountApprovalView();
 
   // scroll to top of main
   window.scrollTo({top:0, behavior:'smooth'});
@@ -1724,6 +1766,15 @@ function toggleInv(e) {
   car.classList.toggle('open', opened);
   // also switch to inventory view
   showView('inventory','all');
+}
+
+function toggleCycle(e) {
+  e.stopPropagation();
+  const sub = document.getElementById('cycle-sub');
+  const car = document.getElementById('cycle-caret');
+  if (sub) sub.classList.toggle('open');
+  if (car && sub) car.classList.toggle('open', sub.classList.contains('open'));
+  showView('cycle');
 }
 
 // ═══ CHARTS ═══
@@ -11156,6 +11207,80 @@ async function openCountResultsModal(ticketId) {
       '<td>' + esc(status) + '</td>' +
     '</tr>';
   }).join('');
+}
+
+
+let COUNT_APPROVAL_ROWS = [];
+function initCountApprovalView() {
+  fillSelect(document.getElementById('cra-customer'), (FACILITY_CUSTOMERS[FACILITY_ID] || []).map(c => ({id:c.id, name:c.name})));
+  loadCountApprovalView();
+}
+function approvalFilters() {
+  return {
+    customerId:(document.getElementById('cra-customer')||{}).value || '',
+    taskId:(document.getElementById('cra-task')||{}).value.trim() || '',
+    ticketId:(document.getElementById('cra-ticket')||{}).value.trim() || '',
+    itemId:(document.getElementById('cra-item')||{}).value.trim() || '',
+    locationId:(document.getElementById('cra-location')||{}).value.trim() || '',
+    status:(document.getElementById('cra-status')||{}).value || 'PENDING',
+    type:(document.getElementById('cra-type')||{}).value || '',
+    from:(document.getElementById('cra-from')||{}).value || '',
+    to:(document.getElementById('cra-to')||{}).value || '',
+    pageSize:parseInt((document.getElementById('cra-page-size')||{}).value,10) || 10,
+  };
+}
+async function loadCountApprovalView() {
+  const body = document.getElementById('cra-body');
+  if (body) body.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:32px;color:#9ca3af">Loading count results…</td></tr>';
+  const f = approvalFilters();
+  const req = {currentPage:1,pageSize:Math.max(f.pageSize,100),searchCount:true,sortingFields:[{field:'createdTime',orderBy:'DESC'}]};
+  if (f.ticketId) req.ticketIds = [f.ticketId];
+  if (f.taskId) req.taskIds = [f.taskId];
+  if (f.customerId) req.customerIds = [f.customerId];
+  if (f.itemId) req.itemIds = [f.itemId];
+  if (f.locationId) req.locationIds = [f.locationId];
+  if (f.status && f.status !== 'ALL') req.statuses = [f.status];
+  if (f.type) req.types = [f.type];
+  if (f.from) req.createdTimeFrom = f.from + 'T00:00:00';
+  if (f.to) req.createdTimeTo = f.to + 'T23:59:59';
+  const resp = await safeFetch(API_COUNT_RESULTS,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(req)});
+  if (!body) return;
+  if (!resp || resp.success === false) { body.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:32px;color:#ef4444">Could not load count results.</td></tr>'; return; }
+  const payload = resp.data || resp;
+  let rows = payload.list || payload.records || payload.results || payload.items || [];
+  if (f.status && f.status !== 'ALL') rows = rows.filter(r => String(r.status||'').toUpperCase() === f.status);
+  if (f.type) rows = rows.filter(r => String(r.type||'').toUpperCase() === f.type);
+  COUNT_APPROVAL_ROWS = rows;
+  const shown = rows.slice(0, f.pageSize);
+  document.getElementById('cra-results-count').textContent = rows.length + ' Results';
+  if (!shown.length) { body.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:32px;color:#9ca3af">No Data</td></tr>'; return; }
+  body.innerHTML = shown.map((r,i) => {
+    const id = r.id || r.resultId || (r.ticketId + '-' + i);
+    const loc = r.locationName || r.locationId || r.systemLocationId || '—';
+    const item = r.itemName || r.itemCode || r.itemId || '—';
+    const countQty = r.countItemQty ?? r.countBaseQty ?? '—';
+    const sysQty = r.systemItemQty ?? r.systemBaseQty ?? r.systemUomQty ?? '—';
+    const diff = r.itemDiffBaseQty ?? r.diffBaseQty ?? r.qtyDiff ?? '—';
+    return '<tr>'+
+      '<td><input type="checkbox" class="cra-row" value="'+escAttr(id)+'"/></td>'+ '<td>'+esc(r.taskId||'—')+'</td>'+ '<td>'+esc(r.ticketId||'—')+'</td>'+ '<td>'+esc(loc)+'</td>'+ '<td>'+esc(r.status||'—')+'</td>'+ '<td>'+esc(r.countTicketType||r.countType||'—')+'</td>'+ '<td>'+esc(r.type||'—')+'</td>'+ '<td>'+esc(r.adjustmentId||'—')+'</td>'+ '<td>'+esc(item)+'</td>'+ '<td>'+esc(countQty)+'</td>'+ '<td>'+esc(sysQty)+'</td>'+ '<td>'+esc(diff)+'</td></tr>';
+  }).join('');
+}
+function toggleAllApprovalRows(checked) { document.querySelectorAll('.cra-row').forEach(cb => cb.checked = checked); }
+async function updateSelectedCountResults(status) {
+  const ids = Array.from(document.querySelectorAll('.cra-row:checked')).map(cb => cb.value);
+  if (!ids.length) { alert('Select at least one result.'); return; }
+  for (const id of ids) {
+    await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-result/' + encodeURIComponent(id), {method:'PUT',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({status})});
+  }
+  await loadCountApprovalView();
+}
+function batchApproveCountResults() { updateSelectedCountResults('CLOSED'); }
+function batchRejectCountResults() { updateSelectedCountResults('REJECTED'); }
+function exportCountApprovalCsv() {
+  const rows = COUNT_APPROVAL_ROWS || [];
+  const header = ['Task','Ticket','Location','Status','Count Type','Type','Adjustment ID','Item','Count Qty','System Qty','Diff'];
+  const csv = [header].concat(rows.map(r => [r.taskId||'',r.ticketId||'',r.locationName||r.locationId||'',r.status||'',r.countTicketType||'',r.type||'',r.adjustmentId||'',r.itemName||r.itemCode||r.itemId||'',r.countItemQty??'',r.systemItemQty??'',r.itemDiffBaseQty??''])).map(a => a.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='count-result-approval.csv'; a.click(); URL.revokeObjectURL(url);
 }
 
 // ═══ ONTOLOGY AI — Robot Count KPIs ═══
