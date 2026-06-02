@@ -1119,9 +1119,9 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
               <button class="btn btn-secondary" onclick="resetCycleCountFilters()">Reset filters</button>
             </div>
             <table class="tbl" id="cc-recent-tbl">
-              <thead><tr><th>Ticket</th><th>Customer</th><th>Type</th><th>Locs</th><th>Scheduled</th><th>Created by</th><th>Status</th></tr></thead>
+              <thead><tr><th>Ticket</th><th>Customer</th><th>Type</th><th>Locs</th><th>Results</th><th>Scheduled</th><th>Created by</th><th>Status</th></tr></thead>
               <tbody id="cc-recent-body">
-                <tr><td colspan="7" style="text-align:center;padding:32px;color:#9ca3af">Click Cycle Count in the sidebar to load…</td></tr>
+                <tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af">Click Cycle Count in the sidebar to load…</td></tr>
               </tbody>
             </table>
           </div>
@@ -8362,6 +8362,7 @@ function ccCountResultUrl(ticketId, taskId) {
          '/count-task/' + encodeURIComponent(taskId) + '/count-result';
 }
 const API_COUNT_PROGRESS = WMS_BASE + '/api/cyclecount-bam/cycle-count/count-progress/latest/statistics';
+const API_COUNT_RESULTS = WMS_BASE + '/api/cyclecount-app/cycle-count/count-result/search-by-paging';
 // Hosted fallback build — retains the original embedded token as a
 // best-effort live-data fallback, but only uses it when it is still valid.
 // Normal login still calls Atlas password-grant and stores both
@@ -10945,13 +10946,42 @@ function applyCycleCountFilters(rows) {
   }
   return out;
 }
+async function fetchCountResultsByTicketIds(ticketIds) {
+  const map = {};
+  (ticketIds || []).forEach(id => { if (id) map[id] = {total:0, diff:0, pending:0, closed:0}; });
+  if (!ticketIds || ticketIds.length === 0) return map;
+  const resp = await safeFetch(API_COUNT_RESULTS, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Accept':'application/json'},
+    body: JSON.stringify({
+      currentPage: 1,
+      pageSize: 500,
+      searchCount: true,
+      ticketIds: ticketIds,
+      sortingFields: [{field:'createdTime', orderBy:'DESC'}]
+    }),
+  });
+  if (!resp || resp.success === false) return map;
+  const payload = resp.data || resp;
+  const list = payload.list || payload.records || payload.results || payload.items || [];
+  list.forEach(r => {
+    const tid = r.ticketId || r.countTicketId || r.countRecordId;
+    if (!tid) return;
+    if (!map[tid]) map[tid] = {total:0, diff:0, pending:0, closed:0};
+    map[tid].total++;
+    if (r.type && !/MATCH/i.test(String(r.type))) map[tid].diff++;
+    if (/PENDING/i.test(String(r.status || ''))) map[tid].pending++;
+    if (/CLOSED|ACKNOWLEDGED|DONE|COMPLETED/i.test(String(r.status || ''))) map[tid].closed++;
+  });
+  return map;
+}
 
 // Wire the Cycle Count sidebar view to Wise live data.
 // Fetches recent count tickets at the current facility, populates the 4
 // KPI cards and the Recent Cycle Counts table.
 async function loadCycleCountView() {
   const body = document.getElementById('cc-recent-body');
-  if (body) body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#9ca3af">Loading from Wise…</td></tr>';
+  if (body) body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af">Loading from Wise…</td></tr>';
 
   // Pull 50 most recent tickets at this facility, plus a "totalCount" we can use as a KPI
   const url = WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging';
@@ -10965,7 +10995,7 @@ async function loadCycleCountView() {
   });
   if (reqFacility !== FACILITY_ID) return;
   if (!resp || resp.success === false) {
-    if (body) body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#ef4444">Could not reach Wise. ' +
+    if (body) body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:#ef4444">Could not reach Wise. ' +
       (resp && resp.msg ? esc(resp.msg) : '') + '</td></tr>';
     return;
   }
@@ -11016,9 +11046,11 @@ async function loadCycleCountView() {
   if (meta) meta.textContent = 'Live from Wise · ' + filterBits.join(' · ') + ' · ' + new Date().toLocaleTimeString();
 
   if (rows.length === 0) {
-    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#9ca3af">No cycle counts match the selected filters at ' + esc(FACILITY_NAME) + '.</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af">No cycle counts match the selected filters at ' + esc(FACILITY_NAME) + '.</td></tr>';
     return;
   }
+  const resultStatsByTicket = await fetchCountResultsByTicketIds(rows.map(r => r.id).filter(Boolean));
+
   // Customer name lookup
   const custLookup = {};
   (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => custLookup[c.id] = c.name);
@@ -11028,6 +11060,10 @@ async function loadCycleCountView() {
   body.innerHTML = rows.map(r => {
     const cust = custLookup[r.customerId] || r.customerId || '—';
     const locs = (r.countLines || []).length;
+    const resultStats = resultStatsByTicket[r.id] || {total:0, diff:0, pending:0, closed:0};
+    const resultTxt = resultStats.total
+      ? (resultStats.total + ' result' + (resultStats.total === 1 ? '' : 's') + (resultStats.diff ? ' · ' + resultStats.diff + ' diff' : ''))
+      : '—';
     const sched = r.scheduleDate ? new Date(r.scheduleDate).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}) : '—';
     const status = r.status || '—';
     const badge = /COMPLET|FINISH|CLOSED|DONE/i.test(status) ? 'done'
@@ -11040,6 +11076,7 @@ async function loadCycleCountView() {
       '<td>' + esc(cust) + '</td>' +
       '<td>' + esc(r.type || '—') + '</td>' +
       '<td>' + locs.toLocaleString() + '</td>' +
+      '<td>' + esc(resultTxt) + '</td>' +
       '<td>' + esc(sched) + '</td>' +
       '<td>' + esc(r.createdBy || '—') + '</td>' +
       '<td><span class="badge ' + badge + '">' + esc(status) + '</span></td>' +
