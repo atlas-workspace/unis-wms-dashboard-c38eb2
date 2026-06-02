@@ -9472,6 +9472,31 @@ function resetWiseScheduleSearch() {
   loadExistingSchedules();
 }
 
+function normFacility(v) { return String(v == null ? '' : v).trim().toUpperCase(); }
+function currentFacilityAliases() {
+  const fac = FACILITIES.find(f => f.id === FACILITY_ID) || {};
+  return [FACILITY_ID, fac.code, fac.name].filter(Boolean).map(normFacility);
+}
+function rowMatchesCurrentFacility(row) {
+  if (!row) return false;
+  const aliases = currentFacilityAliases();
+  const fields = [
+    row.facilityId, row.facility, row.facilityName, row.facilityCode,
+    row.warehouseId, row.warehouse, row.warehouseName, row.warehouseCode,
+    row.orgId, row.organizationId, row.organizationCode
+  ].filter(v => v !== undefined && v !== null && v !== '');
+  if (fields.length) return fields.some(v => aliases.includes(normFacility(v)));
+
+  // Some cycle-count rows only expose customerId. In that case keep the row
+  // only if that customer belongs to the selected facility's customer list.
+  const custId = row.customerId || row.customerOrgId || row.orgId;
+  if (custId) return (FACILITY_CUSTOMERS[FACILITY_ID] || []).some(c => String(c.id) === String(custId));
+
+  // If Wise does not return any facility/customer marker, do NOT show the row.
+  // This prevents Valley/other-warehouse records leaking when switching warehouses.
+  return false;
+}
+
 function setScheduleMode(mode) {
   const existingBlock = document.getElementById('sched-existing-block');
   const newBlock      = document.getElementById('sched-new-block');
@@ -9529,12 +9554,10 @@ async function loadExistingSchedules() {
   // Defensive client-side filter: if the rows carry a facility/warehouse
   // identifier, drop any that don't match the selected facility. Rows with
   // no such field are kept (can't filter what isn't there).
-  list = list.filter(s => {
-    const cands = [s.facilityId, s.facility, s.warehouseId, s.warehouse, s.facilityCode, s.warehouseCode];
-    const present = cands.filter(v => v !== undefined && v !== null && v !== '');
-    if (present.length === 0) return true;
-    return present.some(v => String(v).toUpperCase() === String(FACILITY_ID).toUpperCase());
-  });
+  // Strict warehouse isolation: never show records from another warehouse.
+  // If the API does not provide a facility marker for a schedule, hide it
+  // rather than risking cross-warehouse leakage.
+  list = list.filter(rowMatchesCurrentFacility);
   CC.schedules = list;
   sel.innerHTML = '';
   const opt0 = document.createElement('option');
@@ -9752,7 +9775,7 @@ function resetLocFilters(preserveCustomer) {
 // Build the Wise search body from current modal filter inputs.
 function buildLocSearchBody(page, pageSize) {
   const customerOrgId = document.getElementById('loc-customer').value || null;
-  const body = { currentPage: page, pageSize: pageSize };
+  const body = { currentPage: page, pageSize: pageSize, facilityId: FACILITY_ID, warehouseId: FACILITY_ID };
   if (customerOrgId) body.customerIds = [customerOrgId];
   const v = id => document.getElementById(id).value;
   if (v('loc-name'))      body.name            = v('loc-name');
@@ -10643,19 +10666,24 @@ async function loadCycleCountView() {
 
   // Pull 50 most recent tickets at this facility, plus a "totalCount" we can use as a KPI
   const url = WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging';
+  const reqFacility = FACILITY_ID;
   const resp = await safeFetch(url, {
     method:'POST',
     headers:{'Content-Type':'application/json','Accept':'application/json'},
-    body: JSON.stringify({currentPage:1, pageSize:50}),
+    // Send facility in the payload as well as the x-facility-id header.
+    // Some Wise endpoints ignore the header and otherwise return mixed warehouses.
+    body: JSON.stringify({currentPage:1, pageSize:50, facilityId: FACILITY_ID, warehouseId: FACILITY_ID}),
   });
+  if (reqFacility !== FACILITY_ID) return;
   if (!resp || resp.success === false) {
     if (body) body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#ef4444">Could not reach Wise. ' +
       (resp && resp.msg ? esc(resp.msg) : '') + '</td></tr>';
     return;
   }
   const data = resp.data || {};
-  const rows = data.list || [];
-  const total = data.totalCount ?? rows.length;
+  const rawRows = data.list || [];
+  const rows = rawRows.filter(rowMatchesCurrentFacility);
+  const total = rows.length;
 
   // Group by status for the KPIs
   const open = rows.filter(r => /NEW|OPEN|IN_PROGRESS|PROGRESS|PENDING|READY/i.test(r.status||'')).length;
