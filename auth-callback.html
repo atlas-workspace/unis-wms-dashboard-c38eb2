@@ -23,7 +23,7 @@
   if (!at && data.code) {
     document.getElementById('msg').textContent = 'Authorization code received. Exchanging for token…';
     try {
-      const u = new URL('https://id.item.com/api/iam/auth/token/code');
+      const u = new URL('/api/proxy/iam/token/code', location.origin);
       u.searchParams.set('code', data.code);
       u.searchParams.set('redirectUri', location.origin + location.pathname);
       if (data.state) u.searchParams.set('state', data.state);

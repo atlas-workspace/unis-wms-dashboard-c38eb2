@@ -8336,10 +8336,10 @@ const TENANT_ID   = 'LT';
 // Real Wise endpoints discovered from the bundled JS clients.
 const API = {
   // Auth — Atlas password-grant returns a JWT that Wise REST also accepts.
-  passwordGrant:   ATLAS_BASE + '/api/auth/password-grant',
+  passwordGrant:   '/api/proxy/auth/password-grant',
   // Silent renewal — POST {refreshToken: "..."} (camelCase!) returns a new
   // access_token without re-prompting for the password.
-  refreshAuth:     ATLAS_BASE + '/api/auth/refresh',
+  refreshAuth:     '/api/proxy/auth/refresh',
   // Customers (master data)
   customers:       WMS_BASE + '/api/mdm/customer/search-by-paging',
   // Locations
