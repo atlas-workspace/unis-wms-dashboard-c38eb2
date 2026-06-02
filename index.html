@@ -11227,7 +11227,11 @@ async function submitCycleCount() {
   // Common payload fields — duplicated per customer below
   const commonFields = {
     type:                 document.getElementById('cc-type').value || 'BY_LOCATION',
+    countCategory:        document.getElementById('cc-type').value || 'BY_LOCATION',
+    cycleCountType:       document.getElementById('cc-type').value || 'BY_LOCATION',
     countMethod:          document.getElementById('cc-method').value || 'PIECE',
+    method:               document.getElementById('cc-method').value || 'PIECE',
+    countMethodType:      document.getElementById('cc-method').value || 'PIECE',
     isManualCount:        document.getElementById('cc-manual').classList.contains('on'),
     isBlind:              document.getElementById('cc-blind').classList.contains('on'),
     blindCount:           document.getElementById('cc-blind').classList.contains('on'),  // legacy alias
@@ -11274,7 +11278,17 @@ async function submitCycleCount() {
       customerId:  customerId,
       countLines:  linesForCust.map(r => ({
         locationName: r.name,
+        name:         r.name,
         locationId:   r.id || r.locationId || r.name,
+        locationType: r.type || 'LOCATION',
+        type:         r.type || 'LOCATION',
+        aisle:        r.aisle || null,
+        section:      r.section || r.bay || null,
+        bay:          r.bay || r.section || null,
+        level:        r.level ?? null,
+        slot:         r.slot || null,
+        spaceStatus:  r.occupancyStatus || r.spaceStatus || null,
+        supportPickType: r.supportPickType || null,
         itemId:       undefined,
         lpId:         undefined,
       })),
@@ -11301,16 +11315,46 @@ async function submitCycleCount() {
         const tasksPayload = [];
         for (let i = 0; i < linesForCust.length; i += maxLines) {
           tasksPayload.push({
+            ticketId,
+            customerId,
+            customerName: custName ? custName.name : customerId,
+            countType: commonFields.type,
+            countCategory: commonFields.type,
+            type: commonFields.type,
+            countMethod: commonFields.countMethod,
+            method: commonFields.countMethod,
             assigneeUserId: String(commonFields.counterUserId),
-            taskLines: linesForCust.slice(i, i + maxLines).map(l => ({
-              itemId:      null,
-              locationId:  l.id || l.locationId || l.name,
-              lpId:        null,
-              location:    null,
-              item:        null,
-              status:      null,
-              spaceStatus: null,
-            })),
+            assigneeUserName: commonFields.counterUserName || null,
+            taskLines: linesForCust.slice(i, i + maxLines).map(l => {
+              const locId = l.id || l.locationId || l.name;
+              const locName = l.name || l.locationName || String(locId || '');
+              const locType = l.type || l.locationType || 'LOCATION';
+              const space = l.occupancyStatus || l.spaceStatus || null;
+              return {
+                itemId:      null,
+                locationId:  locId,
+                locationName: locName,
+                name:        locName,
+                lpId:        null,
+                location:    {
+                  id: locId,
+                  name: locName,
+                  type: locType,
+                  aisle: l.aisle || null,
+                  section: l.section || l.bay || null,
+                  bay: l.bay || l.section || null,
+                  level: l.level ?? null,
+                  slot: l.slot || null,
+                  spaceStatus: space,
+                  supportPickType: l.supportPickType || null,
+                },
+                locationType: locType,
+                type:        locType,
+                status:      l.status || null,
+                spaceStatus: space,
+                supportPickType: l.supportPickType || null,
+              };
+            }),
           });
         }
         if (tasksPayload.length > 0) {
