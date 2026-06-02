@@ -1112,6 +1112,12 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
               </div>
               <span class="card-link" onclick="loadCycleCountView()">↻ Refresh</span>
             </div>
+            <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:12px 0 14px">
+              <div class="cc-field" style="min-width:170px;margin:0"><label class="cc-label">Status</label><select class="cc-input" id="cc-filter-status" onchange="loadCycleCountView()"><option value="ACTIVE">Active only</option><option value="ALL">All statuses</option><option value="CANCELLED">Canceled</option><option value="DONE">Completed</option></select></div>
+              <div class="cc-field" style="min-width:150px;margin:0"><label class="cc-label">Scheduled from</label><input class="cc-input" type="date" id="cc-filter-from" onchange="loadCycleCountView()"/></div>
+              <div class="cc-field" style="min-width:150px;margin:0"><label class="cc-label">Scheduled to</label><input class="cc-input" type="date" id="cc-filter-to" onchange="loadCycleCountView()"/></div>
+              <button class="btn btn-secondary" onclick="resetCycleCountFilters()">Reset filters</button>
+            </div>
             <table class="tbl" id="cc-recent-tbl">
               <thead><tr><th>Ticket</th><th>Customer</th><th>Type</th><th>Locs</th><th>Scheduled</th><th>Created by</th><th>Status</th></tr></thead>
               <tbody id="cc-recent-body">
@@ -10886,6 +10892,41 @@ async function submitCountResult(taskId) {
   }
 }
 
+function cycleCountFilters() {
+  return {
+    status: (document.getElementById('cc-filter-status') || {}).value || 'ACTIVE',
+    from:   (document.getElementById('cc-filter-from') || {}).value || '',
+    to:     (document.getElementById('cc-filter-to') || {}).value || '',
+  };
+}
+function resetCycleCountFilters() {
+  const st = document.getElementById('cc-filter-status'); if (st) st.value = 'ACTIVE';
+  const fr = document.getElementById('cc-filter-from'); if (fr) fr.value = '';
+  const to = document.getElementById('cc-filter-to'); if (to) to.value = '';
+  loadCycleCountView();
+}
+function cycleCountDateMs(row) {
+  const raw = row.scheduleDate || row.scheduledDate || row.createdTime || row.createdAt;
+  const t = raw ? new Date(raw).getTime() : NaN;
+  return isNaN(t) ? null : t;
+}
+function applyCycleCountFilters(rows) {
+  const f = cycleCountFilters();
+  let out = rows;
+  if (f.status === 'ACTIVE') out = out.filter(r => !/CANCEL|COMPLET|FINISH|CLOSED|DONE/i.test(r.status || ''));
+  else if (f.status === 'CANCELLED') out = out.filter(r => /CANCEL/i.test(r.status || ''));
+  else if (f.status === 'DONE') out = out.filter(r => /COMPLET|FINISH|CLOSED|DONE/i.test(r.status || ''));
+  if (f.from) {
+    const fromMs = new Date(f.from + 'T00:00:00').getTime();
+    out = out.filter(r => { const t = cycleCountDateMs(r); return t != null && t >= fromMs; });
+  }
+  if (f.to) {
+    const toMs = new Date(f.to + 'T23:59:59').getTime();
+    out = out.filter(r => { const t = cycleCountDateMs(r); return t != null && t <= toMs; });
+  }
+  return out;
+}
+
 // Wire the Cycle Count sidebar view to Wise live data.
 // Fetches recent count tickets at the current facility, populates the 4
 // KPI cards and the Recent Cycle Counts table.
@@ -10911,8 +10952,9 @@ async function loadCycleCountView() {
   }
   const data = resp.data || {};
   const rawRows = data.list || [];
-  const rows = rawRows.filter(rowMatchesCurrentFacility);
-  const total = rows.length;
+  const facilityRows = rawRows.filter(rowMatchesCurrentFacility);
+  const rows = applyCycleCountFilters(facilityRows);
+  const total = facilityRows.length;
 
   // Group by status for the KPIs
   const open = rows.filter(r => /NEW|OPEN|IN_PROGRESS|PROGRESS|PENDING|READY/i.test(r.status||'')).length;
@@ -10920,9 +10962,9 @@ async function loadCycleCountView() {
   document.getElementById('cc-kpi-total').textContent = total.toLocaleString();
   document.getElementById('cc-kpi-total-sub').textContent = 'at ' + FACILITY_NAME;
   document.getElementById('cc-kpi-open').textContent = open.toLocaleString();
-  document.getElementById('cc-kpi-open-sub').textContent = 'in the last ' + rows.length + ' tickets';
+  document.getElementById('cc-kpi-open-sub').textContent = 'of ' + total + ' tickets';
   document.getElementById('cc-kpi-done').textContent = done.toLocaleString();
-  document.getElementById('cc-kpi-done-sub').textContent = 'in the last ' + rows.length + ' tickets';
+  document.getElementById('cc-kpi-done-sub').textContent = 'of ' + total + ' tickets';
 
   // Next scheduled count: pick the earliest future scheduleDate from open tickets
   const now = Date.now();
@@ -10947,11 +10989,15 @@ async function loadCycleCountView() {
   // Populate the Recent table
   const cnt = document.getElementById('cc-recent-count');
   if (cnt) cnt.textContent = '(showing ' + rows.length.toLocaleString() + ' of ' + total.toLocaleString() + ')';
+  const f = cycleCountFilters();
+  const filterBits = [];
+  filterBits.push(f.status === 'ACTIVE' ? 'Active only' : (f.status === 'ALL' ? 'All statuses' : f.status));
+  if (f.from || f.to) filterBits.push('Scheduled ' + (f.from || 'any') + ' to ' + (f.to || 'any'));
   const meta = document.getElementById('cc-recent-meta');
-  if (meta) meta.textContent = 'Live from Wise · POST /api/cyclecount-app/cycle-count/count-ticket/search-by-paging · ' + new Date().toLocaleTimeString();
+  if (meta) meta.textContent = 'Live from Wise · ' + filterBits.join(' · ') + ' · ' + new Date().toLocaleTimeString();
 
   if (rows.length === 0) {
-    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#9ca3af">No cycle counts at ' + esc(FACILITY_NAME) + ' yet.</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#9ca3af">No cycle counts match the selected filters at ' + esc(FACILITY_NAME) + '.</td></tr>';
     return;
   }
   // Customer name lookup
