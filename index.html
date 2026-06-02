@@ -10341,7 +10341,11 @@ function renderTasksPanel() {
   const host = document.getElementById('tasks-host');
   const cnt = document.getElementById('tasks-count');
   if (!host) return;
-  const visibleTasks = CC.tasks.filter(rowMatchesCurrentFacility);
+  // HARD warehouse scope for browser-saved cards: only show tasks that were
+  // explicitly created for the currently selected facility. Do not infer from
+  // customer, schedule, or missing fields because customers/schedules can overlap
+  // and old localStorage entries caused Alessandro cards to leak into Valley.
+  const visibleTasks = CC.tasks.filter(t => normFacility(t.facility || t.facilityId || t.warehouseId) === normFacility(FACILITY_ID));
   cnt.textContent = '(' + visibleTasks.length + ')';
   if (visibleTasks.length === 0) {
     host.innerHTML = '<div class="tasks-empty">No saved cycle counts at <strong>' + esc(FACILITY_NAME) + '</strong> yet.</div>';
