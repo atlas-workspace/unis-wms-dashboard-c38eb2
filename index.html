@@ -9483,6 +9483,8 @@ function showWiseAddScheduleForm() {
 }
 async function saveWiseSchedule() {
   const btn = document.getElementById('sched-save-btn');
+  const editId = btn && btn.dataset ? btn.dataset.editId : '';
+  const isEdit = !!editId;
   const name = (document.getElementById('sched-name') || {}).value?.trim() || '';
   const recurrence = (document.getElementById('cc-recurrence') || {}).value || 'NONE';
   const startTime = toIsoSchedule((document.getElementById('cc-sched-date') || {}).value || '');
@@ -9491,8 +9493,8 @@ async function saveWiseSchedule() {
     alert('Please enter schedule name, start time, and end time.');
     return;
   }
-  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
-  const localId = 'local-' + Date.now();
+  if (btn) { btn.disabled = true; btn.textContent = isEdit ? 'Updating…' : 'Saving…'; }
+  const localId = isEdit ? editId : ('local-' + Date.now());
   const payload = {
     id: localId,
     name,
@@ -9505,17 +9507,17 @@ async function saveWiseSchedule() {
     warehouseId: FACILITY_ID,
   };
 
-  // Save locally first so the schedule appears immediately in both the table
-  // and the "Use existing schedule" dropdown, even if Wise search is delayed.
+  // Update local UI immediately; then push the same change to Wise.
   saveLocalSchedule(Object.assign({}, payload), FACILITY_ID);
   await loadExistingSchedules();
 
-  const resp = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/schedule', {
-    method:'POST',
+  const realWiseId = isEdit && !String(editId).startsWith('local-') ? editId : null;
+  const resp = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/schedule' + (realWiseId ? '/' + encodeURIComponent(realWiseId) : ''), {
+    method: realWiseId ? 'PUT' : 'POST',
     headers:{'Content-Type':'application/json','Accept':'application/json'},
     body: JSON.stringify(payload),
   });
-  if (btn) { btn.disabled = false; btn.textContent = 'Save Schedule'; }
+  if (btn) { btn.disabled = false; btn.textContent = 'Save Schedule'; delete btn.dataset.editId; }
   if (resp && resp._needsAuth) { showReconnect(); return; }
   if (resp && resp.success !== false) {
     const savedRow = Object.assign({}, payload, (resp.data || resp || {}));
@@ -9526,7 +9528,7 @@ async function saveWiseSchedule() {
   const search = document.getElementById('sched-wise-search-name');
   if (search) search.value = '';
   await loadExistingSchedules();
-  alert('Schedule saved.');
+  alert(isEdit ? 'Schedule updated.' : 'Schedule saved.');
 }
 function filterWiseScheduleTable() { loadExistingSchedules(); }
 function resetWiseScheduleSearch() {
@@ -9552,6 +9554,41 @@ function saveLocalSchedule(row, facilityId) {
     localStorage.setItem(key, JSON.stringify(list));
   } catch(_) {}
 }
+
+function removeLocalSchedule(id, facilityId) {
+  try {
+    const key = savedSchedulesKey(facilityId);
+    const list = JSON.parse(localStorage.getItem(key) || '[]');
+    localStorage.setItem(key, JSON.stringify(list.filter(s => String(s.id || s.scheduleId) !== String(id))));
+  } catch(_) {}
+}
+function findScheduleById(id) {
+  return (CC.schedules || []).find(s => String(s.id || s.scheduleId) === String(id));
+}
+async function editWiseSchedule(id) {
+  const row = findScheduleById(id);
+  if (!row) return;
+  showWiseAddScheduleForm();
+  document.getElementById('sched-name').value = row.name || '';
+  document.getElementById('cc-recurrence').value = row.recurrenceType || 'NONE';
+  document.getElementById('cc-sched-date').value = (row.startTime || '').slice(0,16);
+  document.getElementById('cc-target-date').value = (row.endTime || '').slice(0,16);
+  const btn = document.getElementById('sched-save-btn');
+  if (btn) { btn.textContent = 'Update Schedule'; btn.dataset.editId = id; }
+}
+async function deleteWiseSchedule(id) {
+  if (!confirm('Delete this schedule?')) return;
+  const realWiseId = id && !String(id).startsWith('local-') ? id : null;
+  if (realWiseId) {
+    await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/schedule/' + encodeURIComponent(realWiseId), {
+      method:'DELETE', headers:{'Accept':'application/json'}
+    });
+  }
+  removeLocalSchedule(id, FACILITY_ID);
+  CC.schedules = (CC.schedules || []).filter(s => String(s.id || s.scheduleId) !== String(id));
+  renderWiseScheduleTable(CC.schedules);
+  loadExistingSchedules();
+}
 function renderWiseScheduleTable(list) {
   const tbody = document.getElementById('sched-wise-table-body');
   const results = document.getElementById('sched-wise-results');
@@ -9569,7 +9606,10 @@ function renderWiseScheduleTable(list) {
       '<td style="padding:14px 16px;border-top:1px solid #e5e7eb">' + esc(s.recurrenceType || 'NONE') + '</td>' +
       '<td style="padding:14px 16px;border-top:1px solid #e5e7eb">' + esc(start) + '</td>' +
       '<td style="padding:14px 16px;border-top:1px solid #e5e7eb">' + esc(end) + '</td>' +
-      '<td style="padding:14px 16px;border-top:1px solid #e5e7eb;color:#6b7280">Saved</td>' +
+      '<td style="padding:14px 16px;border-top:1px solid #e5e7eb">' +
+      '<button class="btn btn-secondary" style="padding:6px 10px;margin-right:6px" onclick="editWiseSchedule(\'' + esc(String(s.id || s.scheduleId || '')) + '\')">Edit</button>' +
+      '<button class="btn btn-secondary" style="padding:6px 10px" onclick="deleteWiseSchedule(\'' + esc(String(s.id || s.scheduleId || '')) + '\')">Del</button>' +
+      '</td>' +
     '</tr>';
   }).join('');
 }
