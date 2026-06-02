@@ -10118,6 +10118,10 @@ async function previewCustomerLocationCount(customerOrgId) {
 // Normalize Wise's location row into the modal's expected shape.
 function mapWiseLocation(r) {
   const row = {
+    // Keep Wise's real location UUID/id. Mobile and ticket-detail enrichment need
+    // this ID to join back to location master data for type and occupancy.
+    id:              r.id || r.locationId || r.location_id || r.locationCode || r.name,
+    locationId:      r.id || r.locationId || r.location_id || r.locationCode || r.name,
     name:            r.name,
     aisle:           r.aisle == null ? '' : String(r.aisle),
     section:         r.section == null ? '' : String(r.section),
