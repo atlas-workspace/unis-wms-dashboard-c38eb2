@@ -1594,6 +1594,7 @@ function switchFacility(newId) {
     loadRobotKpisFromOntology();
   } else if (activeName === 'scheduler') {
     loadExistingSchedules();
+    renderTasksPanel();
   }
 
   setLiveStatus(false);
@@ -10340,15 +10341,16 @@ function renderTasksPanel() {
   const host = document.getElementById('tasks-host');
   const cnt = document.getElementById('tasks-count');
   if (!host) return;
-  cnt.textContent = '(' + CC.tasks.length + ')';
-  if (CC.tasks.length === 0) {
-    host.innerHTML = '<div class="tasks-empty">No cycle counts yet. Fill in the form above and click <strong>Schedule Cycle Count</strong> to create one.</div>';
+  const visibleTasks = CC.tasks.filter(rowMatchesCurrentFacility);
+  cnt.textContent = '(' + visibleTasks.length + ')';
+  if (visibleTasks.length === 0) {
+    host.innerHTML = '<div class="tasks-empty">No saved cycle counts at <strong>' + esc(FACILITY_NAME) + '</strong> yet.</div>';
     return;
   }
   // Group tasks by scheduleId — tasks that share a scheduleId came from one
   // multi-customer submit and should display as ONE card with per-customer rows.
   // Tasks without a scheduleId stay as their own card.
-  const sorted = [...CC.tasks].sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+  const sorted = [...visibleTasks].sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
   const groups = [];      // ordered list of {key, tasks[]}
   const groupByKey = new Map();
   sorted.forEach(t => {
