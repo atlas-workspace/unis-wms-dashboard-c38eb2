@@ -10337,6 +10337,7 @@ function savedTasksKey(facilityId) {
   return 'cc_tasks__' + String(facilityId || selectedFacilityIdForStorage()).replace(/[^A-Za-z0-9_-]/g, '_');
 }
 function loadSavedTasks(facilityId) {
+  try { localStorage.removeItem('cc_tasks'); } catch(_) {} // delete legacy shared bucket that leaked across warehouses
   try { return JSON.parse(localStorage.getItem(savedTasksKey(facilityId)) || '[]'); } catch(_) { return []; }
 }
 function persistSavedTasks(list, facilityId) {
