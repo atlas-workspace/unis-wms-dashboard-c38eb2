@@ -12297,8 +12297,38 @@ async function ltagFetchTagDetail(tagId) {
   LTAG_EDIT_TAG = tag;
   document.getElementById('ltag-edit-name').value = tag.name || '';
   document.getElementById('ltag-edit-desc').value = tag.desc || tag.description || '';
-  LTAG_EDIT_LOCS = tag.locations || [];
-  ltagRenderEditLocs();
+
+  // The GET virtual-tag/{id} response includes `locations` (full objects) and/or
+  // `locationIds` (string array). If `locations` is populated, use it directly.
+  // If only `locationIds` are present, fetch full location details from the
+  // verified location search endpoint.
+  if (tag.locations && tag.locations.length > 0) {
+    LTAG_EDIT_LOCS = tag.locations;
+    ltagRenderEditLocs();
+  } else if (tag.locationIds && tag.locationIds.length > 0) {
+    // Fetch location details by IDs using the verified wms-location search endpoint
+    document.getElementById('ltag-edit-locs-body').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:#9ca3af">Loading ' + tag.locationIds.length + ' location(s)…</td></tr>';
+    const locResp = await safeFetch(API.locSearch, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        currentPage: 1,
+        pageSize: Math.max(tag.locationIds.length, 200),
+        ids: tag.locationIds,
+      }),
+    });
+    if (locResp && locResp.success !== false) {
+      const locData = locResp.data || locResp;
+      LTAG_EDIT_LOCS = locData.list || locData.records || locData.items || [];
+    } else {
+      // Fallback: show locationIds as minimal rows so the user sees something
+      LTAG_EDIT_LOCS = tag.locationIds.map(id => ({ id, name: id, type: '—', supportPickType: '—', status: '—' }));
+    }
+    ltagRenderEditLocs();
+  } else {
+    LTAG_EDIT_LOCS = [];
+    ltagRenderEditLocs();
+  }
 }
 
 function ltagRenderEditLocs(filter) {
