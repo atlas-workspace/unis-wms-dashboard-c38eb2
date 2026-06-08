@@ -1518,29 +1518,78 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 
       <!-- ════ VIEW: LOCATION TAG ════ -->
       <div class="view" id="view-locationTag">
-        <div class="card">
-          <div class="card-hdr">
-            <div>
-              <div class="card-ttl">Location Tag List</div>
-              <div class="scheduler-help">View and search location tags and the number of locations assigned to each tag at this facility.</div>
+        <!-- List subview -->
+        <div id="ltag-list-panel">
+          <div class="card">
+            <div class="card-hdr">
+              <div>
+                <div class="card-ttl">Location Tag List</div>
+                <div class="scheduler-help">View and search location tags and the number of locations assigned to each tag at this facility.</div>
+              </div>
+              <span class="card-link" onclick="loadLocationTagData()">↻ Refresh</span>
             </div>
-            <span class="card-link" onclick="loadLocationTagData()">↻ Refresh</span>
+            <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:14px 0 18px">
+              <div class="cc-field" style="min-width:200px;margin:0"><label class="cc-label">Location Tag</label><input class="cc-input" type="text" id="ltag-filter-tag" placeholder="Search by tag"/></div>
+              <div class="cc-field" style="min-width:200px;margin:0"><label class="cc-label">Location</label><input class="cc-input" type="text" id="ltag-filter-location" placeholder="Location name"/></div>
+              <button class="btn btn-primary" onclick="loadLocationTagData()" style="height:38px">Search</button>
+              <button class="btn btn-secondary" onclick="resetLocationTagFilters()" style="height:38px">Reset</button>
+            </div>
+            <div style="overflow-x:auto">
+              <table class="tbl" id="ltag-table">
+                <thead><tr><th>Tag</th><th>Note</th><th>Location Count</th><th>Action</th></tr></thead>
+                <tbody id="ltag-table-body">
+                  <tr><td colspan="4" style="text-align:center;padding:40px;color:#9ca3af">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div id="ltag-paging" style="display:flex;align-items:center;gap:12px;margin-top:12px;font-size:13px;color:#6b7280"></div>
           </div>
-          <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:14px 0 18px">
-            <div class="cc-field" style="min-width:200px;margin:0"><label class="cc-label">Location Tag</label><input class="cc-input" type="text" id="ltag-filter-tag" placeholder="Search by tag"/></div>
-            <div class="cc-field" style="min-width:200px;margin:0"><label class="cc-label">Location</label><input class="cc-input" type="text" id="ltag-filter-location" placeholder="Location name"/></div>
-            <button class="btn btn-primary" onclick="loadLocationTagData()" style="height:38px">Search</button>
-            <button class="btn btn-secondary" onclick="resetLocationTagFilters()" style="height:38px">Reset</button>
+        </div>
+
+        <!-- Edit subview -->
+        <div id="ltag-edit-panel" style="display:none">
+          <div class="card">
+            <div class="card-hdr">
+              <div>
+                <div class="card-ttl">Edit Location Tag</div>
+                <div class="scheduler-help">Edit the tag name, note, and manage assigned locations.</div>
+              </div>
+              <button class="btn btn-secondary" onclick="ltagCloseEdit()" style="font-size:13px">← Back to List</button>
+            </div>
+            <div style="display:flex;gap:16px;flex-wrap:wrap;margin:18px 0 24px">
+              <div class="cc-field" style="min-width:240px;margin:0;flex:1">
+                <label class="cc-label"><span class="req">*</span> Location Group Tag</label>
+                <input class="cc-input" type="text" id="ltag-edit-name" placeholder="Tag name"/>
+              </div>
+              <div class="cc-field" style="min-width:240px;margin:0;flex:1">
+                <label class="cc-label">Note</label>
+                <input class="cc-input" type="text" id="ltag-edit-desc" placeholder="Description / note"/>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-bottom:18px">
+              <button class="btn btn-primary" id="ltag-save-btn" onclick="ltagSave()">Save</button>
+            </div>
           </div>
-          <div style="overflow-x:auto">
-            <table class="tbl" id="ltag-table">
-              <thead><tr><th>Tag</th><th>Note</th><th>Location Count</th><th>Action</th></tr></thead>
-              <tbody id="ltag-table-body">
-                <tr><td colspan="4" style="text-align:center;padding:40px;color:#9ca3af">Loading…</td></tr>
-              </tbody>
-            </table>
+
+          <div class="card" style="margin-top:16px">
+            <div class="card-hdr">
+              <div class="card-ttl">Assigned Locations</div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input class="cc-input" type="text" id="ltag-edit-loc-search" placeholder="Search For Location Name" style="width:220px;height:34px;font-size:13px"/>
+                <button class="btn btn-secondary" onclick="ltagFilterEditLocs()" style="height:34px;font-size:12px">Search</button>
+                <button class="btn btn-primary" id="ltag-add-loc-btn" onclick="ltagAddLocationPrompt()" style="height:34px;font-size:12px">Add Location</button>
+                <button class="btn btn-secondary" id="ltag-batch-del-btn" onclick="ltagBatchDeleteLocs()" style="height:34px;font-size:12px;color:#dc2626;border-color:#fca5a5">Batch Delete</button>
+              </div>
+            </div>
+            <div style="overflow-x:auto">
+              <table class="tbl">
+                <thead><tr><th style="width:36px"><input type="checkbox" id="ltag-edit-check-all" onchange="ltagToggleAllLocs(this.checked)"/></th><th>Name</th><th>Location Type</th><th>Support Pick Type</th><th>Status</th><th>Action</th></tr></thead>
+                <tbody id="ltag-edit-locs-body">
+                  <tr><td colspan="6" style="text-align:center;padding:32px;color:#9ca3af">Loading locations…</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div id="ltag-paging" style="display:flex;align-items:center;gap:12px;margin-top:12px;font-size:13px;color:#6b7280"></div>
         </div>
       </div>
 
@@ -12175,11 +12224,16 @@ async function loadLocationTagData(page) {
       const tag = r.name || '—';
       const note = r.desc || r.description || '—';
       const locCount = (r.locationIds && r.locationIds.length) || (r.locations && r.locations.length) || 0;
+      const rid = r.id || '';
       return '<tr>' +
         '<td><strong>' + esc(tag) + '</strong></td>' +
         '<td>' + esc(note) + '</td>' +
         '<td>' + locCount.toLocaleString() + '</td>' +
-        '<td><span style="color:#753BBD;font-size:12px;cursor:default" title="View locations in this tag">View</span></td>' +
+        '<td>' +
+          '<span style="color:#753BBD;font-size:12px;cursor:pointer;font-weight:600" onclick="ltagOpenEdit(' + rid + ')">Edit</span>' +
+          ' <span style="color:#9ca3af;margin:0 4px">|</span> ' +
+          '<span style="color:#dc2626;font-size:12px;cursor:pointer;font-weight:600" onclick="ltagDeleteTag(' + rid + ')">Delete</span>' +
+        '</td>' +
         '</tr>';
     }).join('');
   }
@@ -12202,6 +12256,167 @@ function resetLocationTagFilters() {
   LTAG_PAGE = 1;
   loadLocationTagData();
 }
+
+// ── Location Tag Edit / Delete ──
+// Ontology-verified endpoints:
+//   PUT  /api/wms/location/virtual-tag         (update name/desc/locationIds)
+//   DELETE /api/wms/location/virtual-tag/{id}   (delete tag)
+//   GET  /api/wms/location/virtual-tag/{id}     (get single tag with locations)
+
+let LTAG_EDIT_TAG = null;       // full tag object being edited
+let LTAG_EDIT_LOCS = [];        // locations array for the edit view
+let LTAG_EDIT_SELECTED = new Set(); // checked location ids
+
+function ltagOpenEdit(tagId) {
+  LTAG_EDIT_TAG = null;
+  LTAG_EDIT_LOCS = [];
+  LTAG_EDIT_SELECTED = new Set();
+  document.getElementById('ltag-list-panel').style.display = 'none';
+  document.getElementById('ltag-edit-panel').style.display = '';
+  document.getElementById('ltag-edit-locs-body').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:#9ca3af">Loading tag details…</td></tr>';
+  document.getElementById('ltag-edit-name').value = '';
+  document.getElementById('ltag-edit-desc').value = '';
+  document.getElementById('ltag-edit-loc-search').value = '';
+  ltagFetchTagDetail(tagId);
+}
+
+async function ltagFetchTagDetail(tagId) {
+  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/' + encodeURIComponent(tagId), {
+    method: 'GET',
+    headers: {'Accept': 'application/json'},
+  });
+  if (!resp || resp._needsAuth) {
+    document.getElementById('ltag-edit-locs-body').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:#ef4444">Authentication required.</td></tr>';
+    return;
+  }
+  if (!resp.success && resp.success !== undefined) {
+    document.getElementById('ltag-edit-locs-body').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:#ef4444">Could not load tag details.' + (resp.msg ? ' ' + esc(resp.msg) : '') + '</td></tr>';
+    return;
+  }
+  const tag = resp.data || resp;
+  LTAG_EDIT_TAG = tag;
+  document.getElementById('ltag-edit-name').value = tag.name || '';
+  document.getElementById('ltag-edit-desc').value = tag.desc || tag.description || '';
+  LTAG_EDIT_LOCS = tag.locations || [];
+  ltagRenderEditLocs();
+}
+
+function ltagRenderEditLocs(filter) {
+  const body = document.getElementById('ltag-edit-locs-body');
+  if (!body) return;
+  let locs = LTAG_EDIT_LOCS;
+  if (filter) {
+    const q = filter.toLowerCase();
+    locs = locs.filter(l => (l.name || '').toLowerCase().includes(q));
+  }
+  if (locs.length === 0) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:#9ca3af">' +
+      (LTAG_EDIT_LOCS.length === 0 ? 'No locations assigned to this tag.' : 'No locations match the search.') + '</td></tr>';
+    return;
+  }
+  body.innerHTML = locs.map(l => {
+    const locId = l.id || l.name || '';
+    const checked = LTAG_EDIT_SELECTED.has(locId) ? 'checked' : '';
+    return '<tr>' +
+      '<td style="width:36px"><input type="checkbox" ' + checked + ' onchange="ltagToggleLoc(\'' + escAttr(locId) + '\', this.checked)"/></td>' +
+      '<td>' + esc(l.name || '—') + '</td>' +
+      '<td>' + esc(l.type || '—') + '</td>' +
+      '<td>' + esc(l.supportPickType || '—') + '</td>' +
+      '<td><span class="badge ' + (l.status === 'USABLE' ? 'ok' : (l.status === 'DISABLED' ? 'err' : 'idle')) + '">' + esc(l.status || '—') + '</span></td>' +
+      '<td><span style="color:#dc2626;font-size:12px;cursor:pointer;font-weight:600" onclick="ltagRemoveLoc(\'' + escAttr(locId) + '\')">Delete</span></td>' +
+      '</tr>';
+  }).join('');
+}
+
+function ltagFilterEditLocs() {
+  const q = (document.getElementById('ltag-edit-loc-search') || {}).value || '';
+  ltagRenderEditLocs(q.trim());
+}
+
+function ltagToggleLoc(locId, checked) {
+  if (checked) LTAG_EDIT_SELECTED.add(locId);
+  else LTAG_EDIT_SELECTED.delete(locId);
+}
+
+function ltagToggleAllLocs(checked) {
+  LTAG_EDIT_LOCS.forEach(l => {
+    const id = l.id || l.name || '';
+    if (checked) LTAG_EDIT_SELECTED.add(id);
+    else LTAG_EDIT_SELECTED.delete(id);
+  });
+  ltagFilterEditLocs();
+}
+
+function ltagCloseEdit() {
+  document.getElementById('ltag-edit-panel').style.display = 'none';
+  document.getElementById('ltag-list-panel').style.display = '';
+  loadLocationTagData();
+}
+
+async function ltagSave() {
+  if (!LTAG_EDIT_TAG) return;
+  const name = (document.getElementById('ltag-edit-name').value || '').trim();
+  if (!name) { alert('Location Group Tag name is required.'); return; }
+  const desc = (document.getElementById('ltag-edit-desc').value || '').trim();
+  const btn = document.getElementById('ltag-save-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  const payload = {
+    id: LTAG_EDIT_TAG.id,
+    facilityId: LTAG_EDIT_TAG.facilityId || FACILITY_ID,
+    name: name,
+    desc: desc,
+    locationIds: LTAG_EDIT_LOCS.map(l => l.id).filter(Boolean),
+  };
+
+  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag', {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  });
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+  if (!resp || resp._needsAuth) { alert('Authentication required. Please sign in.'); return; }
+  if (!resp.success && resp.success !== undefined) { alert('Save failed.' + (resp.msg ? ' ' + resp.msg : '')); return; }
+  alert('Location tag saved successfully.');
+  ltagCloseEdit();
+}
+
+async function ltagDeleteTag(tagId) {
+  if (!confirm('Delete this location tag? This cannot be undone.')) return;
+  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/' + encodeURIComponent(tagId), {
+    method: 'DELETE',
+    headers: {'Accept': 'application/json'},
+  });
+  if (!resp || resp._needsAuth) { alert('Authentication required. Please sign in.'); return; }
+  if (!resp.success && resp.success !== undefined) { alert('Delete failed.' + (resp.msg ? ' ' + resp.msg : '')); return; }
+  loadLocationTagData();
+}
+
+function ltagRemoveLoc(locId) {
+  if (!confirm('Remove this location from the tag?')) return;
+  LTAG_EDIT_LOCS = LTAG_EDIT_LOCS.filter(l => (l.id || l.name) !== locId);
+  LTAG_EDIT_SELECTED.delete(locId);
+  ltagFilterEditLocs();
+}
+
+function ltagBatchDeleteLocs() {
+  if (LTAG_EDIT_SELECTED.size === 0) { alert('Select at least one location to remove.'); return; }
+  if (!confirm('Remove ' + LTAG_EDIT_SELECTED.size + ' selected location(s) from this tag?')) return;
+  LTAG_EDIT_LOCS = LTAG_EDIT_LOCS.filter(l => !LTAG_EDIT_SELECTED.has(l.id || l.name));
+  LTAG_EDIT_SELECTED.clear();
+  ltagFilterEditLocs();
+}
+
+function ltagAddLocationPrompt() {
+  const locName = prompt('Enter the location name or ID to add:');
+  if (!locName || !locName.trim()) return;
+  const existing = LTAG_EDIT_LOCS.find(l => (l.name || l.id || '').toLowerCase() === locName.trim().toLowerCase());
+  if (existing) { alert('Location "' + locName.trim() + '" is already assigned to this tag.'); return; }
+  LTAG_EDIT_LOCS.push({ id: locName.trim(), name: locName.trim(), type: '—', supportPickType: '—', status: '—' });
+  ltagFilterEditLocs();
+}
+
 </script>
 </body>
 </html>
