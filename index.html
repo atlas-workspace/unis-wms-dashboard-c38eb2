@@ -503,6 +503,14 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg>
         Replenish
       </div>
+      <div class="sb-item" data-view="vlg" onclick="showView('vlg')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M8 7v10"/><path d="M16 7v10"/><path d="M2 12h20"/></svg>
+        VLG Management
+      </div>
+      <div class="sb-item" data-view="locationTag" onclick="showView('locationTag')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+        Location Tag
+      </div>
 
       <div class="sb-sect" style="margin-top:6px">Analytics</div>
       <div class="sb-item" data-view="reports" onclick="showView('reports')">
@@ -1478,6 +1486,64 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         </div>
       </div>
 
+      <!-- ════ VIEW: VLG MANAGEMENT ════ -->
+      <div class="view" id="view-vlg">
+        <div class="card">
+          <div class="card-hdr">
+            <div>
+              <div class="card-ttl">Virtual Location Group</div>
+              <div class="scheduler-help">Manage virtual location groups for the current facility. Groups organize locations by customer, type, and purpose.</div>
+            </div>
+            <span class="card-link" onclick="loadVlgData()">↻ Refresh</span>
+          </div>
+          <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:14px 0 18px">
+            <div class="cc-field" style="min-width:180px;margin:0"><label class="cc-label">VLG Name</label><input class="cc-input" type="text" id="vlg-filter-name" placeholder="Search by name"/></div>
+            <div class="cc-field" style="min-width:150px;margin:0"><label class="cc-label">Group Type</label><input class="cc-input" type="text" id="vlg-filter-type" placeholder="Group type"/></div>
+            <div class="cc-field" style="min-width:140px;margin:0"><label class="cc-label">Tags</label><input class="cc-input" type="text" id="vlg-filter-tag" placeholder="Tag"/></div>
+            <div class="cc-field" style="min-width:160px;margin:0"><label class="cc-label">Customer</label><select class="cc-input" id="vlg-filter-customer"><option value="">All Customers</option></select></div>
+            <button class="btn btn-primary" onclick="loadVlgData()" style="height:38px">Search</button>
+            <button class="btn btn-secondary" onclick="resetVlgFilters()" style="height:38px">Reset</button>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="tbl" id="vlg-table">
+              <thead><tr><th>Name</th><th>Customer</th><th>Air Rob Location</th><th>Group Type</th><th>Tag</th><th>Action</th></tr></thead>
+              <tbody id="vlg-table-body">
+                <tr><td colspan="6" style="text-align:center;padding:40px;color:#9ca3af">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="vlg-paging" style="display:flex;align-items:center;gap:12px;margin-top:12px;font-size:13px;color:#6b7280"></div>
+        </div>
+      </div>
+
+      <!-- ════ VIEW: LOCATION TAG ════ -->
+      <div class="view" id="view-locationTag">
+        <div class="card">
+          <div class="card-hdr">
+            <div>
+              <div class="card-ttl">Location Tag List</div>
+              <div class="scheduler-help">View and search location tags and the number of locations assigned to each tag at this facility.</div>
+            </div>
+            <span class="card-link" onclick="loadLocationTagData()">↻ Refresh</span>
+          </div>
+          <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:14px 0 18px">
+            <div class="cc-field" style="min-width:200px;margin:0"><label class="cc-label">Location Tag</label><input class="cc-input" type="text" id="ltag-filter-tag" placeholder="Search by tag"/></div>
+            <div class="cc-field" style="min-width:200px;margin:0"><label class="cc-label">Location</label><input class="cc-input" type="text" id="ltag-filter-location" placeholder="Location name"/></div>
+            <button class="btn btn-primary" onclick="loadLocationTagData()" style="height:38px">Search</button>
+            <button class="btn btn-secondary" onclick="resetLocationTagFilters()" style="height:38px">Reset</button>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="tbl" id="ltag-table">
+              <thead><tr><th>Tag</th><th>Note</th><th>Location Count</th><th>Action</th></tr></thead>
+              <tbody id="ltag-table-body">
+                <tr><td colspan="4" style="text-align:center;padding:40px;color:#9ca3af">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="ltag-paging" style="display:flex;align-items:center;gap:12px;margin-top:12px;font-size:13px;color:#6b7280"></div>
+        </div>
+      </div>
+
     </div><!-- /page -->
   </div><!-- /main -->
 
@@ -1801,7 +1867,9 @@ const VIEW_META = {
   alerts:    {t:'Alerts', s:'Critical, warning, and info alerts across systems'},
   settings:  {t:'Settings', s:'Account, notifications, and integrations'},
   consolidation: {t:'Consolidation', s:'Consolidate inventory across locations to optimize space'},
-  replenish: {t:'Replenish', s:'Replenishment tasks to restock pick locations from reserve'}
+  replenish: {t:'Replenish', s:'Replenishment tasks to restock pick locations from reserve'},
+  vlg: {t:'VLG Management', s:'Virtual Location Groups — manage grouping of locations by customer and type'},
+  locationTag: {t:'Location Tag', s:'Location tags and tagged location counts'}
 };
 
 const INV_SUB_TITLES = {
@@ -1841,6 +1909,8 @@ function showView(name, sub) {
   if (name === 'robots') { initRobotChart(); refreshOntologyStatus(); loadRobotKpisFromOntology(); }
   if (name === 'cycle') loadCycleCountView();
   if (name === 'countApproval') initCountApprovalView();
+  if (name === 'vlg') loadVlgData();
+  if (name === 'locationTag') loadLocationTagData();
 
   // scroll to top of main
   window.scrollTo({top:0, behavior:'smooth'});
@@ -11950,6 +12020,172 @@ async function submitCycleCount() {
   CC.editingTaskId = null;
   resetCycleForm();
   renderTasksPanel();
+}
+
+// ════════════════════════════════════════════════════════════════
+// ═══ VLG MANAGEMENT — Virtual Location Group ═══
+// ════════════════════════════════════════════════════════════════
+let VLG_PAGE = 1;
+const VLG_PAGE_SIZE = 20;
+
+async function loadVlgData(page) {
+  if (page) VLG_PAGE = page;
+  const body = document.getElementById('vlg-table-body');
+  if (body) body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:#9ca3af">Loading from Wise…</td></tr>';
+
+  // Populate customer filter if empty
+  const custSel = document.getElementById('vlg-filter-customer');
+  if (custSel && custSel.options.length <= 1) {
+    (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => {
+      const o = document.createElement('option');
+      o.value = c.id; o.textContent = c.name;
+      custSel.appendChild(o);
+    });
+  }
+
+  const filterName = (document.getElementById('vlg-filter-name') || {}).value || '';
+  const filterType = (document.getElementById('vlg-filter-type') || {}).value || '';
+  const filterTag = (document.getElementById('vlg-filter-tag') || {}).value || '';
+  const filterCust = (document.getElementById('vlg-filter-customer') || {}).value || '';
+
+  const payload = { currentPage: VLG_PAGE, pageSize: VLG_PAGE_SIZE, facilityId: FACILITY_ID, warehouseId: FACILITY_ID };
+  if (filterName.trim()) payload.name = filterName.trim();
+  if (filterType.trim()) payload.groupType = filterType.trim();
+  if (filterTag.trim()) payload.tag = filterTag.trim();
+  if (filterCust) payload.customerIds = [filterCust];
+
+  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/virtual-location-group/search-by-paging', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  });
+
+  if (!resp || resp._needsAuth) {
+    if (body) body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:#ef4444">Authentication required. Please sign in.</td></tr>';
+    return;
+  }
+  if (resp.success === false) {
+    if (body) body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:#ef4444">Could not load virtual location groups. ' + esc(resp.msg || resp.message || '') + '</td></tr>';
+    return;
+  }
+
+  const data = resp.data || resp;
+  const list = data.list || data.records || data.items || [];
+  const total = data.totalCount || data.total || list.length;
+
+  if (!body) return;
+  if (list.length === 0) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:#9ca3af"><strong style="color:#6b7280">No virtual location groups found</strong><br><span style="font-size:12px">Try adjusting your filters or check that groups exist for this facility.</span></td></tr>';
+  } else {
+    const custLookup = {};
+    (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => { custLookup[c.id] = c.name; });
+    body.innerHTML = list.map(r => {
+      const name = r.name || r.groupName || '—';
+      const cust = r.customerName || custLookup[r.customerId || r.customerOrgId] || r.customerId || '—';
+      const airRob = r.airRobLocation || r.airRobLocationName || r.robotLocation || '—';
+      const gType = r.groupType || r.type || '—';
+      const tag = r.tag || r.tags || '—';
+      return '<tr>' +
+        '<td>' + esc(name) + '</td>' +
+        '<td>' + esc(cust) + '</td>' +
+        '<td>' + esc(airRob) + '</td>' +
+        '<td>' + esc(gType) + '</td>' +
+        '<td>' + esc(String(tag)) + '</td>' +
+        '<td><span style="color:#753BBD;font-size:12px;cursor:default">View</span></td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  // Paging
+  const pagingEl = document.getElementById('vlg-paging');
+  if (pagingEl) {
+    const totalPages = Math.ceil(total / VLG_PAGE_SIZE) || 1;
+    pagingEl.innerHTML = 'Showing ' + list.length + ' of ' + total + ' · Page ' + VLG_PAGE + '/' + totalPages +
+      (VLG_PAGE > 1 ? ' <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="loadVlgData(' + (VLG_PAGE-1) + ')">← Prev</button>' : '') +
+      (VLG_PAGE < totalPages ? ' <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="loadVlgData(' + (VLG_PAGE+1) + ')">Next →</button>' : '');
+  }
+}
+
+function resetVlgFilters() {
+  ['vlg-filter-name','vlg-filter-type','vlg-filter-tag','vlg-filter-customer'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  VLG_PAGE = 1;
+  loadVlgData();
+}
+
+// ════════════════════════════════════════════════════════════════
+// ═══ LOCATION TAG ═══
+// ════════════════════════════════════════════════════════════════
+let LTAG_PAGE = 1;
+const LTAG_PAGE_SIZE = 20;
+
+async function loadLocationTagData(page) {
+  if (page) LTAG_PAGE = page;
+  const body = document.getElementById('ltag-table-body');
+  if (body) body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#9ca3af">Loading from Wise…</td></tr>';
+
+  const filterTag = (document.getElementById('ltag-filter-tag') || {}).value || '';
+  const filterLoc = (document.getElementById('ltag-filter-location') || {}).value || '';
+
+  const payload = { currentPage: LTAG_PAGE, pageSize: LTAG_PAGE_SIZE, facilityId: FACILITY_ID, warehouseId: FACILITY_ID };
+  if (filterTag.trim()) payload.tag = filterTag.trim();
+  if (filterLoc.trim()) payload.locationName = filterLoc.trim();
+
+  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/location-tag/search-by-paging', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  });
+
+  if (!resp || resp._needsAuth) {
+    if (body) body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#ef4444">Authentication required. Please sign in.</td></tr>';
+    return;
+  }
+  if (resp.success === false) {
+    if (body) body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#ef4444">Could not load location tags. ' + esc(resp.msg || resp.message || '') + '</td></tr>';
+    return;
+  }
+
+  const data = resp.data || resp;
+  const list = data.list || data.records || data.items || [];
+  const total = data.totalCount || data.total || list.length;
+
+  if (!body) return;
+  if (list.length === 0) {
+    body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:#9ca3af"><strong style="color:#6b7280">No location tags found</strong><br><span style="font-size:12px">Try adjusting your filters or check that tags exist for this facility.</span></td></tr>';
+  } else {
+    body.innerHTML = list.map(r => {
+      const tag = r.tag || r.name || r.tagName || '—';
+      const note = r.note || r.description || r.remark || '—';
+      const locCount = r.locationCount ?? r.count ?? r.locations ?? '—';
+      return '<tr>' +
+        '<td><strong>' + esc(tag) + '</strong></td>' +
+        '<td>' + esc(note) + '</td>' +
+        '<td>' + esc(String(locCount)) + '</td>' +
+        '<td><span style="color:#753BBD;font-size:12px;cursor:default">View</span></td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  // Paging
+  const pagingEl = document.getElementById('ltag-paging');
+  if (pagingEl) {
+    const totalPages = Math.ceil(total / LTAG_PAGE_SIZE) || 1;
+    pagingEl.innerHTML = 'Showing ' + list.length + ' of ' + total + ' · Page ' + LTAG_PAGE + '/' + totalPages +
+      (LTAG_PAGE > 1 ? ' <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="loadLocationTagData(' + (LTAG_PAGE-1) + ')">← Prev</button>' : '') +
+      (LTAG_PAGE < totalPages ? ' <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="loadLocationTagData(' + (LTAG_PAGE+1) + ')">Next →</button>' : '');
+  }
+}
+
+function resetLocationTagFilters() {
+  ['ltag-filter-tag','ltag-filter-location'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  LTAG_PAGE = 1;
+  loadLocationTagData();
 }
 </script>
 </body>
