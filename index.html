@@ -1488,31 +1488,120 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 
       <!-- ════ VIEW: VLG MANAGEMENT ════ -->
       <div class="view" id="view-vlg">
-        <div class="card">
-          <div class="card-hdr">
-            <div>
-              <div class="card-ttl">Virtual Location Group</div>
-              <div class="scheduler-help">Manage virtual location groups for the current facility. Groups organize locations by customer, type, and purpose.</div>
+        <!-- List subview -->
+        <div id="vlg-list-panel">
+          <div class="card">
+            <div class="card-hdr">
+              <div>
+                <div class="card-ttl">Virtual Location Group</div>
+                <div class="scheduler-help">Manage virtual location groups for the current facility. Groups organize locations by customer, type, and purpose.</div>
+              </div>
+              <span class="card-link" onclick="loadVlgData()">↻ Refresh</span>
             </div>
-            <span class="card-link" onclick="loadVlgData()">↻ Refresh</span>
+            <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:14px 0 18px">
+              <div class="cc-field" style="min-width:180px;margin:0"><label class="cc-label">VLG Name</label><input class="cc-input" type="text" id="vlg-filter-name" placeholder="Search by name"/></div>
+              <div class="cc-field" style="min-width:150px;margin:0"><label class="cc-label">Group Type</label><input class="cc-input" type="text" id="vlg-filter-type" placeholder="Group type"/></div>
+              <div class="cc-field" style="min-width:140px;margin:0"><label class="cc-label">Tags</label><input class="cc-input" type="text" id="vlg-filter-tag" placeholder="Tag"/></div>
+              <div class="cc-field" style="min-width:160px;margin:0"><label class="cc-label">Customer</label><select class="cc-input" id="vlg-filter-customer"><option value="">All Customers</option></select></div>
+              <button class="btn btn-primary" onclick="loadVlgData()" style="height:38px">Search</button>
+              <button class="btn btn-secondary" onclick="resetVlgFilters()" style="height:38px">Reset</button>
+            </div>
+            <div style="overflow-x:auto">
+              <table class="tbl" id="vlg-table">
+                <thead><tr><th>Name</th><th>Customer</th><th>Air Rob Location</th><th>Group Type</th><th>Tag</th><th>Action</th></tr></thead>
+                <tbody id="vlg-table-body">
+                  <tr><td colspan="6" style="text-align:center;padding:40px;color:#9ca3af">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div id="vlg-paging" style="display:flex;align-items:center;gap:12px;margin-top:12px;font-size:13px;color:#6b7280"></div>
           </div>
-          <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:14px 0 18px">
-            <div class="cc-field" style="min-width:180px;margin:0"><label class="cc-label">VLG Name</label><input class="cc-input" type="text" id="vlg-filter-name" placeholder="Search by name"/></div>
-            <div class="cc-field" style="min-width:150px;margin:0"><label class="cc-label">Group Type</label><input class="cc-input" type="text" id="vlg-filter-type" placeholder="Group type"/></div>
-            <div class="cc-field" style="min-width:140px;margin:0"><label class="cc-label">Tags</label><input class="cc-input" type="text" id="vlg-filter-tag" placeholder="Tag"/></div>
-            <div class="cc-field" style="min-width:160px;margin:0"><label class="cc-label">Customer</label><select class="cc-input" id="vlg-filter-customer"><option value="">All Customers</option></select></div>
-            <button class="btn btn-primary" onclick="loadVlgData()" style="height:38px">Search</button>
-            <button class="btn btn-secondary" onclick="resetVlgFilters()" style="height:38px">Reset</button>
+        </div>
+
+        <!-- Edit subview -->
+        <div id="vlg-edit-panel" style="display:none">
+          <div class="card">
+            <div class="card-hdr">
+              <div>
+                <div class="card-ttl">Edit Virtual Location Group</div>
+                <div class="scheduler-help">View and edit VLG details. Changes are saved to WISE.</div>
+              </div>
+              <button class="btn btn-secondary" onclick="vlgCloseEdit()" style="font-size:13px">← Back to List</button>
+            </div>
+            <div style="display:flex;gap:16px;flex-wrap:wrap;margin:18px 0 20px">
+              <div class="cc-field" style="min-width:240px;margin:0;flex:1">
+                <label class="cc-label"><span class="req">*</span> VLG Name</label>
+                <input class="cc-input" type="text" id="vlg-edit-name" placeholder="Group name"/>
+              </div>
+              <div class="cc-field" style="min-width:180px;margin:0">
+                <label class="cc-label">Group Type</label>
+                <select class="cc-input" id="vlg-edit-type">
+                  <option value="ZONE">ZONE</option>
+                  <option value="STAGING_ZONE">STAGING_ZONE</option>
+                  <option value="PICKING_ZONE">PICKING_ZONE</option>
+                  <option value="AUTOMATED_PICKING_ZONE">AUTOMATED_PICKING_ZONE</option>
+                  <option value="AIRROB_ZONE">AIRROB_ZONE</option>
+                </select>
+              </div>
+              <div class="cc-field" style="min-width:180px;margin:0">
+                <label class="cc-label">Support Pick Type</label>
+                <select class="cc-input" id="vlg-edit-picktype">
+                  <option value="">—</option>
+                  <option value="PALLET_PICK">PALLET_PICK</option>
+                  <option value="CASE_PICK">CASE_PICK</option>
+                  <option value="PIECE_PICK">PIECE_PICK</option>
+                  <option value="NONE">NONE</option>
+                </select>
+              </div>
+            </div>
+            <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px">
+              <div class="cc-field" style="min-width:200px;margin:0;flex:1">
+                <label class="cc-label">Customer</label>
+                <input class="cc-input" type="text" id="vlg-edit-customer" readonly placeholder="—" style="background:#f9fafb"/>
+              </div>
+              <div class="cc-field" style="min-width:200px;margin:0;flex:1">
+                <label class="cc-label">Tags</label>
+                <input class="cc-input" type="text" id="vlg-edit-tags" readonly placeholder="—" style="background:#f9fafb"/>
+              </div>
+              <div class="cc-field" style="min-width:200px;margin:0;flex:1">
+                <label class="cc-label">Air Rob Locations</label>
+                <input class="cc-input" type="text" id="vlg-edit-airrob" readonly placeholder="—" style="background:#f9fafb"/>
+              </div>
+            </div>
+            <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px">
+              <div class="cc-field" style="margin:0"><label class="cc-label">Created by</label><input class="cc-input" type="text" id="vlg-edit-created" readonly style="background:#f9fafb;width:180px"/></div>
+              <div class="cc-field" style="margin:0"><label class="cc-label">Updated by</label><input class="cc-input" type="text" id="vlg-edit-updated" readonly style="background:#f9fafb;width:180px"/></div>
+              <div class="cc-field" style="margin:0"><label class="cc-label">Updated at</label><input class="cc-input" type="text" id="vlg-edit-updatedtime" readonly style="background:#f9fafb;width:200px"/></div>
+            </div>
+            <div style="display:flex;gap:10px;margin-bottom:14px">
+              <button class="btn btn-primary" id="vlg-save-btn" onclick="vlgSave()">Save</button>
+            </div>
           </div>
-          <div style="overflow-x:auto">
-            <table class="tbl" id="vlg-table">
-              <thead><tr><th>Name</th><th>Customer</th><th>Air Rob Location</th><th>Group Type</th><th>Tag</th><th>Action</th></tr></thead>
-              <tbody id="vlg-table-body">
-                <tr><td colspan="6" style="text-align:center;padding:40px;color:#9ca3af">Loading…</td></tr>
-              </tbody>
-            </table>
+          <div class="card" style="margin-top:16px">
+            <div class="card-hdr"><div class="card-ttl">Included Locations</div></div>
+            <div style="overflow-x:auto">
+              <table class="tbl">
+                <thead><tr><th>Name</th><th>Location Type</th><th>Support Pick Type</th><th>Status</th></tr></thead>
+                <tbody id="vlg-edit-locs-body">
+                  <tr><td colspan="4" style="text-align:center;padding:32px;color:#9ca3af">Loading locations…</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div id="vlg-paging" style="display:flex;align-items:center;gap:12px;margin-top:12px;font-size:13px;color:#6b7280"></div>
+        </div>
+
+        <!-- History subview -->
+        <div id="vlg-history-panel" style="display:none">
+          <div class="card">
+            <div class="card-hdr">
+              <div>
+                <div class="card-ttl">VLG History</div>
+                <div class="scheduler-help" id="vlg-history-sub">Audit trail for this virtual location group.</div>
+              </div>
+              <button class="btn btn-secondary" onclick="vlgCloseHistory()" style="font-size:13px">← Back to List</button>
+            </div>
+            <div id="vlg-history-body" style="padding:24px 0;text-align:center;color:#9ca3af">Loading…</div>
+          </div>
         </div>
       </div>
 
@@ -12161,13 +12250,18 @@ async function loadVlgData(page) {
       // tagNames is an array of {id, name}
       const tagLabels = (r.tagNames || []).map(t => t.name).filter(Boolean);
       const tag = tagLabels.length > 0 ? tagLabels.join(', ') : '—';
+      const rid = r.id || '';
       return '<tr>' +
         '<td><strong>' + esc(name) + '</strong></td>' +
         '<td>' + esc(cust) + '</td>' +
         '<td>' + esc(airRob) + '</td>' +
         '<td>' + esc(gType) + '</td>' +
         '<td>' + esc(tag) + '</td>' +
-        '<td><span style="color:#753BBD;font-size:12px;cursor:default">View</span></td>' +
+        '<td>' +
+          '<span style="color:#753BBD;font-size:12px;cursor:pointer;font-weight:600;margin-right:8px" onclick="vlgOpenEdit(\'' + escAttr(rid) + '\')">Edit</span>' +
+          '<span style="color:#6b7280;font-size:12px;cursor:pointer;font-weight:600;margin-right:8px" onclick="vlgOpenHistory(\'' + escAttr(rid) + '\',\'' + escAttr(name) + '\')">History</span>' +
+          '<span style="color:#dc2626;font-size:12px;cursor:pointer;font-weight:600" onclick="vlgDeleteGroup(\'' + escAttr(rid) + '\',\'' + escAttr(name) + '\')">Delete</span>' +
+        '</td>' +
         '</tr>';
     }).join('');
   }
@@ -12188,6 +12282,161 @@ function resetVlgFilters() {
     if (el) el.value = '';
   });
   VLG_PAGE = 1;
+  loadVlgData();
+}
+
+// ═══ VLG Edit / History / Delete ═══
+let VLG_EDIT_DATA = null;
+
+function vlgOpenEdit(vlgId) {
+  VLG_EDIT_DATA = null;
+  document.getElementById('vlg-list-panel').style.display = 'none';
+  document.getElementById('vlg-history-panel').style.display = 'none';
+  document.getElementById('vlg-edit-panel').style.display = '';
+  document.getElementById('vlg-edit-locs-body').innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#9ca3af">Loading VLG details…</td></tr>';
+  document.getElementById('vlg-edit-name').value = '';
+  document.getElementById('vlg-edit-type').value = 'ZONE';
+  document.getElementById('vlg-edit-picktype').value = '';
+  document.getElementById('vlg-edit-customer').value = '';
+  document.getElementById('vlg-edit-tags').value = '';
+  document.getElementById('vlg-edit-airrob').value = '';
+  document.getElementById('vlg-edit-created').value = '';
+  document.getElementById('vlg-edit-updated').value = '';
+  document.getElementById('vlg-edit-updatedtime').value = '';
+  vlgFetchDetail(vlgId);
+}
+
+async function vlgFetchDetail(vlgId) {
+  // Ontology-verified: GET /api/wms/location/virtual-group/{id}
+  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-group/' + encodeURIComponent(vlgId), {
+    method: 'GET',
+    headers: {'Accept': 'application/json'},
+  });
+  if (!resp || resp._needsAuth) {
+    document.getElementById('vlg-edit-locs-body').innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#ef4444">Authentication required.</td></tr>';
+    return;
+  }
+  if (!resp.success && resp.success !== undefined) {
+    document.getElementById('vlg-edit-locs-body').innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#ef4444">Could not load VLG details.' + (resp.msg ? ' ' + esc(resp.msg) : '') + '</td></tr>';
+    return;
+  }
+  const v = resp.data || resp;
+  VLG_EDIT_DATA = v;
+  document.getElementById('vlg-edit-name').value = v.name || '';
+  document.getElementById('vlg-edit-type').value = v.type || 'ZONE';
+  document.getElementById('vlg-edit-picktype').value = v.supportPickType || '';
+  document.getElementById('vlg-edit-created').value = v.createdBy || '—';
+  document.getElementById('vlg-edit-updated').value = v.updatedBy || '—';
+  document.getElementById('vlg-edit-updatedtime').value = v.updatedTime ? new Date(v.updatedTime).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}) : '—';
+
+  // Customer from allocations
+  const custLookup = {};
+  (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => { custLookup[c.id] = c.name; });
+  const custNames = (v.customerVlgAllocations || []).map(a => custLookup[a.customerId] || a.customerId).filter(Boolean);
+  document.getElementById('vlg-edit-customer').value = custNames.join(', ') || '—';
+
+  // Tags (tagIds are numeric; we don't have names from GET detail, show IDs)
+  document.getElementById('vlg-edit-tags').value = (v.tagIds || []).join(', ') || '—';
+
+  // Air Rob locations
+  const airRobIds = v.airRobLocationIds || [];
+  document.getElementById('vlg-edit-airrob').value = airRobIds.join(', ') || '—';
+
+  // Load included locations if present
+  const locIds = v.includeLocationIds || [];
+  if (locIds.length === 0) {
+    document.getElementById('vlg-edit-locs-body').innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#9ca3af">No locations assigned to this VLG.</td></tr>';
+    return;
+  }
+  document.getElementById('vlg-edit-locs-body').innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#9ca3af">Loading ' + locIds.length + ' location(s)…</td></tr>';
+  const locResp = await safeFetch(API.locSearch, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ currentPage: 1, pageSize: Math.max(locIds.length, 200), ids: locIds }),
+  });
+  const locsBody = document.getElementById('vlg-edit-locs-body');
+  if (locResp && locResp.success !== false) {
+    const locData = locResp.data || locResp;
+    const locs = locData.list || locData.records || [];
+    if (locs.length === 0) {
+      locsBody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#9ca3af">No location details available.</td></tr>';
+    } else {
+      locsBody.innerHTML = locs.map(l => '<tr>' +
+        '<td>' + esc(l.name || l.id || '—') + '</td>' +
+        '<td>' + esc(l.type || '—') + '</td>' +
+        '<td>' + esc(l.supportPickType || '—') + '</td>' +
+        '<td><span class="badge ' + (l.status === 'USABLE' ? 'ok' : (l.status === 'DISABLED' ? 'err' : 'idle')) + '">' + esc(l.status || '—') + '</span></td>' +
+        '</tr>').join('');
+    }
+  } else {
+    // Fallback: show location IDs
+    locsBody.innerHTML = locIds.map(id => '<tr><td>' + esc(id) + '</td><td>—</td><td>—</td><td>—</td></tr>').join('');
+  }
+}
+
+async function vlgSave() {
+  if (!VLG_EDIT_DATA) return;
+  const name = (document.getElementById('vlg-edit-name').value || '').trim();
+  if (!name) { alert('VLG Name is required.'); return; }
+  const btn = document.getElementById('vlg-save-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  // Ontology-verified: PUT /api/wms/location/virtual-group (requires id, name)
+  const payload = {
+    id: VLG_EDIT_DATA.id,
+    name: name,
+    type: document.getElementById('vlg-edit-type').value || VLG_EDIT_DATA.type,
+    supportPickType: document.getElementById('vlg-edit-picktype').value || VLG_EDIT_DATA.supportPickType || undefined,
+    tagIds: VLG_EDIT_DATA.tagIds || [],
+    airRobLocationIds: VLG_EDIT_DATA.airRobLocationIds || [],
+    customerVlgAllocations: VLG_EDIT_DATA.customerVlgAllocations || [],
+  };
+  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-group', {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  });
+  if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+  if (!resp || resp._needsAuth) { alert('Authentication required. Please sign in.'); return; }
+  if (!resp.success && resp.success !== undefined) { alert('Save failed.' + (resp.msg ? ' ' + resp.msg : '')); return; }
+  alert('Virtual location group saved successfully.');
+  vlgCloseEdit();
+}
+
+function vlgCloseEdit() {
+  document.getElementById('vlg-edit-panel').style.display = 'none';
+  document.getElementById('vlg-list-panel').style.display = '';
+  loadVlgData();
+}
+
+function vlgOpenHistory(vlgId, vlgName) {
+  document.getElementById('vlg-list-panel').style.display = 'none';
+  document.getElementById('vlg-edit-panel').style.display = 'none';
+  document.getElementById('vlg-history-panel').style.display = '';
+  document.getElementById('vlg-history-sub').textContent = 'Audit trail for "' + (vlgName || vlgId) + '"';
+  // No verified history/audit endpoint exists in the ontology for VLGs.
+  document.getElementById('vlg-history-body').innerHTML =
+    '<div style="padding:40px 0;text-align:center">' +
+    '<div style="margin-bottom:10px"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>' +
+    '<strong style="color:#6b7280">History is not available in this dashboard yet</strong><br>' +
+    '<span style="font-size:12px;color:#9ca3af">VLG audit trail requires a history endpoint that is not currently exposed by the WMS API.</span>' +
+    '</div>';
+}
+
+function vlgCloseHistory() {
+  document.getElementById('vlg-history-panel').style.display = 'none';
+  document.getElementById('vlg-list-panel').style.display = '';
+}
+
+async function vlgDeleteGroup(vlgId, vlgName) {
+  if (!confirm('Delete virtual location group "' + (vlgName || vlgId) + '"? This cannot be undone.')) return;
+  // Ontology-verified: DELETE /api/wms/location/virtual-group/{id}
+  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-group/' + encodeURIComponent(vlgId), {
+    method: 'DELETE',
+    headers: {'Accept': 'application/json'},
+  });
+  if (!resp || resp._needsAuth) { alert('Authentication required. Please sign in.'); return; }
+  if (!resp.success && resp.success !== undefined) { alert('Delete failed.' + (resp.msg ? ' ' + resp.msg : '')); return; }
   loadVlgData();
 }
 
