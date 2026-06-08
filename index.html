@@ -12097,49 +12097,76 @@ async function loadVlgData(page) {
   const filterTag = (document.getElementById('vlg-filter-tag') || {}).value || '';
   const filterCust = (document.getElementById('vlg-filter-customer') || {}).value || '';
 
-  const payload = { currentPage: VLG_PAGE, pageSize: VLG_PAGE_SIZE, facilityId: FACILITY_ID, warehouseId: FACILITY_ID };
-  if (filterName.trim()) payload.name = filterName.trim();
-  if (filterType.trim()) payload.groupType = filterType.trim();
-  if (filterTag.trim()) payload.tag = filterTag.trim();
+  // Ontology-verified: POST /api/wms-bam/location/virtual-group/search-by-paging
+  // Request: { currentPage, pageSize, regexName?, customerIds?, type?, tagIds? }
+  // Response: { data: { list: [{id, name, type, customerNames[], tagNames[{id,name}],
+  //            airRobLocationNames[{id,name}], customerVlgAllocations[], ...}], totalCount } }
+  const payload = { currentPage: VLG_PAGE, pageSize: VLG_PAGE_SIZE };
+  if (filterName.trim()) payload.regexName = filterName.trim();
+  if (filterType.trim()) {
+    // API accepts enum: ZONE, STAGING_ZONE, PICKING_ZONE, AUTOMATED_PICKING_ZONE, AIRROB_ZONE
+    payload.virtualLocationGroupType = filterType.trim().toUpperCase();
+  }
   if (filterCust) payload.customerIds = [filterCust];
+  // Tag filter: API supports tagIds (numeric) — apply client-side by name if text entered
 
-  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/virtual-location-group/search-by-paging', {
+  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/location/virtual-group/search-by-paging', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload),
   });
 
   if (!resp || resp._needsAuth) {
-    if (body) body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:#ef4444">Authentication required. Please sign in.</td></tr>';
+    if (body) body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:#ef4444">Authentication required. Please sign in to view VLG data.</td></tr>';
     return;
   }
-  if (resp.success === false) {
-    if (body) body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:#ef4444">Could not load virtual location groups. ' + esc(resp.msg || resp.message || '') + '</td></tr>';
+  if (!resp.success && resp.success !== undefined) {
+    if (body) body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:#ef4444">Could not load virtual location groups.' + (resp.msg ? ' ' + esc(resp.msg) : '') + '</td></tr>';
     return;
   }
 
   const data = resp.data || resp;
-  const list = data.list || data.records || data.items || [];
+  let list = data.list || data.records || data.items || [];
   const total = data.totalCount || data.total || list.length;
+
+  // Client-side tag name filter (API only supports tagIds which are numeric)
+  if (filterTag.trim()) {
+    const q = filterTag.trim().toLowerCase();
+    list = list.filter(r => {
+      const tagNames = (r.tagNames || []).map(t => (t.name || '').toLowerCase());
+      return tagNames.some(tn => tn.includes(q));
+    });
+  }
 
   if (!body) return;
   if (list.length === 0) {
-    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:#9ca3af"><strong style="color:#6b7280">No virtual location groups found</strong><br><span style="font-size:12px">Try adjusting your filters or check that groups exist for this facility.</span></td></tr>';
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:#9ca3af">' +
+      '<div style="margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M8 7v10"/><path d="M16 7v10"/><path d="M2 12h20"/></svg></div>' +
+      '<strong style="color:#6b7280">No virtual location groups found</strong><br>' +
+      '<span style="font-size:12px">Try adjusting your filters or check that groups exist for this facility.</span></td></tr>';
   } else {
     const custLookup = {};
     (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => { custLookup[c.id] = c.name; });
     body.innerHTML = list.map(r => {
-      const name = r.name || r.groupName || '—';
-      const cust = r.customerName || custLookup[r.customerId || r.customerOrgId] || r.customerId || '—';
-      const airRob = r.airRobLocation || r.airRobLocationName || r.robotLocation || '—';
-      const gType = r.groupType || r.type || '—';
-      const tag = r.tag || r.tags || '—';
+      const name = r.name || '—';
+      // customerNames is an array of strings from the API response
+      const custNames = r.customerNames || [];
+      const cust = custNames.length > 0
+        ? custNames.join(', ')
+        : (r.customerVlgAllocations || []).map(a => custLookup[a.customerId] || a.customerId).filter(Boolean).join(', ') || '—';
+      // airRobLocationNames is an array of {id, name}
+      const airRobNames = (r.airRobLocationNames || []).map(a => a.name).filter(Boolean);
+      const airRob = airRobNames.length > 0 ? airRobNames.join(', ') : '—';
+      const gType = r.type || '—';
+      // tagNames is an array of {id, name}
+      const tagLabels = (r.tagNames || []).map(t => t.name).filter(Boolean);
+      const tag = tagLabels.length > 0 ? tagLabels.join(', ') : '—';
       return '<tr>' +
-        '<td>' + esc(name) + '</td>' +
+        '<td><strong>' + esc(name) + '</strong></td>' +
         '<td>' + esc(cust) + '</td>' +
         '<td>' + esc(airRob) + '</td>' +
         '<td>' + esc(gType) + '</td>' +
-        '<td>' + esc(String(tag)) + '</td>' +
+        '<td>' + esc(tag) + '</td>' +
         '<td><span style="color:#753BBD;font-size:12px;cursor:default">View</span></td>' +
         '</tr>';
     }).join('');
