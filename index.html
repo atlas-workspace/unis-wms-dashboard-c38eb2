@@ -495,6 +495,14 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
         Robot Count <span class="sb-badge green">8</span>
       </div>
+      <div class="sb-item" data-view="consolidation" onclick="showView('consolidation')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-6"/><path d="M12 8V2"/><path d="M21 3l-9 9"/><path d="M3 3l9 9"/><rect x="8" y="16" width="8" height="5" rx="1"/></svg>
+        Consolidation
+      </div>
+      <div class="sb-item" data-view="replenish" onclick="showView('replenish')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg>
+        Replenish
+      </div>
 
       <div class="sb-sect" style="margin-top:6px">Analytics</div>
       <div class="sb-item" data-view="reports" onclick="showView('reports')">
@@ -1394,6 +1402,82 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         </div>
       </div>
 
+      <!-- ════ VIEW: CONSOLIDATION ════ -->
+      <div class="view" id="view-consolidation">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-6"/><path d="M12 8V2"/><path d="M21 3l-9 9"/><path d="M3 3l9 9"/><rect x="8" y="16" width="8" height="5" rx="1"/></svg></div><div><div class="kpi-lbl">Pending Consolidations</div><div class="kpi-val" id="consol-kpi-pending">—</div><div class="kpi-chg neutral">awaiting action</div></div></div>
+          <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-lbl">In Progress</div><div class="kpi-val" id="consol-kpi-progress">—</div><div class="kpi-chg neutral">active moves</div></div></div>
+          <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Completed Today</div><div class="kpi-val" id="consol-kpi-done">—</div><div class="kpi-chg neutral">consolidations closed</div></div></div>
+          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div><div class="kpi-lbl">Locations Freed</div><div class="kpi-val" id="consol-kpi-freed">—</div><div class="kpi-chg neutral">this week</div></div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-hdr">
+            <div>
+              <div class="card-ttl">Consolidation Tasks</div>
+              <div class="scheduler-help">Merge partial inventory from multiple locations into fewer slots to free up warehouse space. Connect to WMS consolidation APIs to view and manage live tasks.</div>
+            </div>
+            <span class="card-link" onclick="showView('consolidation')">↻ Refresh</span>
+          </div>
+          <table class="tbl">
+            <thead><tr><th>Task ID</th><th>Customer</th><th>From Location</th><th>To Location</th><th>SKU</th><th>Qty</th><th>Status</th><th>Assigned</th></tr></thead>
+            <tbody id="consol-table-body">
+              <tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af">
+                <div style="margin-bottom:8px"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-6"/><path d="M12 8V2"/><path d="M21 3l-9 9"/><path d="M3 3l9 9"/><rect x="8" y="16" width="8" height="5" rx="1"/></svg></div>
+                <strong style="color:#6b7280">No consolidation tasks</strong><br>
+                <span style="font-size:12px">Consolidation tasks from WMS will appear here once the API integration is connected.</span>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="card-hdr"><div class="card-ttl">How Consolidation Works</div></div>
+          <div style="font-size:13px;color:#6b7280;line-height:1.7;max-width:720px">
+            <p style="margin:0 0 10px">Consolidation identifies partially-filled locations holding the same SKU and creates move tasks to merge inventory into fewer slots. This frees up locations for new receipts and improves pick-path density.</p>
+            <p style="margin:0"><strong style="color:#374151">Typical workflow:</strong> System suggests consolidation candidates → Supervisor reviews and approves → Tasks are assigned to operators → Inventory is moved and locations are freed.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ VIEW: REPLENISH ════ -->
+      <div class="view" id="view-replenish">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg></div><div><div class="kpi-lbl">Pending Replenishments</div><div class="kpi-val" id="repl-kpi-pending">—</div><div class="kpi-chg neutral">pick locations low</div></div></div>
+          <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-lbl">In Progress</div><div class="kpi-val" id="repl-kpi-progress">—</div><div class="kpi-chg neutral">being restocked</div></div></div>
+          <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Completed Today</div><div class="kpi-val" id="repl-kpi-done">—</div><div class="kpi-chg neutral">locations restocked</div></div></div>
+          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div><div class="kpi-lbl">Avg Replenish Time</div><div class="kpi-val" id="repl-kpi-time">—</div><div class="kpi-chg neutral">minutes per task</div></div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-hdr">
+            <div>
+              <div class="card-ttl">Replenishment Tasks</div>
+              <div class="scheduler-help">Move inventory from reserve/bulk storage to forward pick locations when stock runs low. Connect to WMS replenishment APIs to view and manage live tasks.</div>
+            </div>
+            <span class="card-link" onclick="showView('replenish')">↻ Refresh</span>
+          </div>
+          <table class="tbl">
+            <thead><tr><th>Task ID</th><th>Customer</th><th>SKU</th><th>From (Reserve)</th><th>To (Pick)</th><th>Qty Needed</th><th>Priority</th><th>Status</th></tr></thead>
+            <tbody id="repl-table-body">
+              <tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af">
+                <div style="margin-bottom:8px"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg></div>
+                <strong style="color:#6b7280">No replenishment tasks</strong><br>
+                <span style="font-size:12px">Replenishment tasks from WMS will appear here once the API integration is connected.</span>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="card-hdr"><div class="card-ttl">How Replenishment Works</div></div>
+          <div style="font-size:13px;color:#6b7280;line-height:1.7;max-width:720px">
+            <p style="margin:0 0 10px">Replenishment monitors forward pick locations and triggers restocking from reserve/bulk storage when inventory drops below a configured threshold. This ensures pickers always have stock available without interrupting order fulfillment.</p>
+            <p style="margin:0"><strong style="color:#374151">Typical workflow:</strong> System detects low-stock pick location → Replenishment task is generated → Operator moves stock from reserve to pick face → Pick location quantity is updated.</p>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /page -->
   </div><!-- /main -->
 
@@ -1715,7 +1799,9 @@ const VIEW_META = {
   robots:    {t:'Robot Count', s:'Fleet status, battery, and throughput'},
   reports:   {t:'Reports', s:'Saved and scheduled warehouse reports'},
   alerts:    {t:'Alerts', s:'Critical, warning, and info alerts across systems'},
-  settings:  {t:'Settings', s:'Account, notifications, and integrations'}
+  settings:  {t:'Settings', s:'Account, notifications, and integrations'},
+  consolidation: {t:'Consolidation', s:'Consolidate inventory across locations to optimize space'},
+  replenish: {t:'Replenish', s:'Replenishment tasks to restock pick locations from reserve'}
 };
 
 const INV_SUB_TITLES = {
