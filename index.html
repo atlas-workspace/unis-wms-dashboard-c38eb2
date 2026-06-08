@@ -12116,7 +12116,7 @@ function resetVlgFilters() {
 }
 
 // ════════════════════════════════════════════════════════════════
-// ═══ LOCATION TAG ═══
+// ═══ LOCATION TAG — Virtual Location Tags from WISE ═══
 // ════════════════════════════════════════════════════════════════
 let LTAG_PAGE = 1;
 const LTAG_PAGE_SIZE = 20;
@@ -12129,42 +12129,57 @@ async function loadLocationTagData(page) {
   const filterTag = (document.getElementById('ltag-filter-tag') || {}).value || '';
   const filterLoc = (document.getElementById('ltag-filter-location') || {}).value || '';
 
-  const payload = { currentPage: LTAG_PAGE, pageSize: LTAG_PAGE_SIZE, facilityId: FACILITY_ID, warehouseId: FACILITY_ID };
-  if (filterTag.trim()) payload.tag = filterTag.trim();
-  if (filterLoc.trim()) payload.locationName = filterLoc.trim();
+  // Ontology-verified: POST /api/wms/location/virtual-tag/search-by-paging
+  // Request body: { currentPage, pageSize, regexName?, names?, locationIds? }
+  // Response: { data: { list: [{id, name, desc, locationIds[], locations[], ...}], totalCount } }
+  const payload = { currentPage: LTAG_PAGE, pageSize: LTAG_PAGE_SIZE };
+  if (filterTag.trim()) payload.regexName = filterTag.trim();
 
-  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/location-tag/search-by-paging', {
+  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/search-by-paging', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload),
   });
 
   if (!resp || resp._needsAuth) {
-    if (body) body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#ef4444">Authentication required. Please sign in.</td></tr>';
+    if (body) body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#ef4444">Authentication required. Please sign in to view location tags.</td></tr>';
     return;
   }
-  if (resp.success === false) {
-    if (body) body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#ef4444">Could not load location tags. ' + esc(resp.msg || resp.message || '') + '</td></tr>';
+  if (!resp.success && resp.success !== undefined) {
+    if (body) body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#ef4444">Could not load location tags.' + (resp.msg ? ' ' + esc(resp.msg) : '') + '</td></tr>';
     return;
   }
 
   const data = resp.data || resp;
-  const list = data.list || data.records || data.items || [];
+  let list = data.list || data.records || data.items || [];
   const total = data.totalCount || data.total || list.length;
+
+  // Client-side filter by location name if the user entered a location filter
+  // (the API supports locationIds but not location name search directly)
+  if (filterLoc.trim()) {
+    const q = filterLoc.trim().toLowerCase();
+    list = list.filter(r => {
+      const locs = r.locations || [];
+      return locs.some(l => (l.name || '').toLowerCase().includes(q));
+    });
+  }
 
   if (!body) return;
   if (list.length === 0) {
-    body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:#9ca3af"><strong style="color:#6b7280">No location tags found</strong><br><span style="font-size:12px">Try adjusting your filters or check that tags exist for this facility.</span></td></tr>';
+    body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:#9ca3af">' +
+      '<div style="margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>' +
+      '<strong style="color:#6b7280">No location tags found</strong><br>' +
+      '<span style="font-size:12px">Try adjusting your filters or check that tags exist for this facility.</span></td></tr>';
   } else {
     body.innerHTML = list.map(r => {
-      const tag = r.tag || r.name || r.tagName || '—';
-      const note = r.note || r.description || r.remark || '—';
-      const locCount = r.locationCount ?? r.count ?? r.locations ?? '—';
+      const tag = r.name || '—';
+      const note = r.desc || r.description || '—';
+      const locCount = (r.locationIds && r.locationIds.length) || (r.locations && r.locations.length) || 0;
       return '<tr>' +
         '<td><strong>' + esc(tag) + '</strong></td>' +
         '<td>' + esc(note) + '</td>' +
-        '<td>' + esc(String(locCount)) + '</td>' +
-        '<td><span style="color:#753BBD;font-size:12px;cursor:default">View</span></td>' +
+        '<td>' + locCount.toLocaleString() + '</td>' +
+        '<td><span style="color:#753BBD;font-size:12px;cursor:default" title="View locations in this tag">View</span></td>' +
         '</tr>';
     }).join('');
   }
