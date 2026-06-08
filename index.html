@@ -12417,6 +12417,34 @@ function ltagAddLocationPrompt() {
   ltagFilterEditLocs();
 }
 
+// ════════════════════════════════════════════════════════════════
+// ═══ SESSION RESTORE ON PAGE LOAD ═══
+// ════════════════════════════════════════════════════════════════
+// On hard refresh, if a valid token or refresh token exists in localStorage,
+// skip the login screen and go straight to the dashboard.
+// Hide login screen immediately (synchronous) if we have stored credentials
+// to prevent a brief flash of the sign-in form before async refresh completes.
+if (WISE_TOKEN || hasStoredRefreshToken()) {
+  document.getElementById('login-screen').style.display = 'none';
+}
+(async function restoreSessionOnLoad() {
+  // WISE_TOKEN was already loaded from localStorage at init (line ~8657).
+  // Check if it's still usable (not expired).
+  if (WISE_TOKEN && !tokenNeedsRefresh(WISE_TOKEN, 0)) {
+    showDash();
+    return;
+  }
+  // Token is expired or missing — try silent refresh if we have a refresh token.
+  if (hasStoredRefreshToken()) {
+    const ok = await refreshAccessToken();
+    if (ok) {
+      showDash();
+      return;
+    }
+  }
+  // No valid session — show login screen (it was hidden above, restore it).
+  document.getElementById('login-screen').style.display = 'flex';
+})();
 </script>
 </body>
 </html>
