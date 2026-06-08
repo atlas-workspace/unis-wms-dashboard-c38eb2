@@ -1524,17 +1524,18 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
             <div class="card-hdr">
               <div>
                 <div class="card-ttl">Edit Virtual Location Group</div>
-                <div class="scheduler-help">View and edit VLG details. Changes are saved to WISE.</div>
+                <div class="scheduler-help">Update VLG configuration. Changes are saved to WISE.</div>
               </div>
-              <button class="btn btn-secondary" onclick="vlgCloseEdit()" style="font-size:13px">← Back to List</button>
             </div>
-            <div style="display:flex;gap:16px;flex-wrap:wrap;margin:18px 0 20px">
-              <div class="cc-field" style="min-width:240px;margin:0;flex:1">
+
+            <!-- Row 1: Name, Group Type, Support Pick Type -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin:18px 0 20px">
+              <div class="cc-field" style="margin:0">
                 <label class="cc-label"><span class="req">*</span> VLG Name</label>
                 <input class="cc-input" type="text" id="vlg-edit-name" placeholder="Group name"/>
               </div>
-              <div class="cc-field" style="min-width:180px;margin:0">
-                <label class="cc-label">Group Type</label>
+              <div class="cc-field" style="margin:0">
+                <label class="cc-label"><span class="req">*</span> Group Type</label>
                 <select class="cc-input" id="vlg-edit-type">
                   <option value="ZONE">ZONE</option>
                   <option value="STAGING_ZONE">STAGING_ZONE</option>
@@ -1543,7 +1544,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
                   <option value="AIRROB_ZONE">AIRROB_ZONE</option>
                 </select>
               </div>
-              <div class="cc-field" style="min-width:180px;margin:0">
+              <div class="cc-field" style="margin:0">
                 <label class="cc-label">Support Pick Type</label>
                 <select class="cc-input" id="vlg-edit-picktype">
                   <option value="">—</option>
@@ -1554,38 +1555,67 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
                 </select>
               </div>
             </div>
-            <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px">
-              <div class="cc-field" style="min-width:200px;margin:0;flex:1">
-                <label class="cc-label">Customer</label>
-                <input class="cc-input" type="text" id="vlg-edit-customer" readonly placeholder="—" style="background:#f9fafb"/>
+
+            <!-- Row 2: Toggles -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px 24px;margin-bottom:20px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <div class="toggle" id="vlg-edit-tgl-mixitem" onclick="this.classList.toggle('on')"></div>
+                <span style="font-size:13px;color:#374151">Disallow To Mix Item On Same Location</span>
               </div>
-              <div class="cc-field" style="min-width:200px;margin:0;flex:1">
-                <label class="cc-label">Tags</label>
-                <input class="cc-input" type="text" id="vlg-edit-tags" readonly placeholder="—" style="background:#f9fafb"/>
+              <div style="display:flex;align-items:center;gap:10px">
+                <div class="toggle" id="vlg-edit-tgl-skipoccupied" onclick="this.classList.toggle('on')"></div>
+                <span style="font-size:13px;color:#374151">Skip Occupied Location On Put Away</span>
               </div>
-              <div class="cc-field" style="min-width:200px;margin:0;flex:1">
-                <label class="cc-label">Air Rob Locations</label>
-                <input class="cc-input" type="text" id="vlg-edit-airrob" readonly placeholder="—" style="background:#f9fafb"/>
+              <div style="display:flex;align-items:center;gap:10px">
+                <div class="toggle" id="vlg-edit-tgl-depleted" onclick="this.classList.toggle('on')"></div>
+                <span style="font-size:13px;color:#374151">Enable Depleted Location</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <div class="toggle" id="vlg-edit-tgl-mixlot" onclick="this.classList.toggle('on')"></div>
+                <span style="font-size:13px;color:#374151">Disallow To Mix Lotno On Same Location</span>
               </div>
             </div>
-            <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px">
-              <div class="cc-field" style="margin:0"><label class="cc-label">Created by</label><input class="cc-input" type="text" id="vlg-edit-created" readonly style="background:#f9fafb;width:180px"/></div>
-              <div class="cc-field" style="margin:0"><label class="cc-label">Updated by</label><input class="cc-input" type="text" id="vlg-edit-updated" readonly style="background:#f9fafb;width:180px"/></div>
-              <div class="cc-field" style="margin:0"><label class="cc-label">Updated at</label><input class="cc-input" type="text" id="vlg-edit-updatedtime" readonly style="background:#f9fafb;width:200px"/></div>
+
+            <!-- Row 3: Max Partial Pallet, Staging VLG Connection, Location Tags -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:20px">
+              <div class="cc-field" style="margin:0">
+                <label class="cc-label">Maximum Allowed Partial Pallet Per Item</label>
+                <input class="cc-input" type="number" id="vlg-edit-maxpallet" min="0" placeholder="0"/>
+              </div>
+              <div class="cc-field" style="margin:0">
+                <label class="cc-label">Staging VLG Connection</label>
+                <input class="cc-input" type="text" id="vlg-edit-staging" readonly placeholder="—" style="background:#f9fafb"/>
+              </div>
+              <div class="cc-field" style="margin:0">
+                <label class="cc-label"><span class="req">*</span> Location Tags</label>
+                <div id="vlg-edit-tags-chips" style="min-height:38px;border:1.5px solid #e5e7eb;border-radius:9px;padding:6px 10px;display:flex;flex-wrap:wrap;gap:5px;align-items:center;background:white">
+                  <span style="color:#9ca3af;font-size:12px">Loading…</span>
+                </div>
+              </div>
             </div>
-            <div style="display:flex;gap:10px;margin-bottom:14px">
-              <button class="btn btn-primary" id="vlg-save-btn" onclick="vlgSave()">Save</button>
+
+            <!-- Arrangement Section -->
+            <div style="border-top:1px solid #e5e7eb;padding-top:20px;margin-bottom:18px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+                <div style="font-size:15px;font-weight:700;color:#111827">Arrangement</div>
+              </div>
+              <div class="cc-field" style="margin:0 0 16px;max-width:260px">
+                <label class="cc-label"><span class="req">*</span> Arrangement Level</label>
+                <select class="cc-input" id="vlg-edit-arrangement">
+                  <option value="CUSTOMER">CUSTOMER</option>
+                  <option value="ITEM_GROUP">ITEM_GROUP</option>
+                </select>
+              </div>
+              <div id="vlg-edit-allocations-host"></div>
+              <div style="display:flex;gap:10px;margin-top:12px">
+                <button class="btn btn-secondary" onclick="vlgAddAllocation()" style="font-size:12px;padding:6px 12px">+ Add Arrangement</button>
+              </div>
             </div>
-          </div>
-          <div class="card" style="margin-top:16px">
-            <div class="card-hdr"><div class="card-ttl">Included Locations</div></div>
-            <div style="overflow-x:auto">
-              <table class="tbl">
-                <thead><tr><th>Name</th><th>Location Type</th><th>Support Pick Type</th><th>Status</th></tr></thead>
-                <tbody id="vlg-edit-locs-body">
-                  <tr><td colspan="4" style="text-align:center;padding:32px;color:#9ca3af">Loading locations…</td></tr>
-                </tbody>
-              </table>
+
+            <!-- Action buttons -->
+            <div style="display:flex;gap:10px;margin-top:20px;padding-top:18px;border-top:1px solid #e5e7eb">
+              <button class="btn btn-secondary" onclick="vlgCloseEdit()">Cancel</button>
+              <button class="btn btn-primary" id="vlg-save-btn" onclick="vlgSave()">Update</button>
             </div>
           </div>
         </div>
@@ -12293,16 +12323,17 @@ function vlgOpenEdit(vlgId) {
   document.getElementById('vlg-list-panel').style.display = 'none';
   document.getElementById('vlg-history-panel').style.display = 'none';
   document.getElementById('vlg-edit-panel').style.display = '';
-  document.getElementById('vlg-edit-locs-body').innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#9ca3af">Loading VLG details…</td></tr>';
   document.getElementById('vlg-edit-name').value = '';
   document.getElementById('vlg-edit-type').value = 'ZONE';
   document.getElementById('vlg-edit-picktype').value = '';
-  document.getElementById('vlg-edit-customer').value = '';
-  document.getElementById('vlg-edit-tags').value = '';
-  document.getElementById('vlg-edit-airrob').value = '';
-  document.getElementById('vlg-edit-created').value = '';
-  document.getElementById('vlg-edit-updated').value = '';
-  document.getElementById('vlg-edit-updatedtime').value = '';
+  document.getElementById('vlg-edit-maxpallet').value = '';
+  document.getElementById('vlg-edit-staging').value = '';
+  document.getElementById('vlg-edit-tags-chips').innerHTML = '<span style="color:#9ca3af;font-size:12px">Loading…</span>';
+  document.getElementById('vlg-edit-arrangement').value = 'CUSTOMER';
+  document.getElementById('vlg-edit-allocations-host').innerHTML = '';
+  ['vlg-edit-tgl-mixitem','vlg-edit-tgl-skipoccupied','vlg-edit-tgl-depleted','vlg-edit-tgl-mixlot'].forEach(id => {
+    document.getElementById(id).classList.remove('on');
+  });
   vlgFetchDetail(vlgId);
 }
 
@@ -12313,65 +12344,85 @@ async function vlgFetchDetail(vlgId) {
     headers: {'Accept': 'application/json'},
   });
   if (!resp || resp._needsAuth) {
-    document.getElementById('vlg-edit-locs-body').innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#ef4444">Authentication required.</td></tr>';
+    document.getElementById('vlg-edit-tags-chips').innerHTML = '<span style="color:#ef4444;font-size:12px">Authentication required.</span>';
     return;
   }
   if (!resp.success && resp.success !== undefined) {
-    document.getElementById('vlg-edit-locs-body').innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#ef4444">Could not load VLG details.' + (resp.msg ? ' ' + esc(resp.msg) : '') + '</td></tr>';
+    document.getElementById('vlg-edit-tags-chips').innerHTML = '<span style="color:#ef4444;font-size:12px">Could not load VLG details.</span>';
     return;
   }
   const v = resp.data || resp;
   VLG_EDIT_DATA = v;
+
+  // Populate fields
   document.getElementById('vlg-edit-name').value = v.name || '';
   document.getElementById('vlg-edit-type').value = v.type || 'ZONE';
   document.getElementById('vlg-edit-picktype').value = v.supportPickType || '';
-  document.getElementById('vlg-edit-created').value = v.createdBy || '—';
-  document.getElementById('vlg-edit-updated').value = v.updatedBy || '—';
-  document.getElementById('vlg-edit-updatedtime').value = v.updatedTime ? new Date(v.updatedTime).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}) : '—';
+  document.getElementById('vlg-edit-maxpallet').value = v.maximumAllowedPartialPallet ?? '';
+  document.getElementById('vlg-edit-staging').value = (v.stagingVlgConnectionIds || []).join(', ') || '—';
+  document.getElementById('vlg-edit-arrangement').value = v.arrangementLevel || 'CUSTOMER';
 
-  // Customer from allocations
+  // Toggles
+  if (v.disallowToMixItemOnSameLocation) document.getElementById('vlg-edit-tgl-mixitem').classList.add('on');
+  if (v.skipOccupiedLocationOnPutAway) document.getElementById('vlg-edit-tgl-skipoccupied').classList.add('on');
+  if (v.enableDepletedLocation) document.getElementById('vlg-edit-tgl-depleted').classList.add('on');
+  if (v.disallowToMixLotNoOnSameLocation) document.getElementById('vlg-edit-tgl-mixlot').classList.add('on');
+
+  // Location Tags as chips (tagIds are numeric; show IDs as chips)
+  const tagIds = v.tagIds || [];
+  const chipsHost = document.getElementById('vlg-edit-tags-chips');
+  if (tagIds.length === 0) {
+    chipsHost.innerHTML = '<span style="color:#9ca3af;font-size:12px">No tags</span>';
+  } else {
+    chipsHost.innerHTML = tagIds.map(tid =>
+      '<span style="display:inline-flex;align-items:center;gap:4px;background:#F7F2FF;color:#5F2E98;font-size:11px;font-weight:600;padding:3px 8px;border-radius:4px">Tag ' + esc(String(tid)) + '</span>'
+    ).join('');
+  }
+
+  // Customer VLG Allocations (Arrangement section)
+  vlgRenderAllocations(v.customerVlgAllocations || []);
+}
+
+function vlgRenderAllocations(allocations) {
+  const host = document.getElementById('vlg-edit-allocations-host');
   const custLookup = {};
   (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => { custLookup[c.id] = c.name; });
-  const custNames = (v.customerVlgAllocations || []).map(a => custLookup[a.customerId] || a.customerId).filter(Boolean);
-  document.getElementById('vlg-edit-customer').value = custNames.join(', ') || '—';
 
-  // Tags (tagIds are numeric; we don't have names from GET detail, show IDs)
-  document.getElementById('vlg-edit-tags').value = (v.tagIds || []).join(', ') || '—';
-
-  // Air Rob locations
-  const airRobIds = v.airRobLocationIds || [];
-  document.getElementById('vlg-edit-airrob').value = airRobIds.join(', ') || '—';
-
-  // Load included locations if present
-  const locIds = v.includeLocationIds || [];
-  if (locIds.length === 0) {
-    document.getElementById('vlg-edit-locs-body').innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#9ca3af">No locations assigned to this VLG.</td></tr>';
+  if (!allocations || allocations.length === 0) {
+    host.innerHTML = '<div style="color:#9ca3af;font-size:13px;padding:12px 0">No arrangements configured.</div>';
     return;
   }
-  document.getElementById('vlg-edit-locs-body').innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#9ca3af">Loading ' + locIds.length + ' location(s)…</td></tr>';
-  const locResp = await safeFetch(API.locSearch, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ currentPage: 1, pageSize: Math.max(locIds.length, 200), ids: locIds }),
-  });
-  const locsBody = document.getElementById('vlg-edit-locs-body');
-  if (locResp && locResp.success !== false) {
-    const locData = locResp.data || locResp;
-    const locs = locData.list || locData.records || [];
-    if (locs.length === 0) {
-      locsBody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#9ca3af">No location details available.</td></tr>';
-    } else {
-      locsBody.innerHTML = locs.map(l => '<tr>' +
-        '<td>' + esc(l.name || l.id || '—') + '</td>' +
-        '<td>' + esc(l.type || '—') + '</td>' +
-        '<td>' + esc(l.supportPickType || '—') + '</td>' +
-        '<td><span class="badge ' + (l.status === 'USABLE' ? 'ok' : (l.status === 'DISABLED' ? 'err' : 'idle')) + '">' + esc(l.status || '—') + '</span></td>' +
-        '</tr>').join('');
-    }
-  } else {
-    // Fallback: show location IDs
-    locsBody.innerHTML = locIds.map(id => '<tr><td>' + esc(id) + '</td><td>—</td><td>—</td><td>—</td></tr>').join('');
-  }
+  host.innerHTML = allocations.map((a, i) => {
+    const custName = custLookup[a.customerId] || a.customerId || '—';
+    const from = a.timeRangeFrom || '—';
+    const to = a.timeRangeTo || '—';
+    return '<div style="border:1px solid #e5e7eb;border-radius:10px;padding:14px 16px;margin-bottom:10px;background:#f9fafb">' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;align-items:end">' +
+        '<div class="cc-field" style="margin:0"><label class="cc-label">Time Range From</label><input class="cc-input" value="' + esc(from) + '" readonly style="background:#fff;font-size:12px"/></div>' +
+        '<div class="cc-field" style="margin:0"><label class="cc-label">Time Range To</label><input class="cc-input" value="' + esc(to) + '" readonly style="background:#fff;font-size:12px"/></div>' +
+        '<div class="cc-field" style="margin:0"><label class="cc-label">Category</label><input class="cc-input" value="' + esc(a.category || '—') + '" readonly style="background:#fff;font-size:12px"/></div>' +
+        '<div class="cc-field" style="margin:0"><label class="cc-label">Customer</label><input class="cc-input" value="' + esc(custName) + '" readonly style="background:#fff;font-size:12px"/></div>' +
+        '<div class="cc-field" style="margin:0"><label class="cc-label">Percentage</label><input class="cc-input" value="' + (a.percentage != null ? a.percentage + '%' : '—') + '" readonly style="background:#fff;font-size:12px"/></div>' +
+        '<div style="display:flex;align-items:end;padding-bottom:2px"><button class="btn btn-secondary" onclick="vlgRemoveAllocation(' + i + ')" style="font-size:11px;padding:5px 10px;color:#dc2626;border-color:#fca5a5">Remove</button></div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function vlgAddAllocation() {
+  if (!VLG_EDIT_DATA) return;
+  const allocs = VLG_EDIT_DATA.customerVlgAllocations || [];
+  allocs.push({ customerId: '', category: 'PUBLIC', percentage: 100, timeRangeFrom: '00:00', timeRangeTo: '23:59' });
+  VLG_EDIT_DATA.customerVlgAllocations = allocs;
+  vlgRenderAllocations(allocs);
+}
+
+function vlgRemoveAllocation(idx) {
+  if (!VLG_EDIT_DATA) return;
+  const allocs = VLG_EDIT_DATA.customerVlgAllocations || [];
+  allocs.splice(idx, 1);
+  VLG_EDIT_DATA.customerVlgAllocations = allocs;
+  vlgRenderAllocations(allocs);
 }
 
 async function vlgSave() {
@@ -12379,27 +12430,35 @@ async function vlgSave() {
   const name = (document.getElementById('vlg-edit-name').value || '').trim();
   if (!name) { alert('VLG Name is required.'); return; }
   const btn = document.getElementById('vlg-save-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Updating…'; }
 
-  // Ontology-verified: PUT /api/wms/location/virtual-group (requires id, name)
-  const payload = {
-    id: VLG_EDIT_DATA.id,
+  // Ontology-verified: PUT /api/wms/location/virtual-group
+  // Preserve all existing fields from the fetched detail to avoid data loss
+  const payload = Object.assign({}, VLG_EDIT_DATA, {
     name: name,
     type: document.getElementById('vlg-edit-type').value || VLG_EDIT_DATA.type,
     supportPickType: document.getElementById('vlg-edit-picktype').value || VLG_EDIT_DATA.supportPickType || undefined,
-    tagIds: VLG_EDIT_DATA.tagIds || [],
-    airRobLocationIds: VLG_EDIT_DATA.airRobLocationIds || [],
-    customerVlgAllocations: VLG_EDIT_DATA.customerVlgAllocations || [],
-  };
+    disallowToMixItemOnSameLocation: document.getElementById('vlg-edit-tgl-mixitem').classList.contains('on'),
+    skipOccupiedLocationOnPutAway: document.getElementById('vlg-edit-tgl-skipoccupied').classList.contains('on'),
+    enableDepletedLocation: document.getElementById('vlg-edit-tgl-depleted').classList.contains('on'),
+    disallowToMixLotNoOnSameLocation: document.getElementById('vlg-edit-tgl-mixlot').classList.contains('on'),
+    maximumAllowedPartialPallet: parseInt(document.getElementById('vlg-edit-maxpallet').value, 10) || 0,
+    arrangementLevel: document.getElementById('vlg-edit-arrangement').value || VLG_EDIT_DATA.arrangementLevel,
+  });
+  // Remove response-only fields that should not be sent back
+  delete payload.createdBy; delete payload.createdTime;
+  delete payload.updatedBy; delete payload.updatedTime;
+  delete payload.occupiedBy; delete payload.includeLocationIds;
+
   const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-group', {
     method: 'PUT',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload),
   });
-  if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+  if (btn) { btn.disabled = false; btn.textContent = 'Update'; }
   if (!resp || resp._needsAuth) { alert('Authentication required. Please sign in.'); return; }
-  if (!resp.success && resp.success !== undefined) { alert('Save failed.' + (resp.msg ? ' ' + resp.msg : '')); return; }
-  alert('Virtual location group saved successfully.');
+  if (!resp.success && resp.success !== undefined) { alert('Update failed.' + (resp.msg ? ' ' + resp.msg : '')); return; }
+  alert('Virtual location group updated successfully.');
   vlgCloseEdit();
 }
 
