@@ -317,6 +317,8 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 .task-status-chip{display:inline-flex;align-items:center;gap:4px;background:#F7F2FF;color:#5F2E98;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.04em;text-transform:uppercase}
 .task-status-chip.complete{background:#ecfdf5;color:#065f46}
 .task-status-chip.editing{background:#F7F2FF;color:#5F2E98}
+.task-status-chip.cancelled{background:#fef2f2;color:#991b1b}
+.task-status-chip.in-progress{background:#eff6ff;color:#1e40af}
 .tasks-empty{padding:24px 12px;text-align:center;color:#9ca3af;font-size:12.5px;border:1.5px dashed #e5e7eb;border-radius:10px;background:#FCFAFF}
 
 /* Per-customer rows inside a grouped (multi-customer) task card */
@@ -10695,6 +10697,12 @@ function renderTasksPanel() {
   (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => custLookup[c.id] = c.name);
 
   host.innerHTML = groups.map(g => renderTaskGroupCard(g, custLookup)).join('');
+
+  // Sync live WMS statuses in background (non-blocking)
+  if (!CC._statusSyncInFlight) {
+    CC._statusSyncInFlight = true;
+    syncTaskStatusesFromWise().finally(() => { CC._statusSyncInFlight = false; });
+  }
 }
 
 // Render one card. Single-task groups (solo) get a single progress bar like
@@ -10721,9 +10729,24 @@ function renderTaskGroupCard(g, custLookup) {
     : Math.max(0, Math.min(100, Number(tasks[0].progress)||0));
   const complete = avgPct >= 100;
 
-  // Status chip text
-  const headerStatus = complete ? 'COMPLETED' : (cardEditing ? 'EDITING' : 'OPEN');
-  const statusCls = complete ? 'complete' : (cardEditing ? 'editing' : '');
+  // Status chip text — prefer live WMS status when available
+  const wiseStatuses = tasks.map(t => t.wiseStatus).filter(Boolean);
+  const headerStatus = (() => {
+    if (cardEditing) return 'EDITING';
+    if (wiseStatuses.length > 0) {
+      // Use the most "active" status among the group's tickets
+      if (wiseStatuses.some(s => /PROGRESS|IN_/i.test(s))) return 'IN PROGRESS';
+      if (wiseStatuses.some(s => /NEW|OPEN|PENDING|READY/i.test(s))) return 'OPEN';
+      if (wiseStatuses.every(s => /COMPLET|FINISH|CLOSED|DONE/i.test(s))) return 'COMPLETED';
+      if (wiseStatuses.every(s => /CANCEL/i.test(s))) return 'CANCELLED';
+      return wiseStatuses[0].replace(/_/g, ' ');
+    }
+    return complete ? 'COMPLETED' : 'OPEN';
+  })();
+  const statusCls = /COMPLET|FINISH|DONE|CLOSED/i.test(headerStatus) ? 'complete'
+    : /CANCEL/i.test(headerStatus) ? 'cancelled'
+    : /PROGRESS|IN_/i.test(headerStatus) ? 'in-progress'
+    : cardEditing ? 'editing' : '';
 
   // Header
   const scheduleChip = isGroup
@@ -10761,10 +10784,20 @@ function renderCustomerRow(t, custLookup) {
   const editing = t.id === CC.editingTaskId;
   const customer = custLookup[t.customerId] || t.customerName || t.customerId || '—';
   const locs = (t.countLines||[]).length;
+  // Live WMS status for this row's ticket
+  const rowStatus = (() => {
+    if (t.wiseStatus) return t.wiseStatus.replace(/_/g, ' ');
+    return complete ? 'COMPLETED' : 'OPEN';
+  })();
+  const rowStatusCls = /COMPLET|FINISH|DONE|CLOSED/i.test(rowStatus) ? 'complete'
+    : /CANCEL/i.test(rowStatus) ? 'cancelled'
+    : /PROGRESS|IN_/i.test(rowStatus) ? 'in-progress'
+    : '';
   return `<div class="task-cust-row${editing?' editing':''}">
     <div class="tc-head">
       <span class="tc-name">${esc(customer)}</span>
       ${t.ticketId ? '<span class="tc-ticket">' + esc(t.ticketId) + '</span>' : ''}
+      <span class="task-status-chip ${rowStatusCls}" style="margin-left:6px">${esc(rowStatus)}</span>
       <span class="tc-sub">${locs.toLocaleString()} location${locs===1?'':'s'}</span>
     </div>
     <div class="tc-actions">
@@ -10790,14 +10823,23 @@ function renderSoloTaskCard(t, custLookup) {
   const release = t.scheduleDate ? new Date(t.scheduleDate).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}) : '—';
   const customer = custLookup[t.customerId] || t.customerName || t.customerId || '—';
   const lines = (t.countLines||[]).length;
-  const status = complete ? 'complete' : (editing ? 'editing' : 'open');
+  // Prefer live WMS status when available
+  const displayStatus = (() => {
+    if (editing) return 'EDITING';
+    if (t.wiseStatus) return t.wiseStatus.replace(/_/g, ' ');
+    return complete ? 'COMPLETED' : 'OPEN';
+  })();
+  const statusCls = /COMPLET|FINISH|DONE|CLOSED/i.test(displayStatus) ? 'complete'
+    : /CANCEL/i.test(displayStatus) ? 'cancelled'
+    : /PROGRESS|IN_/i.test(displayStatus) ? 'in-progress'
+    : editing ? 'editing' : '';
   const ticketTag = t.ticketId ? '<span style="font-size:10.5px;color:#6b7280;font-weight:600;background:#f3f4f6;padding:2px 6px;border-radius:4px;margin-left:6px">' + esc(t.ticketId) + '</span>' : '';
   return `<div class="task-card${editing?' editing':''}">
     <div class="task-card-hdr">
       <div style="flex:1;min-width:0">
         <div class="task-card-name">${esc(t.name||'(no name)')}${ticketTag}</div>
         <div class="task-card-sub">${esc(customer)} · ${lines.toLocaleString()} location${lines===1?'':'s'} · Release ${esc(release)}</div>
-        <div style="margin-top:6px"><span class="task-status-chip ${status==='complete'?'complete':status==='editing'?'editing':''}">${status==='complete'?'COMPLETED':status==='editing'?'EDITING':'OPEN'}</span></div>
+        <div style="margin-top:6px"><span class="task-status-chip ${statusCls}">${esc(displayStatus)}</span></div>
       </div>
       <div class="task-card-actions">
         ${t.ticketId ? `<button onclick="refreshTaskProgressFromWise('${escapeAttr(t.id)}')" title="Refresh progress from Wise">↻ Progress</button>` : ''}
@@ -11430,33 +11472,79 @@ async function loadRobotKpisFromOntology() {
   if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh KPIs'; }
 }
 
-// Pull the real count-progress for a task's ticket from Wise.
+// Pull the real count-progress AND live status for a task's ticket from Wise.
 async function refreshTaskProgressFromWise(taskId) {
   const t = CC.tasks.find(x => x.id === taskId);
   if (!t || !t.ticketId) return;
+  // Fetch progress stats
   const resp = await safeFetch(API_COUNT_PROGRESS, {
     method:'POST',
     headers:{'Content-Type':'application/json','Accept':'application/json'},
     body: JSON.stringify({ticketIds:[t.ticketId]}),
   });
-  if (!resp || resp.success === false) return;
-  const payload = resp.data || resp;
-  // The shape isn't fully documented; try common fields.
-  let totalLines = 0, countedLines = 0;
-  if (Array.isArray(payload)) {
-    payload.forEach(s => {
-      totalLines += s.totalLines || s.total || 0;
-      countedLines += s.countedLines || s.counted || s.completed || 0;
-    });
-  } else if (payload && typeof payload === 'object') {
-    totalLines   = payload.totalLines || payload.total || (t.countLines || []).length;
-    countedLines = payload.countedLines || payload.counted || payload.completed || 0;
+  if (resp && resp.success !== false) {
+    const payload = resp.data || resp;
+    let totalLines = 0, countedLines = 0;
+    if (Array.isArray(payload)) {
+      payload.forEach(s => {
+        totalLines += s.totalLines || s.total || 0;
+        countedLines += s.countedLines || s.counted || s.completed || 0;
+      });
+    } else if (payload && typeof payload === 'object') {
+      totalLines   = payload.totalLines || payload.total || (t.countLines || []).length;
+      countedLines = payload.countedLines || payload.counted || payload.completed || 0;
+    }
+    if (totalLines > 0) {
+      t.progress = Math.min(100, Math.round((countedLines / totalLines) * 100));
+      t.progressUpdatedAt = Date.now();
+      t.wiseTotalLines = totalLines;
+      t.wiseCountedLines = countedLines;
+    }
   }
-  if (totalLines > 0) {
-    t.progress = Math.min(100, Math.round((countedLines / totalLines) * 100));
-    t.progressUpdatedAt = Date.now();
-    t.wiseTotalLines = totalLines;
-    t.wiseCountedLines = countedLines;
+  // Also fetch the live ticket status
+  const ticketResp = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Accept':'application/json'},
+    body: JSON.stringify({currentPage:1, pageSize:1, ticketIds:[t.ticketId], facilityId: FACILITY_ID}),
+  });
+  if (ticketResp && ticketResp.success !== false) {
+    const tData = ticketResp.data || {};
+    const tList = tData.list || tData.records || [];
+    if (tList.length > 0) {
+      t.wiseStatus = tList[0].status || null;
+      t.wiseStatusUpdatedAt = Date.now();
+    }
+  }
+  persistSavedTasks(CC.tasks);
+  renderTasksPanel();
+}
+
+// Batch-fetch live WMS statuses for all saved tasks that have a ticketId.
+// Called when the Saved Cycle Counts panel renders so status stays current.
+async function syncTaskStatusesFromWise() {
+  const ticketIds = CC.tasks
+    .filter(t => t.ticketId && rowMatchesCurrentFacility(t))
+    .map(t => t.ticketId);
+  if (ticketIds.length === 0) return;
+  const resp = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Accept':'application/json'},
+    body: JSON.stringify({currentPage:1, pageSize: Math.max(ticketIds.length, 50), ticketIds, facilityId: FACILITY_ID}),
+  });
+  if (!resp || resp.success === false) return;
+  const data = resp.data || {};
+  const list = data.list || data.records || [];
+  const statusMap = {};
+  list.forEach(row => { if (row.id && row.status) statusMap[row.id] = row.status; });
+  let changed = false;
+  CC.tasks.forEach(t => {
+    if (t.ticketId && statusMap[t.ticketId]) {
+      t.wiseStatus = statusMap[t.ticketId];
+      t.wiseStatusUpdatedAt = Date.now();
+      changed = true;
+    }
+  });
+  if (changed) {
     persistSavedTasks(CC.tasks);
     renderTasksPanel();
   }
