@@ -12339,47 +12339,75 @@ function vlgOpenEdit(vlgId) {
 
 async function vlgFetchDetail(vlgId) {
   // Ontology-verified: GET /api/wms/location/virtual-group/{id}
+  // Response fields: id, name, type, supportPickType, tagIds[], disallowToMixItemOnSameLocation,
+  // disallowToMixLotNoOnSameLocation, skipOccupiedLocationOnPutAway, enableDepletedLocation,
+  // maximumAllowedPartialPallet, arrangementLevel, airRobLocationIds[], stagingVlgConnectionIds[],
+  // customerVlgAllocations[{category, customerId, percentage, timeRangeFrom, timeRangeTo}],
+  // includeLocationIds[], occupiedBy[], createdBy, createdTime, updatedBy, updatedTime
   const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-group/' + encodeURIComponent(vlgId), {
     method: 'GET',
     headers: {'Accept': 'application/json'},
   });
   if (!resp || resp._needsAuth) {
-    document.getElementById('vlg-edit-tags-chips').innerHTML = '<span style="color:#ef4444;font-size:12px">Authentication required.</span>';
+    document.getElementById('vlg-edit-tags-chips').innerHTML = '<span style="color:#ef4444;font-size:12px">Authentication required. Please sign in.</span>';
     return;
   }
   if (!resp.success && resp.success !== undefined) {
-    document.getElementById('vlg-edit-tags-chips').innerHTML = '<span style="color:#ef4444;font-size:12px">Could not load VLG details.</span>';
+    document.getElementById('vlg-edit-tags-chips').innerHTML = '<span style="color:#ef4444;font-size:12px">Could not load VLG details.' + (resp.msg ? ' ' + esc(resp.msg) : '') + '</span>';
     return;
   }
   const v = resp.data || resp;
   VLG_EDIT_DATA = v;
 
-  // Populate fields
+  // ── Populate editable fields from live detail ──
   document.getElementById('vlg-edit-name').value = v.name || '';
   document.getElementById('vlg-edit-type').value = v.type || 'ZONE';
   document.getElementById('vlg-edit-picktype').value = v.supportPickType || '';
   document.getElementById('vlg-edit-maxpallet').value = v.maximumAllowedPartialPallet ?? '';
-  document.getElementById('vlg-edit-staging').value = (v.stagingVlgConnectionIds || []).join(', ') || '—';
   document.getElementById('vlg-edit-arrangement').value = v.arrangementLevel || 'CUSTOMER';
 
-  // Toggles
+  // Staging VLG Connection — detail returns stagingVlgConnectionIds (string[])
+  // No separate name-lookup endpoint verified; display IDs (read-only)
+  document.getElementById('vlg-edit-staging').value = (v.stagingVlgConnectionIds || []).join(', ') || '—';
+
+  // ── Toggles from live boolean fields ──
   if (v.disallowToMixItemOnSameLocation) document.getElementById('vlg-edit-tgl-mixitem').classList.add('on');
   if (v.skipOccupiedLocationOnPutAway) document.getElementById('vlg-edit-tgl-skipoccupied').classList.add('on');
   if (v.enableDepletedLocation) document.getElementById('vlg-edit-tgl-depleted').classList.add('on');
   if (v.disallowToMixLotNoOnSameLocation) document.getElementById('vlg-edit-tgl-mixlot').classList.add('on');
 
-  // Location Tags as chips (tagIds are numeric; show IDs as chips)
+  // ── Location Tags — resolve tagIds to names via virtual-tag search ──
+  // GET detail only returns numeric tagIds[]; fetch names from the tag search
+  // endpoint so chips show human-readable tag names instead of raw IDs.
   const tagIds = v.tagIds || [];
   const chipsHost = document.getElementById('vlg-edit-tags-chips');
   if (tagIds.length === 0) {
-    chipsHost.innerHTML = '<span style="color:#9ca3af;font-size:12px">No tags</span>';
+    chipsHost.innerHTML = '<span style="color:#9ca3af;font-size:12px">No tags assigned</span>';
   } else {
+    // Attempt to resolve tag names from virtual-tag search
     chipsHost.innerHTML = tagIds.map(tid =>
-      '<span style="display:inline-flex;align-items:center;gap:4px;background:#F7F2FF;color:#5F2E98;font-size:11px;font-weight:600;padding:3px 8px;border-radius:4px">Tag ' + esc(String(tid)) + '</span>'
-    ).join('');
+      '<span style="display:inline-flex;align-items:center;gap:4px;background:#F7F2FF;color:#5F2E98;font-size:11px;font-weight:600;padding:3px 8px;border-radius:4px">Tag #' + esc(String(tid)) + '</span>'
+    ).join(' ');
+    // Fire-and-forget name resolution — ontology-verified: POST /api/wms/location/virtual-tag/search-by-paging
+    safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/search-by-paging', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ currentPage: 1, pageSize: 100, ids: tagIds }),
+    }).then(tagResp => {
+      if (!tagResp || !tagResp.success && tagResp.success !== undefined) return;
+      const tagData = tagResp.data || tagResp;
+      const tagList = tagData.list || tagData.records || tagData || [];
+      if (!Array.isArray(tagList) || tagList.length === 0) return;
+      const tagMap = {};
+      tagList.forEach(t => { if (t.id != null) tagMap[t.id] = t.name || ('Tag #' + t.id); });
+      chipsHost.innerHTML = tagIds.map(tid => {
+        const label = tagMap[tid] || ('Tag #' + tid);
+        return '<span style="display:inline-flex;align-items:center;gap:4px;background:#F7F2FF;color:#5F2E98;font-size:11px;font-weight:600;padding:3px 8px;border-radius:4px">' + esc(label) + '</span>';
+      }).join(' ');
+    }).catch(() => {});
   }
 
-  // Customer VLG Allocations (Arrangement section)
+  // ── Customer VLG Allocations (Arrangement section) ──
   vlgRenderAllocations(v.customerVlgAllocations || []);
 }
 
