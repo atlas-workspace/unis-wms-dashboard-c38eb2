@@ -412,6 +412,9 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 .consol-status.completed{background:#ECFDF5;color:#059669}
 .consol-status.closed{background:#ECFDF5;color:#059669}
 .consol-status.cancelled{background:#FEF2F2;color:#dc2626}
+.consol-status.collected{background:#FFF7ED;color:#C2410C}
+.consol-status.dropped{background:#ECFDF5;color:#047857}
+.consol-status.open{background:#EFF6FF;color:#2563eb}
 </style>
 </head>
 <body>
@@ -1528,38 +1531,60 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
       <!-- ════ VIEW: REPLENISH ════ -->
       <div class="view" id="view-replenish">
         <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg></div><div><div class="kpi-lbl">Pending Replenishments</div><div class="kpi-val" id="repl-kpi-pending">—</div><div class="kpi-chg neutral">pick locations low</div></div></div>
-          <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-lbl">In Progress</div><div class="kpi-val" id="repl-kpi-progress">—</div><div class="kpi-chg neutral">being restocked</div></div></div>
-          <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Completed Today</div><div class="kpi-val" id="repl-kpi-done">—</div><div class="kpi-chg neutral">locations restocked</div></div></div>
-          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div><div class="kpi-lbl">Avg Replenish Time</div><div class="kpi-val" id="repl-kpi-time">—</div><div class="kpi-chg neutral">minutes per task</div></div></div>
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg></div><div><div class="kpi-lbl">Recent Tasks</div><div class="kpi-val" id="repl-kpi-pending">—</div><div class="kpi-chg neutral">last 7 days</div></div></div>
+          <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-lbl">Collected</div><div class="kpi-val" id="repl-kpi-progress">—</div><div class="kpi-chg neutral">awaiting drop</div></div></div>
+          <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Dropped</div><div class="kpi-val" id="repl-kpi-done">—</div><div class="kpi-chg neutral">completed moves</div></div></div>
+          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div><div class="kpi-lbl">Total Records</div><div class="kpi-val" id="repl-kpi-total">—</div><div class="kpi-chg neutral">all history</div></div></div>
         </div>
 
         <div class="card">
           <div class="card-hdr">
             <div>
-              <div class="card-ttl">Replenishment Tasks</div>
-              <div class="scheduler-help">Move inventory from reserve/bulk storage to forward pick locations when stock runs low. Connect to WMS replenishment APIs to view and manage live tasks.</div>
+              <div class="card-ttl">Replenishment Activity</div>
+              <div class="scheduler-help">Live replenishment moves from reserve/bulk storage to forward pick locations. Data from WISE replenishment task history.</div>
             </div>
-            <span class="card-link" onclick="showView('replenish')">↻ Refresh</span>
+            <span class="card-link" onclick="loadReplenishView()">↻ Refresh</span>
           </div>
-          <table class="tbl">
-            <thead><tr><th>Task ID</th><th>Customer</th><th>SKU</th><th>From (Reserve)</th><th>To (Pick)</th><th>Qty Needed</th><th>Priority</th><th>Status</th></tr></thead>
-            <tbody id="repl-table-body">
-              <tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af">
-                <div style="margin-bottom:8px"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg></div>
-                <strong style="color:#6b7280">No replenishment tasks</strong><br>
-                <span style="font-size:12px">Replenishment tasks from WMS will appear here once the API integration is connected.</span>
-              </td></tr>
-            </tbody>
-          </table>
+          <div style="padding:12px 16px 0;display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-bottom:1px solid #f3f4f6;padding-bottom:12px">
+            <input id="repl-filter-search" type="text" class="cc-input" placeholder="Search item, customer, location..." style="width:220px;font-size:12px;padding:6px 10px;margin:0" oninput="replApplyFilter()"/>
+            <select id="repl-filter-status" class="cc-input" style="width:130px;font-size:12px;padding:6px 10px;margin:0" onchange="loadReplenishView()">
+              <option value="">All Statuses</option>
+              <option value="COLLECTED">Collected</option>
+              <option value="DROPPED">Dropped</option>
+            </select>
+            <select id="repl-filter-days" class="cc-input" style="width:130px;font-size:12px;padding:6px 10px;margin:0" onchange="loadReplenishView()">
+              <option value="7">Last 7 days</option>
+              <option value="3">Last 3 days</option>
+              <option value="1">Today</option>
+              <option value="14">Last 14 days</option>
+              <option value="30">Last 30 days</option>
+            </select>
+            <span id="repl-result-count" style="font-size:11px;color:#9ca3af;margin-left:auto"></span>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="tbl" style="margin:0">
+              <thead><tr><th>Task</th><th>Item / SKU</th><th>Customer</th><th>From (Reserve)</th><th>To (Pick)</th><th>Qty</th><th>Status</th><th>Operator</th><th>Time</th></tr></thead>
+              <tbody id="repl-table-body">
+                <tr><td colspan="9" style="text-align:center;padding:40px;color:#9ca3af"><span class="spinner"></span> Loading replenishment data…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="padding:10px 16px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid #f3f4f6">
+            <span id="repl-page-info" style="font-size:11px;color:#9ca3af">Page 1</span>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-secondary" id="repl-prev-btn" onclick="replPagePrev()" disabled style="font-size:11px;padding:4px 10px">← Prev</button>
+              <button class="btn btn-secondary" id="repl-next-btn" onclick="replPageNext()" style="font-size:11px;padding:4px 10px">Next →</button>
+            </div>
+          </div>
         </div>
 
-        <div class="card">
-          <div class="card-hdr"><div class="card-ttl">How Replenishment Works</div></div>
-          <div style="font-size:13px;color:#6b7280;line-height:1.7;max-width:720px">
-            <p style="margin:0 0 10px">Replenishment monitors forward pick locations and triggers restocking from reserve/bulk storage when inventory drops below a configured threshold. This ensures pickers always have stock available without interrupting order fulfillment.</p>
-            <p style="margin:0"><strong style="color:#374151">Typical workflow:</strong> System detects low-stock pick location → Replenishment task is generated → Operator moves stock from reserve to pick face → Pick location quantity is updated.</p>
+        <!-- Detail panel (shown when clicking a row) -->
+        <div class="card" id="repl-detail-panel" style="display:none">
+          <div class="card-hdr">
+            <div class="card-ttl" id="repl-detail-title">Replenishment Details</div>
+            <span class="card-link" onclick="replCloseDetail()">✕ Close</span>
           </div>
+          <div id="repl-detail-body" style="padding:8px 0"></div>
         </div>
       </div>
 
@@ -2151,6 +2176,7 @@ function showView(name, sub) {
 
   // lazy-init view-specific content
   if (name === 'consolidation') loadConsolidationView();
+  if (name === 'replenish') loadReplenishView();
   if (name === 'scheduler') initSchedulerForm();
   if (name === 'robots') { initRobotChart(); refreshOntologyStatus(); loadRobotKpisFromOntology(); }
   if (name === 'cycle') loadCycleCountView();
@@ -13426,6 +13452,180 @@ async function consolWfSubmit() {
   }
 }
 
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REPLENISHMENT PAGE — Live data from replenishment task history
+// Endpoint: POST /api/wms-bam/outbound/replenishment-task/replenish-step/history/search-by-paging
+// Returns: taskId, itemName, customerName, fromLocationName, toLocationName,
+//          toLocationType, status (COLLECTED/DROPPED), collectQty, dropQty, createdTime
+// ═══════════════════════════════════════════════════════════════════════════
+
+let REPL_PAGE = 1;
+const REPL_PAGE_SIZE = 20;
+let REPL_DATA = [];
+let REPL_TOTAL = 0;
+
+async function loadReplenishView() {
+  REPL_PAGE = (arguments[0] > 0) ? arguments[0] : REPL_PAGE;
+  const tbody = document.getElementById('repl-table-body');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#9ca3af"><span class="spinner"></span> Loading replenishment data\u2026</td></tr>';
+
+  const statusFilter = (document.getElementById('repl-filter-status') || {}).value || '';
+  const daysFilter = parseInt((document.getElementById('repl-filter-days') || {}).value || '7');
+
+  var fromDate = new Date();
+  fromDate.setDate(fromDate.getDate() - daysFilter);
+  var fromStr = fromDate.toISOString().slice(0, 19);
+
+  var payload = { currentPage: REPL_PAGE, pageSize: REPL_PAGE_SIZE, createdTimeFrom: fromStr };
+  if (statusFilter) payload.status = statusFilter;
+
+  var resp = await safeFetch(WMS_BASE + '/api/wms-bam/outbound/replenishment-task/replenish-step/history/search-by-paging', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  });
+
+  if (!resp || resp._needsAuth) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#ef4444">Please sign in to view replenishment data.</td></tr>';
+    return;
+  }
+  if (resp.success === false) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#ef4444">Unable to load replenishment data.' + (resp.msg ? ' ' + esc(resp.msg) : '') + '</td></tr>';
+    return;
+  }
+
+  var data = resp.data || resp;
+  REPL_DATA = data.list || data.records || [];
+  REPL_TOTAL = data.totalCount || data.total || REPL_DATA.length;
+
+  replRenderTable(REPL_DATA);
+  replUpdateKpis();
+  replUpdatePagination();
+  replUpdateResultCount();
+}
+
+function replRenderTable(list) {
+  var tbody = document.getElementById('repl-table-body');
+  var searchTerm = (document.getElementById('repl-filter-search') || {}).value || '';
+  searchTerm = searchTerm.toLowerCase().trim();
+
+  var filtered = list;
+  if (searchTerm) {
+    filtered = list.filter(function(r) {
+      var hay = [r.taskId, r.itemName, r.description, r.customerName, r.fromLocationName, r.toLocationName, r.createdBy].filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(searchTerm);
+    });
+  }
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:#9ca3af">' +
+      '<div style="margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg></div>' +
+      '<strong style="color:#6b7280">No replenishment records</strong><br>' +
+      '<span style="font-size:12px;color:#9ca3af">No replenishment activity found for the selected time range and filters.</span>' +
+      '</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(function(r, idx) {
+    var statusCls = (r.status || '').toLowerCase();
+    var statusLabel = r.status === 'DROPPED' ? 'Dropped' : r.status === 'COLLECTED' ? 'Collected' : (r.status || '\u2014');
+    var qty = r.dropQty || r.collectQty || 0;
+    var timeStr = r.updatedTime ? consolFormatTime(r.updatedTime) : (r.createdTime ? consolFormatTime(r.createdTime) : '\u2014');
+    var fromLoc = r.fromLocationName || '\u2014';
+    var toLoc = r.toLocationName || '\u2014';
+    var operator = r.createdBy || '\u2014';
+
+    return '<tr style="cursor:pointer" onclick="replShowDetail(' + idx + ')">' +
+      '<td style="font-family:monospace;font-size:12px;color:#753BBD">' + esc(String(r.taskId || '\u2014').slice(-8)) + '</td>' +
+      '<td title="' + esc(r.description || '') + '">' + esc(String(r.itemName || '\u2014').slice(0, 25)) + '</td>' +
+      '<td style="font-size:12px">' + esc(String(r.customerName || '\u2014').slice(0, 20)) + '</td>' +
+      '<td style="font-family:monospace;font-size:11px">' + esc(fromLoc) + '</td>' +
+      '<td style="font-family:monospace;font-size:11px">' + esc(toLoc) + '</td>' +
+      '<td style="font-weight:600">' + qty + '</td>' +
+      '<td><span class="consol-status ' + statusCls + '">' + statusLabel + '</span></td>' +
+      '<td style="font-size:12px">' + esc(operator) + '</td>' +
+      '<td style="font-size:11px;color:#9ca3af">' + timeStr + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function replShowDetail(idx) {
+  var r = REPL_DATA[idx];
+  if (!r) return;
+  var panel = document.getElementById('repl-detail-panel');
+  var body = document.getElementById('repl-detail-body');
+  document.getElementById('repl-detail-title').textContent = 'Task ' + (r.taskId || '') + ' — Step Details';
+
+  var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;padding:8px 0">';
+  html += replField('Item / SKU', r.itemName || '\u2014');
+  html += replField('Description', r.description || r.shortDescription || '\u2014');
+  html += replField('Customer', r.customerName || '\u2014');
+  html += replField('From Location', r.fromLocationName || '\u2014');
+  html += replField('To Location', r.toLocationName || '\u2014');
+  html += replField('To Location Type', r.toLocationType || '\u2014');
+  html += replField('Collect Qty', String(r.collectQty || 0));
+  html += replField('Drop Qty', String(r.dropQty || 0));
+  html += replField('Status', r.status || '\u2014');
+  html += replField('From LP', r.fromDisplayLP || r.fromLPId || '\u2014');
+  html += replField('To LP', r.toDisplayLP || r.toLPId || '\u2014');
+  html += replField('Entire LP', r.isEntireLPReplenish ? 'Yes' : 'No');
+  html += replField('Operator', r.createdBy || '\u2014');
+  html += replField('Created', r.createdTime ? consolFormatTime(r.createdTime) : '\u2014');
+  html += replField('Updated', r.updatedTime ? consolFormatTime(r.updatedTime) : '\u2014');
+  html += replField('Item Code', r.itemCode || '\u2014');
+  html += '</div>';
+
+  body.innerHTML = html;
+  panel.style.display = '';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function replField(label, value) {
+  return '<div><div style="font-size:11px;color:#9ca3af;margin-bottom:2px">' + esc(label) + '</div><div style="font-size:13px;color:#1a1f2e;font-weight:500">' + esc(value) + '</div></div>';
+}
+
+function replCloseDetail() {
+  document.getElementById('repl-detail-panel').style.display = 'none';
+}
+
+function replApplyFilter() {
+  replRenderTable(REPL_DATA);
+  replUpdateResultCount();
+}
+
+function replUpdateKpis() {
+  var collected = REPL_DATA.filter(function(r){ return r.status === 'COLLECTED'; }).length;
+  var dropped = REPL_DATA.filter(function(r){ return r.status === 'DROPPED'; }).length;
+  document.getElementById('repl-kpi-pending').textContent = REPL_TOTAL || '0';
+  document.getElementById('repl-kpi-progress').textContent = collected || '0';
+  document.getElementById('repl-kpi-done').textContent = dropped || '0';
+  document.getElementById('repl-kpi-total').textContent = REPL_TOTAL || '0';
+}
+
+function replUpdatePagination() {
+  var totalPages = Math.max(1, Math.ceil(REPL_TOTAL / REPL_PAGE_SIZE));
+  document.getElementById('repl-page-info').textContent = 'Page ' + REPL_PAGE + ' of ' + totalPages + ' (' + REPL_TOTAL + ' records)';
+  document.getElementById('repl-prev-btn').disabled = REPL_PAGE <= 1;
+  document.getElementById('repl-next-btn').disabled = REPL_PAGE >= totalPages;
+}
+
+function replUpdateResultCount() {
+  var searchTerm = (document.getElementById('repl-filter-search') || {}).value || '';
+  var count = searchTerm.trim() ? REPL_DATA.filter(function(r) {
+    return [r.taskId, r.itemName, r.description, r.customerName, r.fromLocationName, r.toLocationName, r.createdBy].filter(Boolean).join(' ').toLowerCase().includes(searchTerm.toLowerCase().trim());
+  }).length : REPL_DATA.length;
+  document.getElementById('repl-result-count').textContent = count + ' of ' + REPL_TOTAL + ' records';
+}
+
+function replPagePrev() {
+  if (REPL_PAGE > 1) { REPL_PAGE--; loadReplenishView(REPL_PAGE); }
+}
+
+function replPageNext() {
+  if (REPL_PAGE < Math.ceil(REPL_TOTAL / REPL_PAGE_SIZE)) { REPL_PAGE++; loadReplenishView(REPL_PAGE); }
+}
 
 (async function restoreSessionOnLoad() {
   // WISE_TOKEN was already loaded from localStorage at init (line ~8657).
