@@ -406,8 +406,11 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 .consol-panel.active{display:block}
 .consol-status{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
 .consol-status.open{background:#EFF6FF;color:#2563eb}
+.consol-status.created{background:#EFF6FF;color:#2563eb}
 .consol-status.in_progress{background:#FFF7ED;color:#ea580c}
+.consol-status.started{background:#FFF7ED;color:#ea580c}
 .consol-status.completed{background:#ECFDF5;color:#059669}
+.consol-status.closed{background:#ECFDF5;color:#059669}
 .consol-status.cancelled{background:#FEF2F2;color:#dc2626}
 </style>
 </head>
@@ -12871,11 +12874,13 @@ if (WISE_TOKEN || hasStoredRefreshToken()) {
 }
 // ═══════════════════════════════════════════════════════════════════════════
 // CONSOLIDATION PAGE — BULK / Rack tabs
-// Ontology-verified endpoint: POST /api/wms/task/consolidate-task/search-by-paging
+// Ontology-verified endpoint: POST /api/wms-bam/task/consolidate-task/search-by-paging
 // subTaskType (InstructionCreationMode): BY_SKU, BY_ITEM_NO, BY_DEPARTMENT, BY_CUSTOMER
 // BULK tab: BY_DEPARTMENT, BY_CUSTOMER (batch-level consolidation)
 // Rack tab: BY_SKU, BY_ITEM_NO (item-level, rack-based consolidation)
-// If both return empty, falls back to showing all tasks without subTaskType filter.
+// If both return empty with subTaskType filter, retries without filter and classifies
+// tasks by resolving toLocationId → location capacityType (PALLET/LARGE → BULK, RACK/SMALL → Rack).
+// Task statuses from ontology (TaskBaseDto): CREATED, STARTED, CLOSED, CANCELLED
 // ═══════════════════════════════════════════════════════════════════════════
 
 let CONSOL_ACTIVE_TAB = 'bulk';
@@ -12886,6 +12891,7 @@ let CONSOL_RACK_DATA = [];
 let CONSOL_BULK_TOTAL = 0;
 let CONSOL_RACK_TOTAL = 0;
 let CONSOL_LOADED = false;
+let CONSOL_LOC_CACHE = {}; // locationId → {name, capacityType}
 
 const CONSOL_BULK_SUBTYPES = ['BY_DEPARTMENT', 'BY_CUSTOMER'];
 const CONSOL_RACK_SUBTYPES = ['BY_SKU', 'BY_ITEM_NO'];
@@ -12915,8 +12921,76 @@ function consolSwitchTab(tab) {
 
 async function consolFetchBoth() {
   await Promise.all([consolFetchTab('bulk'), consolFetchTab('rack')]);
+  // Fallback: if both tabs are empty with subTaskType filter, retry without it
+  // and classify tasks by location capacityType instead
+  if (CONSOL_BULK_DATA.length === 0 && CONSOL_RACK_DATA.length === 0 && !CONSOL_LOADED) {
+    await consolFetchAllAndClassify();
+  }
   consolUpdateKpis();
   CONSOL_LOADED = true;
+}
+
+async function consolFetchAllAndClassify() {
+  const statusFilter = document.getElementById('consol-filter-status').value;
+  const q = { currentPage: CONSOL_PAGE, pageSize: 50, withItemLine: true };
+  if (statusFilter) q.statuses = [statusFilter];
+
+  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/task/consolidate-task/search-by-paging', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(q),
+  });
+  if (!resp || resp._needsAuth || (resp.success === false)) return;
+
+  const data = resp.data || resp;
+  const list = data.list || data.records || [];
+  if (list.length === 0) return;
+
+  // Resolve location capacityType for classification
+  const locIds = [...new Set(list.map(t => t.toLocationId).filter(Boolean))];
+  await consolResolveLocations(locIds);
+
+  // Classify: PALLET/LARGE/VOLUME → BULK; RACK/SMALL → Rack
+  const bulk = [], rack = [];
+  list.forEach(t => {
+    const loc = CONSOL_LOC_CACHE[t.toLocationId] || {};
+    const cap = (loc.capacityType || '').toUpperCase();
+    if (cap === 'RACK' || cap === 'SMALL') { rack.push(t); }
+    else { bulk.push(t); } // default to BULK for PALLET, LARGE, VOLUME, or unknown
+  });
+
+  CONSOL_BULK_DATA = bulk;
+  CONSOL_RACK_DATA = rack;
+  CONSOL_BULK_TOTAL = bulk.length;
+  CONSOL_RACK_TOTAL = rack.length;
+  consolRenderTable('bulk', bulk);
+  consolRenderTable('rack', rack);
+  consolUpdatePagination();
+  consolUpdateResultCount();
+}
+
+async function consolResolveLocations(locationIds) {
+  const unresolved = locationIds.filter(id => id && !CONSOL_LOC_CACHE[id]);
+  if (unresolved.length === 0) return;
+  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/wms-location/search-by-paging', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ currentPage: 1, pageSize: 100, ids: unresolved }),
+  });
+  if (!resp || resp._needsAuth) return;
+  const data = resp.data || resp;
+  const list = data.list || data.records || data.items || [];
+  list.forEach(loc => {
+    if (loc.id) {
+      CONSOL_LOC_CACHE[loc.id] = {
+        name: loc.name || loc.locationName || loc.code || loc.id,
+        capacityType: loc.capacityType || '',
+      };
+    }
+  });
+  unresolved.forEach(id => {
+    if (!CONSOL_LOC_CACHE[id]) CONSOL_LOC_CACHE[id] = { name: id, capacityType: '' };
+  });
 }
 
 async function consolFetchTab(tab) {
@@ -12924,7 +12998,7 @@ async function consolFetchTab(tab) {
   const tbody = document.getElementById(tab === 'bulk' ? 'consol-bulk-body' : 'consol-rack-body');
   tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#9ca3af"><span class="spinner"></span> Loading...</td></tr>';
 
-  const resp = await safeFetch(WMS_BASE + '/api/wms/task/consolidate-task/search-by-paging', {
+  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/task/consolidate-task/search-by-paging', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(body),
@@ -13011,7 +13085,7 @@ function consolRenderTable(tab, list) {
       '<td>' + esc(t.batchNo || '—') + '</td>' +
       '<td>' + esc(t.customerId || '—') + '</td>' +
       '<td>' + esc(subtypeLabel) + '</td>' +
-      '<td style="font-family:monospace;font-size:11px">' + esc(t.toLocationId || '—') + '</td>' +
+      '<td style="font-family:monospace;font-size:11px">' + esc((CONSOL_LOC_CACHE[t.toLocationId] || {}).name || t.toLocationId || '—') + '</td>' +
       '<td>' + (itemCount > 0 ? itemCount + ' line' + (itemCount > 1 ? 's' : '') : '—') + '</td>' +
       '<td>' + (priority !== '—' ? '<span style="font-weight:600;color:' + (priority <= 1 ? '#dc2626' : priority <= 3 ? '#f97316' : '#6b7280') + '">' + priority + '</span>' : '—') + '</td>' +
       '<td><span class="consol-status ' + statusCls + '">' + statusLabel + '</span></td>' +
@@ -13023,7 +13097,7 @@ function consolRenderTable(tab, list) {
 
 function consolFormatStatus(s) {
   if (!s) return '—';
-  const map = { OPEN: 'Open', IN_PROGRESS: 'In Progress', COMPLETED: 'Completed', CANCELLED: 'Cancelled' };
+  const map = { CREATED: 'Created', STARTED: 'Started', CLOSED: 'Closed', CANCELLED: 'Cancelled', OPEN: 'Open', IN_PROGRESS: 'In Progress', COMPLETED: 'Completed' };
   return map[s] || s.replace(/_/g, ' ');
 }
 
@@ -13050,10 +13124,10 @@ function consolApplyClientFilter() {
 
 function consolUpdateKpis() {
   const all = [...CONSOL_BULK_DATA, ...CONSOL_RACK_DATA];
-  const pending = all.filter(t => t.status === 'OPEN').length;
-  const inProgress = all.filter(t => t.status === 'IN_PROGRESS').length;
+  const pending = all.filter(t => /CREATED|OPEN/i.test(t.status || '')).length;
+  const inProgress = all.filter(t => /STARTED|IN_PROGRESS/i.test(t.status || '')).length;
   const today = new Date().toISOString().slice(0, 10);
-  const doneToday = all.filter(t => t.status === 'COMPLETED' && (t.updatedTime || '').slice(0, 10) === today).length;
+  const doneToday = all.filter(t => /CLOSED|COMPLETED/i.test(t.status || '') && (t.updatedTime || '').slice(0, 10) === today).length;
   const total = CONSOL_BULK_TOTAL + CONSOL_RACK_TOTAL;
 
   document.getElementById('consol-kpi-pending').textContent = pending || '0';
