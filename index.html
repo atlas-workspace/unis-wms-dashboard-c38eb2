@@ -399,6 +399,16 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 .modal-progress .mpcount{font-weight:600;color:#4B1D75;font-variant-numeric:tabular-nums}
 .modal-progress .mpcancel{font-weight:600;cursor:pointer;color:#5F2E98}
 .modal-progress .mpcancel:hover{color:#4B1D75;text-decoration:underline}
+.consol-tab{padding:10px 20px;font-size:13px;font-weight:600;color:#6b7280;background:none;border:none;border-bottom:2.5px solid transparent;cursor:pointer;transition:all .15s}
+.consol-tab:hover{color:#753BBD}
+.consol-tab.active{color:#753BBD;border-bottom-color:#753BBD}
+.consol-panel{display:none}
+.consol-panel.active{display:block}
+.consol-status{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.consol-status.open{background:#EFF6FF;color:#2563eb}
+.consol-status.in_progress{background:#FFF7ED;color:#ea580c}
+.consol-status.completed{background:#ECFDF5;color:#059669}
+.consol-status.cancelled{background:#FEF2F2;color:#dc2626}
 </style>
 </head>
 <body>
@@ -1412,38 +1422,76 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 
       <!-- ════ VIEW: CONSOLIDATION ════ -->
       <div class="view" id="view-consolidation">
+        <!-- KPI Summary -->
         <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-6"/><path d="M12 8V2"/><path d="M21 3l-9 9"/><path d="M3 3l9 9"/><rect x="8" y="16" width="8" height="5" rx="1"/></svg></div><div><div class="kpi-lbl">Pending Consolidations</div><div class="kpi-val" id="consol-kpi-pending">—</div><div class="kpi-chg neutral">awaiting action</div></div></div>
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-6"/><path d="M12 8V2"/><path d="M21 3l-9 9"/><path d="M3 3l9 9"/><rect x="8" y="16" width="8" height="5" rx="1"/></svg></div><div><div class="kpi-lbl">Pending</div><div class="kpi-val" id="consol-kpi-pending">—</div><div class="kpi-chg neutral">awaiting action</div></div></div>
           <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-lbl">In Progress</div><div class="kpi-val" id="consol-kpi-progress">—</div><div class="kpi-chg neutral">active moves</div></div></div>
           <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Completed Today</div><div class="kpi-val" id="consol-kpi-done">—</div><div class="kpi-chg neutral">consolidations closed</div></div></div>
-          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div><div class="kpi-lbl">Locations Freed</div><div class="kpi-val" id="consol-kpi-freed">—</div><div class="kpi-chg neutral">this week</div></div></div>
+          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div><div class="kpi-lbl">Total Tasks</div><div class="kpi-val" id="consol-kpi-total">—</div><div class="kpi-chg neutral">all consolidation</div></div></div>
         </div>
 
-        <div class="card">
-          <div class="card-hdr">
-            <div>
-              <div class="card-ttl">Consolidation Tasks</div>
-              <div class="scheduler-help">Merge partial inventory from multiple locations into fewer slots to free up warehouse space. Connect to WMS consolidation APIs to view and manage live tasks.</div>
-            </div>
-            <span class="card-link" onclick="showView('consolidation')">↻ Refresh</span>
+        <!-- BULK / Rack Tabs -->
+        <div class="card" style="padding:0;overflow:visible">
+          <div style="display:flex;align-items:center;border-bottom:1px solid #e5e7eb;padding:0 16px;gap:0">
+            <button id="consol-tab-bulk" class="consol-tab active" onclick="consolSwitchTab('bulk')">BULK</button>
+            <button id="consol-tab-rack" class="consol-tab" onclick="consolSwitchTab('rack')">Rack</button>
+            <div style="flex:1"></div>
+            <span class="card-link" onclick="consolRefresh()" style="font-size:12px;padding:8px 0">↻ Refresh</span>
           </div>
-          <table class="tbl">
-            <thead><tr><th>Task ID</th><th>Customer</th><th>From Location</th><th>To Location</th><th>SKU</th><th>Qty</th><th>Status</th><th>Assigned</th></tr></thead>
-            <tbody id="consol-table-body">
-              <tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af">
-                <div style="margin-bottom:8px"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-6"/><path d="M12 8V2"/><path d="M21 3l-9 9"/><path d="M3 3l9 9"/><rect x="8" y="16" width="8" height="5" rx="1"/></svg></div>
-                <strong style="color:#6b7280">No consolidation tasks</strong><br>
-                <span style="font-size:12px">Consolidation tasks from WMS will appear here once the API integration is connected.</span>
-              </td></tr>
-            </tbody>
-          </table>
-        </div>
 
-        <div class="card">
-          <div class="card-hdr"><div class="card-ttl">How Consolidation Works</div></div>
-          <div style="font-size:13px;color:#6b7280;line-height:1.7;max-width:720px">
-            <p style="margin:0 0 10px">Consolidation identifies partially-filled locations holding the same SKU and creates move tasks to merge inventory into fewer slots. This frees up locations for new receipts and improves pick-path density.</p>
-            <p style="margin:0"><strong style="color:#374151">Typical workflow:</strong> System suggests consolidation candidates → Supervisor reviews and approves → Tasks are assigned to operators → Inventory is moved and locations are freed.</p>
+          <!-- Filters row -->
+          <div style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-bottom:1px solid #f3f4f6">
+            <input id="consol-filter-search" type="text" class="cc-input" placeholder="Search by batch, customer, location..." style="width:220px;font-size:12px;padding:6px 10px;margin:0" oninput="consolApplyClientFilter()"/>
+            <select id="consol-filter-status" class="cc-input" style="width:140px;font-size:12px;padding:6px 10px;margin:0" onchange="consolRefresh()">
+              <option value="">All Statuses</option>
+              <option value="OPEN">Open</option>
+              <option value="IN_PROGRESS">In Progress</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+            <select id="consol-filter-subtype" class="cc-input" style="width:150px;font-size:12px;padding:6px 10px;margin:0" onchange="consolRefresh()">
+              <option value="">All Types</option>
+              <option value="BY_SKU">By SKU</option>
+              <option value="BY_ITEM_NO">By Item No</option>
+              <option value="BY_DEPARTMENT">By Department</option>
+              <option value="BY_CUSTOMER">By Customer</option>
+            </select>
+            <span id="consol-result-count" style="font-size:11px;color:#9ca3af;margin-left:auto"></span>
+          </div>
+
+          <!-- BULK Panel -->
+          <div id="consol-panel-bulk" class="consol-panel active" style="padding:0">
+            <table class="tbl" style="margin:0">
+              <thead><tr><th>Task ID</th><th>Batch</th><th>Customer</th><th>Type</th><th>Destination</th><th>Items</th><th>Priority</th><th>Status</th><th>Assigned To</th><th>Updated</th></tr></thead>
+              <tbody id="consol-bulk-body">
+                <tr><td colspan="10" style="text-align:center;padding:40px;color:#9ca3af">
+                  <div style="margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>
+                  Loading BULK consolidation tasks...
+                </td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Rack Panel -->
+          <div id="consol-panel-rack" class="consol-panel" style="padding:0;display:none">
+            <table class="tbl" style="margin:0">
+              <thead><tr><th>Task ID</th><th>Batch</th><th>Customer</th><th>Type</th><th>Destination</th><th>Items</th><th>Priority</th><th>Status</th><th>Assigned To</th><th>Updated</th></tr></thead>
+              <tbody id="consol-rack-body">
+                <tr><td colspan="10" style="text-align:center;padding:40px;color:#9ca3af">
+                  <div style="margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></div>
+                  Loading Rack consolidation tasks...
+                </td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          <div style="padding:10px 16px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid #f3f4f6">
+            <span id="consol-page-info" style="font-size:11px;color:#9ca3af">Page 1</span>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-secondary" id="consol-prev-btn" onclick="consolPagePrev()" disabled style="font-size:11px;padding:4px 10px">← Prev</button>
+              <button class="btn btn-secondary" id="consol-next-btn" onclick="consolPageNext()" style="font-size:11px;padding:4px 10px">Next →</button>
+            </div>
           </div>
         </div>
       </div>
@@ -2073,6 +2121,7 @@ function showView(name, sub) {
   }
 
   // lazy-init view-specific content
+  if (name === 'consolidation') loadConsolidationView();
   if (name === 'scheduler') initSchedulerForm();
   if (name === 'robots') { initRobotChart(); refreshOntologyStatus(); loadRobotKpisFromOntology(); }
   if (name === 'cycle') loadCycleCountView();
@@ -12820,6 +12869,222 @@ function ltagAddLocationPrompt() {
 if (WISE_TOKEN || hasStoredRefreshToken()) {
   document.getElementById('login-screen').style.display = 'none';
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// CONSOLIDATION PAGE — BULK / Rack tabs
+// Ontology-verified endpoint: POST /api/wms/task/consolidate-task/search-by-paging
+// subTaskType (InstructionCreationMode): BY_SKU, BY_ITEM_NO, BY_DEPARTMENT, BY_CUSTOMER
+// BULK tab: BY_DEPARTMENT, BY_CUSTOMER (batch-level consolidation)
+// Rack tab: BY_SKU, BY_ITEM_NO (item-level, rack-based consolidation)
+// If both return empty, falls back to showing all tasks without subTaskType filter.
+// ═══════════════════════════════════════════════════════════════════════════
+
+let CONSOL_ACTIVE_TAB = 'bulk';
+let CONSOL_PAGE = 1;
+const CONSOL_PAGE_SIZE = 20;
+let CONSOL_BULK_DATA = [];
+let CONSOL_RACK_DATA = [];
+let CONSOL_BULK_TOTAL = 0;
+let CONSOL_RACK_TOTAL = 0;
+let CONSOL_LOADED = false;
+
+const CONSOL_BULK_SUBTYPES = ['BY_DEPARTMENT', 'BY_CUSTOMER'];
+const CONSOL_RACK_SUBTYPES = ['BY_SKU', 'BY_ITEM_NO'];
+
+function loadConsolidationView() {
+  CONSOL_PAGE = 1;
+  consolFetchBoth();
+}
+
+function consolRefresh() {
+  CONSOL_PAGE = 1;
+  consolFetchBoth();
+}
+
+function consolSwitchTab(tab) {
+  CONSOL_ACTIVE_TAB = tab;
+  document.getElementById('consol-tab-bulk').classList.toggle('active', tab === 'bulk');
+  document.getElementById('consol-tab-rack').classList.toggle('active', tab === 'rack');
+  document.getElementById('consol-panel-bulk').classList.toggle('active', tab === 'bulk');
+  document.getElementById('consol-panel-rack').classList.toggle('active', tab === 'rack');
+  document.getElementById('consol-panel-bulk').style.display = tab === 'bulk' ? 'block' : 'none';
+  document.getElementById('consol-panel-rack').style.display = tab === 'rack' ? 'block' : 'none';
+  CONSOL_PAGE = 1;
+  consolUpdatePagination();
+  consolUpdateResultCount();
+}
+
+async function consolFetchBoth() {
+  await Promise.all([consolFetchTab('bulk'), consolFetchTab('rack')]);
+  consolUpdateKpis();
+  CONSOL_LOADED = true;
+}
+
+async function consolFetchTab(tab) {
+  const body = consolBuildQuery(tab);
+  const tbody = document.getElementById(tab === 'bulk' ? 'consol-bulk-body' : 'consol-rack-body');
+  tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#9ca3af"><span class="spinner"></span> Loading...</td></tr>';
+
+  const resp = await safeFetch(WMS_BASE + '/api/wms/task/consolidate-task/search-by-paging', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  });
+
+  if (!resp || resp._needsAuth) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#ef4444">Please sign in to view consolidation tasks.</td></tr>';
+    return;
+  }
+  if (!resp.success && resp.success !== undefined) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#ef4444">Unable to load tasks.' + (resp.msg ? ' ' + esc(resp.msg) : '') + '</td></tr>';
+    return;
+  }
+
+  const data = resp.data || resp;
+  const list = data.list || data.records || [];
+  const total = data.total || data.totalCount || list.length;
+
+  if (tab === 'bulk') { CONSOL_BULK_DATA = list; CONSOL_BULK_TOTAL = total; }
+  else { CONSOL_RACK_DATA = list; CONSOL_RACK_TOTAL = total; }
+
+  consolRenderTable(tab, list);
+  consolUpdatePagination();
+  consolUpdateResultCount();
+}
+
+function consolBuildQuery(tab) {
+  const statusFilter = document.getElementById('consol-filter-status').value;
+  const subtypeFilter = document.getElementById('consol-filter-subtype').value;
+
+  const q = { currentPage: CONSOL_PAGE, pageSize: CONSOL_PAGE_SIZE, withItemLine: true };
+
+  if (statusFilter) {
+    q.statuses = [statusFilter];
+  }
+
+  if (subtypeFilter) {
+    q.subTaskTypes = [subtypeFilter];
+  } else {
+    // Default tab-based subtype filtering
+    q.subTaskTypes = tab === 'bulk' ? CONSOL_BULK_SUBTYPES : CONSOL_RACK_SUBTYPES;
+  }
+
+  return q;
+}
+
+function consolRenderTable(tab, list) {
+  const tbody = document.getElementById(tab === 'bulk' ? 'consol-bulk-body' : 'consol-rack-body');
+  const searchTerm = (document.getElementById('consol-filter-search').value || '').toLowerCase().trim();
+
+  // Client-side text filter on already-fetched rows
+  let filtered = list;
+  if (searchTerm) {
+    filtered = list.filter(t => {
+      const hay = [
+        t.id, t.batchNo, t.customerId, t.toLocationId, t.subTaskType, t.status,
+        t.assigneeUserId, t.note
+      ].filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(searchTerm);
+    });
+  }
+
+  if (filtered.length === 0) {
+    const label = tab === 'bulk' ? 'BULK' : 'Rack';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#9ca3af">' +
+      '<div style="margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>' +
+      '<strong style="color:#6b7280">No ' + label + ' consolidation tasks</strong><br>' +
+      '<span style="font-size:12px;color:#9ca3af">No tasks match the current filters for this facility.</span>' +
+      '</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(t => {
+    const statusCls = (t.status || '').toLowerCase().replace(/\s+/g, '_');
+    const statusLabel = consolFormatStatus(t.status);
+    const itemCount = (t.consolidateItemLines || []).length;
+    const subtypeLabel = consolFormatSubtype(t.subTaskType);
+    const updated = t.updatedTime ? consolFormatTime(t.updatedTime) : (t.createdTime ? consolFormatTime(t.createdTime) : '—');
+    const priority = t.priority != null ? t.priority : '—';
+    const assignee = t.assigneeUserId || t.preAssigneeUserId || '—';
+
+    return '<tr>' +
+      '<td style="font-family:monospace;font-size:12px;color:#753BBD">' + esc(String(t.id || '—').slice(-8)) + '</td>' +
+      '<td>' + esc(t.batchNo || '—') + '</td>' +
+      '<td>' + esc(t.customerId || '—') + '</td>' +
+      '<td>' + esc(subtypeLabel) + '</td>' +
+      '<td style="font-family:monospace;font-size:11px">' + esc(t.toLocationId || '—') + '</td>' +
+      '<td>' + (itemCount > 0 ? itemCount + ' line' + (itemCount > 1 ? 's' : '') : '—') + '</td>' +
+      '<td>' + (priority !== '—' ? '<span style="font-weight:600;color:' + (priority <= 1 ? '#dc2626' : priority <= 3 ? '#f97316' : '#6b7280') + '">' + priority + '</span>' : '—') + '</td>' +
+      '<td><span class="consol-status ' + statusCls + '">' + statusLabel + '</span></td>' +
+      '<td style="font-size:12px">' + esc(String(assignee)) + '</td>' +
+      '<td style="font-size:11px;color:#9ca3af">' + updated + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function consolFormatStatus(s) {
+  if (!s) return '—';
+  const map = { OPEN: 'Open', IN_PROGRESS: 'In Progress', COMPLETED: 'Completed', CANCELLED: 'Cancelled' };
+  return map[s] || s.replace(/_/g, ' ');
+}
+
+function consolFormatSubtype(s) {
+  if (!s) return '—';
+  const map = { BY_SKU: 'By SKU', BY_ITEM_NO: 'By Item No', BY_DEPARTMENT: 'By Department', BY_CUSTOMER: 'By Customer' };
+  return map[s] || s.replace(/_/g, ' ');
+}
+
+function consolFormatTime(ts) {
+  if (!ts) return '—';
+  try {
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return ts;
+    return d.toLocaleDateString('en-US', {month:'short', day:'numeric'}) + ' ' + d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:false});
+  } catch(_) { return ts; }
+}
+
+function consolApplyClientFilter() {
+  consolRenderTable('bulk', CONSOL_BULK_DATA);
+  consolRenderTable('rack', CONSOL_RACK_DATA);
+  consolUpdateResultCount();
+}
+
+function consolUpdateKpis() {
+  const all = [...CONSOL_BULK_DATA, ...CONSOL_RACK_DATA];
+  const pending = all.filter(t => t.status === 'OPEN').length;
+  const inProgress = all.filter(t => t.status === 'IN_PROGRESS').length;
+  const today = new Date().toISOString().slice(0, 10);
+  const doneToday = all.filter(t => t.status === 'COMPLETED' && (t.updatedTime || '').slice(0, 10) === today).length;
+  const total = CONSOL_BULK_TOTAL + CONSOL_RACK_TOTAL;
+
+  document.getElementById('consol-kpi-pending').textContent = pending || '0';
+  document.getElementById('consol-kpi-progress').textContent = inProgress || '0';
+  document.getElementById('consol-kpi-done').textContent = doneToday || '0';
+  document.getElementById('consol-kpi-total').textContent = total || '0';
+}
+
+function consolUpdatePagination() {
+  const total = CONSOL_ACTIVE_TAB === 'bulk' ? CONSOL_BULK_TOTAL : CONSOL_RACK_TOTAL;
+  const totalPages = Math.max(1, Math.ceil(total / CONSOL_PAGE_SIZE));
+  document.getElementById('consol-page-info').textContent = 'Page ' + CONSOL_PAGE + ' of ' + totalPages + ' (' + total + ' tasks)';
+  document.getElementById('consol-prev-btn').disabled = CONSOL_PAGE <= 1;
+  document.getElementById('consol-next-btn').disabled = CONSOL_PAGE >= totalPages;
+}
+
+function consolUpdateResultCount() {
+  const count = CONSOL_ACTIVE_TAB === 'bulk' ? CONSOL_BULK_TOTAL : CONSOL_RACK_TOTAL;
+  const label = CONSOL_ACTIVE_TAB === 'bulk' ? 'BULK' : 'Rack';
+  document.getElementById('consol-result-count').textContent = count + ' ' + label + ' task' + (count !== 1 ? 's' : '');
+}
+
+function consolPagePrev() {
+  if (CONSOL_PAGE > 1) { CONSOL_PAGE--; consolFetchTab(CONSOL_ACTIVE_TAB); }
+}
+
+function consolPageNext() {
+  const total = CONSOL_ACTIVE_TAB === 'bulk' ? CONSOL_BULK_TOTAL : CONSOL_RACK_TOTAL;
+  if (CONSOL_PAGE < Math.ceil(total / CONSOL_PAGE_SIZE)) { CONSOL_PAGE++; consolFetchTab(CONSOL_ACTIVE_TAB); }
+}
+
 (async function restoreSessionOnLoad() {
   // WISE_TOKEN was already loaded from localStorage at init (line ~8657).
   // Check if it's still usable (not expired).
