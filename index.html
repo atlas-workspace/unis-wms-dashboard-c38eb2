@@ -12977,11 +12977,11 @@ async function consolFetchData() {
   if (bulkBody) bulkBody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#9ca3af"><span class="spinner"></span> Loading consolidation data\u2026</td></tr>';
   if (rackBody) rackBody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#9ca3af"><span class="spinner"></span> Loading\u2026</td></tr>';
 
-  // Step 1: Try consolidation tasks endpoint
+  // Step 1: Try consolidation tasks endpoint (ontology-verified: POST /task/consolidate-task/search-by-paging)
   const taskResp = await safeFetch(WMS_BASE + '/api/wms-bam/task/consolidate-task/search-by-paging', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ currentPage: 1, pageSize: 50, withItemLine: true }),
+    body: JSON.stringify({ currentPage: CONSOL_PAGE, pageSize: CONSOL_PAGE_SIZE, withItemLine: true }),
   });
 
   if (!taskResp || taskResp._needsAuth) {
@@ -12991,10 +12991,13 @@ async function consolFetchData() {
     return;
   }
 
-  const taskData = (taskResp.data || taskResp);
+  // R wrapper: {code: 0, data: {list: [...], total: N}}
+  const taskRespOk = taskResp && (String(taskResp.code) === '0' || taskResp.data || Array.isArray(taskResp.list));
+  const taskData = (taskResp && taskResp.data) || taskResp || {};
   const taskList = taskData.list || taskData.records || [];
+  const taskTotal = taskData.total || taskList.length;
 
-  if (taskList.length > 0) {
+  if (taskRespOk && taskList.length > 0) {
     // Consolidation tasks exist — show them
     CONSOL_MODE = 'tasks';
     const bulk = taskList.filter(t => ['BY_DEPARTMENT','BY_CUSTOMER'].includes(t.subTaskType));
@@ -13037,7 +13040,8 @@ async function consolFetchInventory() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ currentPage: 1, pageSize: CONSOL_PAGE_SIZE, customerId: cust.id }),
     });
-    if (!resp || resp._needsAuth || resp.success === false) return;
+    if (!resp || resp._needsAuth) return;
+    if (resp.code != null && String(resp.code) !== '0' && resp.success === false) return;
     const data = resp.data || resp;
     const list = data.list || data.records || [];
     list.forEach(inv => {
@@ -13053,6 +13057,10 @@ async function consolFetchInventory() {
         customerId: inv.customerId || cust.id,
         lpId: inv.lpId || '\u2014',
         lotNo: inv.lotNo || '\u2014',
+        toteId: inv.toteId || undefined,
+        slotCode: inv.slotCode || undefined,
+        storeNo: inv.storeNo || undefined,
+        mfgDate: inv.mfgDate || undefined,
         status: inv.status || '\u2014',
         supportPickType: inv.supportPickType || '',
         receivedTime: inv.receivedTime || inv.createdTime || '',
@@ -13397,6 +13405,7 @@ async function consolWfSubmit() {
 
   const results = [];
   for (const [custId, items] of Object.entries(byCustomer)) {
+    // Ontology-verified: ConsolidateTaskCreateCmd with ConsolidateItemLineCreateCmd
     const payload = {
       consolidateType: 'CONTAINER',
       toLocationId: dest.trim(),
@@ -13404,14 +13413,19 @@ async function consolWfSubmit() {
       subTaskType: CONSOL_ACTIVE_TAB === 'bulk' ? 'BY_DEPARTMENT' : 'BY_SKU',
       note: note || undefined,
       consolidateItemLines: items.map(r => ({
-        lpId: r.lpId !== '—' ? r.lpId : undefined,
+        lpId: r.lpId && r.lpId !== '—' ? r.lpId : undefined,
         itemId: r.itemId || undefined,
         locationId: r.locationId || undefined,
         qty: r.qty || 0,
+        toteId: r.toteId || undefined,
+        slotCode: r.slotCode || undefined,
+        storeNo: r.storeNo || undefined,
+        mfgDate: r.mfgDate || undefined,
+        lotNo: r.lotNo && r.lotNo !== '—' ? r.lotNo : undefined,
       })),
     };
 
-    // Ontology-verified: POST /api/wms/task/consolidate-task/create
+    // Ontology-verified: POST /api/wms/task/consolidate-task/create → R<IdResponse>
     const resp = await safeFetch(WMS_BASE + '/api/wms/task/consolidate-task/create', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -13423,18 +13437,24 @@ async function consolWfSubmit() {
   btn.disabled = false;
   btn.textContent = 'Create Consolidation Task';
 
-  // Show results
-  const successes = results.filter(r => r.resp && r.resp.success !== false && !r.resp._needsAuth);
-  const failures = results.filter(r => !r.resp || r.resp.success === false || r.resp._needsAuth);
+  // Show results — R wrapper uses code=0 for success, data.id for the created task ID
+  const successes = results.filter(r => r.resp && !r.resp._needsAuth && (String(r.resp.code) === '0' || (r.resp.data && r.resp.data.id) || r.resp.success === true));
+  const failures = results.filter(r => !r.resp || r.resp._needsAuth || (r.resp.code != null && String(r.resp.code) !== '0' && r.resp.success !== true));
 
   let resultHtml = '';
   if (successes.length > 0) {
+    const taskIds = successes.map(r => (r.resp.data && r.resp.data.id) ? String(r.resp.data.id).slice(-8) : '').filter(Boolean);
+    const idNote = taskIds.length > 0 ? (' Task ID' + (taskIds.length > 1 ? 's' : '') + ': ' + taskIds.join(', ')) : '';
     resultHtml += '<div style="padding:12px 16px;background:#ECFDF5;border-radius:8px;border:1px solid #A7F3D0;margin-bottom:12px">' +
       '<strong style="color:#047857">✓ Consolidation task' + (successes.length > 1 ? 's' : '') + ' created successfully</strong>' +
-      '<div style="font-size:12px;color:#065F46;margin-top:4px">' + successes.reduce((s,r) => s + r.count, 0) + ' item(s) submitted across ' + successes.length + ' task(s).</div></div>';
+      '<div style="font-size:12px;color:#065F46;margin-top:4px">' + successes.reduce((s,r) => s + r.count, 0) + ' item(s) submitted across ' + successes.length + ' task(s).' + esc(idNote) + '</div></div>';
   }
   if (failures.length > 0) {
-    const errMsg = failures.map(f => f.resp ? (f.resp.msg || 'Unknown error') : 'No response').join('; ');
+    const errMsg = failures.map(f => {
+      if (!f.resp) return 'No response from server';
+      if (f.resp._needsAuth) return 'Authentication required — please sign in again';
+      return f.resp.msg || f.resp.message || (f.resp.data && f.resp.data.msg) || 'Task creation was not confirmed';
+    }).join('; ');
     resultHtml += '<div style="padding:12px 16px;background:#FEF2F2;border-radius:8px;border:1px solid #FECACA;margin-bottom:12px">' +
       '<strong style="color:#B91C1C">✗ Some tasks could not be created</strong>' +
       '<div style="font-size:12px;color:#991B1B;margin-top:4px">' + esc(errMsg) + '</div></div>';
