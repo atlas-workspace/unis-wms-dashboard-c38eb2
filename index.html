@@ -1497,7 +1497,33 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
             </div>
           </div>
         </div>
-      </div>
+      
+        <!-- Consolidation Workflow Panel -->
+        <div class="card" id="consol-workflow-panel" style="display:none">
+          <div class="card-hdr">
+            <div>
+              <div class="card-ttl" id="consol-wf-title">Consolidation Plan</div>
+              <div class="scheduler-help" id="consol-wf-sub">Review selected candidates and configure the consolidation task</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-secondary" onclick="consolWfCancel()" style="font-size:12px;padding:6px 14px">Cancel</button>
+              <button class="btn btn-primary" id="consol-wf-submit-btn" onclick="consolWfSubmit()" style="font-size:12px;padding:6px 14px">Create Consolidation Task</button>
+            </div>
+          </div>
+          <div id="consol-wf-body" style="padding:16px">
+          </div>
+        </div>
+
+        <!-- Sticky selection bar -->
+        <div id="consol-selection-bar" style="display:none;position:sticky;bottom:0;padding:12px 20px;background:linear-gradient(to right,#F7F2FF,#fff);border:1.5px solid #E8DAFF;border-radius:10px;margin-top:12px;align-items:center;justify-content:space-between;box-shadow:0 -2px 12px rgba(117,59,189,.08)">
+          <span id="consol-sel-count" style="font-size:13px;font-weight:600;color:#5F2E98">0 items selected</span>
+          <button class="btn btn-primary" onclick="consolWfOpen()" style="font-size:12px;padding:8px 18px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><path d="M12 5v14M5 12h14"/></svg>
+            Plan Consolidation
+          </button>
+        </div>
+
+</div>
 
       <!-- ════ VIEW: REPLENISH ════ -->
       <div class="view" id="view-replenish">
@@ -13097,15 +13123,17 @@ function consolRenderInventoryTable(tab, list) {
     return;
   }
 
-  // Update table header for inventory mode
+  // Update table header for inventory mode (with select checkbox column)
   const thead = tbody.closest('table').querySelector('thead tr');
-  if (thead) thead.innerHTML = '<th>Location</th><th>Item / SKU</th><th>Customer</th><th>Qty</th><th>UOM</th><th>LP</th><th>Lot No</th><th>Pick Type</th><th>Status</th><th>Received</th>';
+  if (thead) thead.innerHTML = '<th style="width:32px"></th><th>Location</th><th>Item / SKU</th><th>Customer</th><th>Qty</th><th>UOM</th><th>LP</th><th>Lot No</th><th>Pick Type</th><th>Status</th>';
 
-  tbody.innerHTML = filtered.map(r => {
+  tbody.innerHTML = filtered.map((r, idx) => {
     const pickLabel = { PALLET_PICK:'Pallet', CASE_PICK:'Case', PIECE_PICK:'Piece', BULK_PICK:'Bulk' }[r.supportPickType] || r.supportPickType || '\u2014';
-    const received = r.receivedTime ? consolFormatTime(r.receivedTime) : '\u2014';
     const statusCls = (r.status || '').toLowerCase();
-    return '<tr>' +
+    const checked = consolIsSelected(r) ? 'checked' : '';
+    const rowIdx = list.indexOf(r);
+    return '<tr style="cursor:pointer" onclick="consolToggleSelect(' + rowIdx + ',\'' + tab + '\')">' +
+      '<td><input type="checkbox" ' + checked + ' style="accent-color:#753BBD;cursor:pointer" onclick="event.stopPropagation();consolToggleSelect(' + rowIdx + ',\'' + tab + '\')"/></td>' +
       '<td style="font-family:monospace;font-size:12px;color:#753BBD">' + esc(r.locationName || '\u2014') + '</td>' +
       '<td title="' + esc(r.itemId || '') + '">' + esc(String(r.itemName || '\u2014').slice(0, 30)) + '</td>' +
       '<td style="font-size:12px">' + esc(String(r.customerName || '\u2014').slice(0, 25)) + '</td>' +
@@ -13115,7 +13143,6 @@ function consolRenderInventoryTable(tab, list) {
       '<td style="font-size:11px">' + esc(r.lotNo || '\u2014') + '</td>' +
       '<td><span style="font-size:11px;padding:2px 6px;border-radius:3px;background:#F3F4F6;color:#374151">' + esc(pickLabel) + '</span></td>' +
       '<td><span class="consol-status ' + statusCls + '">' + esc(r.status || '\u2014') + '</span></td>' +
-      '<td style="font-size:11px;color:#9ca3af">' + received + '</td>' +
     '</tr>';
   }).join('');
 }
@@ -13209,6 +13236,196 @@ function consolPageNext() {
   var total = CONSOL_ACTIVE_TAB === 'bulk' ? CONSOL_BULK_TOTAL : CONSOL_RACK_TOTAL;
   if (CONSOL_PAGE < Math.ceil(total / CONSOL_PAGE_SIZE)) { CONSOL_PAGE++; consolFetchData(); }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONSOLIDATION WORKFLOW — Select candidates → Plan → Create/Review
+// Create endpoint: POST /api/wms/task/consolidate-task/create (ontology-verified)
+// Request: { consolidateType: "CONTAINER", toLocationId, customerId, batchNo,
+//            consolidateItemLines: [{lpId, itemId, locationId, qty}],
+//            subTaskType, note, autoSplitToActions, toteQtyPerBatch }
+// ═══════════════════════════════════════════════════════════════════════════
+
+let CONSOL_SELECTED = []; // selected inventory rows for workflow
+let CONSOL_WF_STATE = 'idle'; // idle | planning | submitted
+
+function consolToggleSelect(idx, tab) {
+  const data = tab === 'bulk' ? CONSOL_BULK_DATA : CONSOL_RACK_DATA;
+  const row = data[idx];
+  if (!row) return;
+  const key = row.id + '|' + row.locationId + '|' + row.itemId;
+  const existing = CONSOL_SELECTED.findIndex(s => (s.id + '|' + s.locationId + '|' + s.itemId) === key);
+  if (existing >= 0) {
+    CONSOL_SELECTED.splice(existing, 1);
+  } else {
+    CONSOL_SELECTED.push({...row, _tab: tab});
+  }
+  consolUpdateSelectionUI();
+  // Re-render to show checkbox state
+  if (CONSOL_MODE === 'inventory') {
+    consolRenderInventoryTable(tab, data);
+  }
+}
+
+function consolIsSelected(row) {
+  const key = row.id + '|' + row.locationId + '|' + row.itemId;
+  return CONSOL_SELECTED.some(s => (s.id + '|' + s.locationId + '|' + s.itemId) === key);
+}
+
+function consolUpdateSelectionUI() {
+  const bar = document.getElementById('consol-selection-bar');
+  const count = CONSOL_SELECTED.length;
+  if (bar) {
+    bar.style.display = count > 0 ? 'flex' : 'none';
+    document.getElementById('consol-sel-count').textContent = count + ' item' + (count !== 1 ? 's' : '') + ' selected';
+  }
+}
+
+function consolWfOpen() {
+  if (CONSOL_SELECTED.length === 0) return;
+  CONSOL_WF_STATE = 'planning';
+  const panel = document.getElementById('consol-workflow-panel');
+  panel.style.display = '';
+
+  // Group selected by customer
+  const byCustomer = {};
+  CONSOL_SELECTED.forEach(r => {
+    const cid = r.customerId || 'unknown';
+    if (!byCustomer[cid]) byCustomer[cid] = { name: r.customerName || cid, items: [] };
+    byCustomer[cid].items.push(r);
+  });
+
+  const tab = CONSOL_ACTIVE_TAB;
+  var tabLabel = tab === 'bulk' ? 'BULK' : 'Rack';
+
+  let html = '<div style="margin-bottom:16px;padding:12px 16px;background:#F7F2FF;border-radius:8px;border:1px solid #E8DAFF">' +
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5F2E98" stroke-width="2"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-6"/><path d="M12 8V2"/><path d="M21 3l-9 9"/><path d="M3 3l9 9"/><rect x="8" y="16" width="8" height="5" rx="1"/></svg>' +
+    '<strong style="color:#5F2E98">' + tabLabel + ' Consolidation Plan</strong>' +
+    '</div>' +
+    '<span style="font-size:12px;color:#6b7280">' + CONSOL_SELECTED.length + ' inventory item' + (CONSOL_SELECTED.length > 1 ? 's' : '') + ' selected for consolidation</span>' +
+    '</div>';
+
+  // Destination location input
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Destination Location</label>' +
+    '<input class="cc-input" id="consol-wf-dest" placeholder="Enter target location ID" style="font-size:13px"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Notes (optional)</label>' +
+    '<input class="cc-input" id="consol-wf-note" placeholder="Add a note for operators" style="font-size:13px"/></div>' +
+    '</div>';
+
+  // Items table grouped by customer
+  Object.keys(byCustomer).forEach(cid => {
+    const group = byCustomer[cid];
+    html += '<div style="margin-bottom:14px">' +
+      '<div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;padding:4px 0;border-bottom:1px solid #f3f4f6">' +
+      esc(group.name) + ' <span style="color:#9ca3af;font-weight:400">(' + group.items.length + ' item' + (group.items.length > 1 ? 's' : '') + ')</span></div>' +
+      '<table class="tbl" style="margin:0;font-size:12px"><thead><tr><th>Location</th><th>Item</th><th>Qty</th><th>LP</th><th>Lot</th></tr></thead><tbody>';
+    group.items.forEach(r => {
+      html += '<tr>' +
+        '<td style="font-family:monospace;font-size:11px;color:#753BBD">' + esc(r.locationName || '—') + '</td>' +
+        '<td>' + esc(String(r.itemName || '—').slice(0, 25)) + '</td>' +
+        '<td style="font-weight:600">' + esc(String(r.qty || 0)) + ' ' + esc(r.uom || '') + '</td>' +
+        '<td style="font-family:monospace;font-size:11px">' + esc(String(r.lpId || '—').slice(-12)) + '</td>' +
+        '<td style="font-size:11px">' + esc(r.lotNo || '—') + '</td>' +
+        '</tr>';
+    });
+    html += '</tbody></table></div>';
+  });
+
+  // Info banner about task creation
+  html += '<div style="margin-top:16px;padding:12px 16px;background:#FEF9C3;border-radius:8px;border:1px solid #FDE68A;font-size:12px;color:#92400E">' +
+    '<strong>About task creation:</strong> This will submit a consolidation task to WISE via the verified create endpoint. ' +
+    'The task will appear in the consolidation queue for operators to execute. A destination location is required.' +
+    '</div>';
+
+  document.getElementById('consol-wf-body').innerHTML = html;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function consolWfCancel() {
+  CONSOL_WF_STATE = 'idle';
+  document.getElementById('consol-workflow-panel').style.display = 'none';
+}
+
+async function consolWfSubmit() {
+  const dest = (document.getElementById('consol-wf-dest') || {}).value || '';
+  const note = (document.getElementById('consol-wf-note') || {}).value || '';
+
+  if (!dest.trim()) {
+    document.getElementById('consol-wf-dest').style.borderColor = '#ef4444';
+    document.getElementById('consol-wf-dest').focus();
+    return;
+  }
+
+  // Group by customer for separate tasks (consolidation tasks are per-customer)
+  const byCustomer = {};
+  CONSOL_SELECTED.forEach(r => {
+    const cid = r.customerId || '';
+    if (!byCustomer[cid]) byCustomer[cid] = [];
+    byCustomer[cid].push(r);
+  });
+
+  const btn = document.getElementById('consol-wf-submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+
+  const results = [];
+  for (const [custId, items] of Object.entries(byCustomer)) {
+    const payload = {
+      consolidateType: 'CONTAINER',
+      toLocationId: dest.trim(),
+      customerId: custId || undefined,
+      subTaskType: CONSOL_ACTIVE_TAB === 'bulk' ? 'BY_DEPARTMENT' : 'BY_SKU',
+      note: note || undefined,
+      consolidateItemLines: items.map(r => ({
+        lpId: r.lpId !== '—' ? r.lpId : undefined,
+        itemId: r.itemId || undefined,
+        locationId: r.locationId || undefined,
+        qty: r.qty || 0,
+      })),
+    };
+
+    // Ontology-verified: POST /api/wms/task/consolidate-task/create
+    const resp = await safeFetch(WMS_BASE + '/api/wms/task/consolidate-task/create', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    results.push({ custId, resp, count: items.length });
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Create Consolidation Task';
+
+  // Show results
+  const successes = results.filter(r => r.resp && r.resp.success !== false && !r.resp._needsAuth);
+  const failures = results.filter(r => !r.resp || r.resp.success === false || r.resp._needsAuth);
+
+  let resultHtml = '';
+  if (successes.length > 0) {
+    resultHtml += '<div style="padding:12px 16px;background:#ECFDF5;border-radius:8px;border:1px solid #A7F3D0;margin-bottom:12px">' +
+      '<strong style="color:#047857">✓ Consolidation task' + (successes.length > 1 ? 's' : '') + ' created successfully</strong>' +
+      '<div style="font-size:12px;color:#065F46;margin-top:4px">' + successes.reduce((s,r) => s + r.count, 0) + ' item(s) submitted across ' + successes.length + ' task(s).</div></div>';
+  }
+  if (failures.length > 0) {
+    const errMsg = failures.map(f => f.resp ? (f.resp.msg || 'Unknown error') : 'No response').join('; ');
+    resultHtml += '<div style="padding:12px 16px;background:#FEF2F2;border-radius:8px;border:1px solid #FECACA;margin-bottom:12px">' +
+      '<strong style="color:#B91C1C">✗ Some tasks could not be created</strong>' +
+      '<div style="font-size:12px;color:#991B1B;margin-top:4px">' + esc(errMsg) + '</div></div>';
+  }
+
+  if (successes.length > 0) {
+    CONSOL_SELECTED = [];
+    consolUpdateSelectionUI();
+    CONSOL_WF_STATE = 'idle';
+    document.getElementById('consol-wf-body').innerHTML = resultHtml +
+      '<div style="text-align:center;padding:12px"><button class="btn btn-primary" onclick="consolWfCancel(); consolRefresh();" style="font-size:12px;padding:8px 20px">Done — Refresh Data</button></div>';
+  } else {
+    document.getElementById('consol-wf-body').innerHTML = resultHtml +
+      '<div style="text-align:center;padding:12px"><button class="btn btn-secondary" onclick="consolWfOpen()" style="font-size:12px;padding:8px 16px">← Back to Plan</button></div>';
+  }
+}
+
 
 (async function restoreSessionOnLoad() {
   // WISE_TOKEN was already loaded from localStorage at init (line ~8657).
