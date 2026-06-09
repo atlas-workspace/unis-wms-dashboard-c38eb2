@@ -12873,14 +12873,15 @@ if (WISE_TOKEN || hasStoredRefreshToken()) {
   document.getElementById('login-screen').style.display = 'none';
 }
 // ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 // CONSOLIDATION PAGE — BULK / Rack tabs
-// Ontology-verified endpoint: POST /api/wms-bam/task/consolidate-task/search-by-paging
-// subTaskType (InstructionCreationMode): BY_SKU, BY_ITEM_NO, BY_DEPARTMENT, BY_CUSTOMER
-// BULK tab: BY_DEPARTMENT, BY_CUSTOMER (batch-level consolidation)
-// Rack tab: BY_SKU, BY_ITEM_NO (item-level, rack-based consolidation)
-// If both return empty with subTaskType filter, retries without filter and classifies
-// tasks by resolving toLocationId → location capacityType (PALLET/LARGE → BULK, RACK/SMALL → Rack).
-// Task statuses from ontology (TaskBaseDto): CREATED, STARTED, CLOSED, CANCELLED
+// Primary: POST /api/wms-bam/task/consolidate-task/search-by-paging (consolidation tasks)
+// Fallback: POST /api/wms-bam/inventory/search-by-paging (live inventory as candidates)
+//   - consolidate-task may return 0 if no active consolidation tasks exist for this facility.
+//   - When empty, fetches live inventory for top customers, classified by supportPickType:
+//       PALLET_PICK → BULK (pallet/floor storage)
+//       CASE_PICK, PIECE_PICK → RACK (shelving/rack storage)
+//   - Inventory endpoint requires customerId; uses FACILITY_CUSTOMERS for iteration.
 // ═══════════════════════════════════════════════════════════════════════════
 
 let CONSOL_ACTIVE_TAB = 'bulk';
@@ -12891,19 +12892,18 @@ let CONSOL_RACK_DATA = [];
 let CONSOL_BULK_TOTAL = 0;
 let CONSOL_RACK_TOTAL = 0;
 let CONSOL_LOADED = false;
-let CONSOL_LOC_CACHE = {}; // locationId → {name, capacityType}
-
-const CONSOL_BULK_SUBTYPES = ['BY_DEPARTMENT', 'BY_CUSTOMER'];
-const CONSOL_RACK_SUBTYPES = ['BY_SKU', 'BY_ITEM_NO'];
+let CONSOL_MODE = 'tasks'; // 'tasks' or 'inventory'
 
 function loadConsolidationView() {
   CONSOL_PAGE = 1;
-  consolFetchBoth();
+  CONSOL_LOADED = false;
+  consolFetchData();
 }
 
 function consolRefresh() {
   CONSOL_PAGE = 1;
-  consolFetchBoth();
+  CONSOL_LOADED = false;
+  consolFetchData();
 }
 
 function consolSwitchTab(tab) {
@@ -12919,155 +12919,141 @@ function consolSwitchTab(tab) {
   consolUpdateResultCount();
 }
 
-async function consolFetchBoth() {
-  await Promise.all([consolFetchTab('bulk'), consolFetchTab('rack')]);
-  // Fallback: if both tabs are empty with subTaskType filter, retry without it
-  // and classify tasks by location capacityType instead
-  if (CONSOL_BULK_DATA.length === 0 && CONSOL_RACK_DATA.length === 0 && !CONSOL_LOADED) {
-    await consolFetchAllAndClassify();
+async function consolFetchData() {
+  const bulkBody = document.getElementById('consol-bulk-body');
+  const rackBody = document.getElementById('consol-rack-body');
+  if (bulkBody) bulkBody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#9ca3af"><span class="spinner"></span> Loading consolidation data\u2026</td></tr>';
+  if (rackBody) rackBody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#9ca3af"><span class="spinner"></span> Loading\u2026</td></tr>';
+
+  // Step 1: Try consolidation tasks endpoint
+  const taskResp = await safeFetch(WMS_BASE + '/api/wms-bam/task/consolidate-task/search-by-paging', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ currentPage: 1, pageSize: 50, withItemLine: true }),
+  });
+
+  if (!taskResp || taskResp._needsAuth) {
+    const msg = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#ef4444">Please sign in to view consolidation data.</td></tr>';
+    if (bulkBody) bulkBody.innerHTML = msg;
+    if (rackBody) rackBody.innerHTML = msg;
+    return;
   }
+
+  const taskData = (taskResp.data || taskResp);
+  const taskList = taskData.list || taskData.records || [];
+
+  if (taskList.length > 0) {
+    // Consolidation tasks exist — show them
+    CONSOL_MODE = 'tasks';
+    const bulk = taskList.filter(t => ['BY_DEPARTMENT','BY_CUSTOMER'].includes(t.subTaskType));
+    const rack = taskList.filter(t => ['BY_SKU','BY_ITEM_NO'].includes(t.subTaskType));
+    const unclassified = taskList.filter(t => !['BY_DEPARTMENT','BY_CUSTOMER','BY_SKU','BY_ITEM_NO'].includes(t.subTaskType));
+    CONSOL_BULK_DATA = [...bulk, ...unclassified];
+    CONSOL_RACK_DATA = rack;
+    CONSOL_BULK_TOTAL = CONSOL_BULK_DATA.length;
+    CONSOL_RACK_TOTAL = CONSOL_RACK_DATA.length;
+    consolRenderTaskTable('bulk', CONSOL_BULK_DATA);
+    consolRenderTaskTable('rack', CONSOL_RACK_DATA);
+  } else {
+    // No consolidation tasks — show live inventory as consolidation candidates
+    CONSOL_MODE = 'inventory';
+    await consolFetchInventory();
+  }
+
   consolUpdateKpis();
+  consolUpdatePagination();
+  consolUpdateResultCount();
   CONSOL_LOADED = true;
 }
 
-async function consolFetchAllAndClassify() {
-  const statusFilter = document.getElementById('consol-filter-status').value;
-  const q = { currentPage: CONSOL_PAGE, pageSize: 50, withItemLine: true };
-  if (statusFilter) q.statuses = [statusFilter];
+async function consolFetchInventory() {
+  const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
+  if (customers.length === 0) {
+    consolRenderEmpty('bulk', 'No customer data available for this facility.');
+    consolRenderEmpty('rack', 'No customer data available for this facility.');
+    return;
+  }
 
-  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/task/consolidate-task/search-by-paging', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(q),
-  });
-  if (!resp || resp._needsAuth || (resp.success === false)) return;
+  // Fetch top 6 customers by location count for a representative sample
+  const topCusts = [...customers].sort((a, b) => (b.count || 0) - (a.count || 0)).slice(0, 6);
+  const bulkItems = [];
+  const rackItems = [];
 
-  const data = resp.data || resp;
-  const list = data.list || data.records || [];
-  if (list.length === 0) return;
-
-  // Resolve location capacityType for classification
-  const locIds = [...new Set(list.map(t => t.toLocationId).filter(Boolean))];
-  await consolResolveLocations(locIds);
-
-  // Classify: PALLET/LARGE/VOLUME → BULK; RACK/SMALL → Rack
-  const bulk = [], rack = [];
-  list.forEach(t => {
-    const loc = CONSOL_LOC_CACHE[t.toLocationId] || {};
-    const cap = (loc.capacityType || '').toUpperCase();
-    if (cap === 'RACK' || cap === 'SMALL') { rack.push(t); }
-    else { bulk.push(t); } // default to BULK for PALLET, LARGE, VOLUME, or unknown
-  });
-
-  CONSOL_BULK_DATA = bulk;
-  CONSOL_RACK_DATA = rack;
-  CONSOL_BULK_TOTAL = bulk.length;
-  CONSOL_RACK_TOTAL = rack.length;
-  consolRenderTable('bulk', bulk);
-  consolRenderTable('rack', rack);
-  consolUpdatePagination();
-  consolUpdateResultCount();
-}
-
-async function consolResolveLocations(locationIds) {
-  const unresolved = locationIds.filter(id => id && !CONSOL_LOC_CACHE[id]);
-  if (unresolved.length === 0) return;
-  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/wms-location/search-by-paging', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ currentPage: 1, pageSize: 100, ids: unresolved }),
-  });
-  if (!resp || resp._needsAuth) return;
-  const data = resp.data || resp;
-  const list = data.list || data.records || data.items || [];
-  list.forEach(loc => {
-    if (loc.id) {
-      CONSOL_LOC_CACHE[loc.id] = {
-        name: loc.name || loc.locationName || loc.code || loc.id,
-        capacityType: loc.capacityType || '',
+  const fetches = topCusts.map(async (cust) => {
+    const resp = await safeFetch(WMS_BASE + '/api/wms-bam/inventory/search-by-paging', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ currentPage: 1, pageSize: CONSOL_PAGE_SIZE, customerId: cust.id }),
+    });
+    if (!resp || resp._needsAuth || resp.success === false) return;
+    const data = resp.data || resp;
+    const list = data.list || data.records || [];
+    list.forEach(inv => {
+      const row = {
+        id: inv.id || inv.lineId,
+        locationName: inv.locationName || '\u2014',
+        locationId: inv.locationId,
+        itemName: inv.itemName || inv.description || inv.shortDescription || '\u2014',
+        itemId: inv.itemId,
+        qty: parseFloat(inv.qty || inv.baseQty || 0),
+        uom: inv.uomName || inv.baseUomName || 'EA',
+        customerName: inv.customerName || cust.name,
+        customerId: inv.customerId || cust.id,
+        lpId: inv.lpId || '\u2014',
+        lotNo: inv.lotNo || '\u2014',
+        status: inv.status || '\u2014',
+        supportPickType: inv.supportPickType || '',
+        receivedTime: inv.receivedTime || inv.createdTime || '',
       };
-    }
+      const pt = (row.supportPickType || '').toUpperCase();
+      if (pt === 'PALLET_PICK' || pt === 'BULK_PICK') {
+        bulkItems.push(row);
+      } else if (pt === 'CASE_PICK' || pt === 'PIECE_PICK') {
+        rackItems.push(row);
+      } else {
+        // Heuristic: 3-digit aisle prefix pattern (e.g. 586.023.4.2) is pallet storage
+        const locUp = (row.locationName || '').toUpperCase();
+        if (/^\d{3}\./.test(locUp)) { bulkItems.push(row); }
+        else { rackItems.push(row); }
+      }
+    });
   });
-  unresolved.forEach(id => {
-    if (!CONSOL_LOC_CACHE[id]) CONSOL_LOC_CACHE[id] = { name: id, capacityType: '' };
-  });
+
+  await Promise.all(fetches);
+
+  CONSOL_BULK_DATA = bulkItems;
+  CONSOL_RACK_DATA = rackItems;
+  CONSOL_BULK_TOTAL = bulkItems.length;
+  CONSOL_RACK_TOTAL = rackItems.length;
+
+  consolRenderInventoryTable('bulk', bulkItems);
+  consolRenderInventoryTable('rack', rackItems);
 }
 
-async function consolFetchTab(tab) {
-  const body = consolBuildQuery(tab);
+function consolRenderEmpty(tab, message) {
   const tbody = document.getElementById(tab === 'bulk' ? 'consol-bulk-body' : 'consol-rack-body');
-  tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#9ca3af"><span class="spinner"></span> Loading...</td></tr>';
-
-  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/task/consolidate-task/search-by-paging', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body),
-  });
-
-  if (!resp || resp._needsAuth) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#ef4444">Please sign in to view consolidation tasks.</td></tr>';
-    return;
-  }
-  if (!resp.success && resp.success !== undefined) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#ef4444">Unable to load tasks.' + (resp.msg ? ' ' + esc(resp.msg) : '') + '</td></tr>';
-    return;
-  }
-
-  const data = resp.data || resp;
-  const list = data.list || data.records || [];
-  const total = data.total || data.totalCount || list.length;
-
-  if (tab === 'bulk') { CONSOL_BULK_DATA = list; CONSOL_BULK_TOTAL = total; }
-  else { CONSOL_RACK_DATA = list; CONSOL_RACK_TOTAL = total; }
-
-  consolRenderTable(tab, list);
-  consolUpdatePagination();
-  consolUpdateResultCount();
+  const label = tab === 'bulk' ? 'BULK' : 'Rack';
+  tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#9ca3af">' +
+    '<div style="margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>' +
+    '<strong style="color:#6b7280">No ' + label + ' consolidation candidates</strong><br>' +
+    '<span style="font-size:12px;color:#9ca3af">' + esc(message) + '</span>' +
+    '</td></tr>';
 }
 
-function consolBuildQuery(tab) {
-  const statusFilter = document.getElementById('consol-filter-status').value;
-  const subtypeFilter = document.getElementById('consol-filter-subtype').value;
-
-  const q = { currentPage: CONSOL_PAGE, pageSize: CONSOL_PAGE_SIZE, withItemLine: true };
-
-  if (statusFilter) {
-    q.statuses = [statusFilter];
-  }
-
-  if (subtypeFilter) {
-    q.subTaskTypes = [subtypeFilter];
-  } else {
-    // Default tab-based subtype filtering
-    q.subTaskTypes = tab === 'bulk' ? CONSOL_BULK_SUBTYPES : CONSOL_RACK_SUBTYPES;
-  }
-
-  return q;
-}
-
-function consolRenderTable(tab, list) {
+function consolRenderTaskTable(tab, list) {
   const tbody = document.getElementById(tab === 'bulk' ? 'consol-bulk-body' : 'consol-rack-body');
   const searchTerm = (document.getElementById('consol-filter-search').value || '').toLowerCase().trim();
 
-  // Client-side text filter on already-fetched rows
   let filtered = list;
   if (searchTerm) {
     filtered = list.filter(t => {
-      const hay = [
-        t.id, t.batchNo, t.customerId, t.toLocationId, t.subTaskType, t.status,
-        t.assigneeUserId, t.note
-      ].filter(Boolean).join(' ').toLowerCase();
+      const hay = [t.id, t.batchNo, t.customerId, t.toLocationId, t.subTaskType, t.status, t.assigneeUserId, t.note].filter(Boolean).join(' ').toLowerCase();
       return hay.includes(searchTerm);
     });
   }
 
   if (filtered.length === 0) {
-    const label = tab === 'bulk' ? 'BULK' : 'Rack';
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#9ca3af">' +
-      '<div style="margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>' +
-      '<strong style="color:#6b7280">No ' + label + ' consolidation tasks</strong><br>' +
-      '<span style="font-size:12px;color:#9ca3af">No tasks match the current filters for this facility.</span>' +
-      '</td></tr>';
+    consolRenderEmpty(tab, 'No tasks match the current filters.');
     return;
   }
 
@@ -13076,18 +13062,17 @@ function consolRenderTable(tab, list) {
     const statusLabel = consolFormatStatus(t.status);
     const itemCount = (t.consolidateItemLines || []).length;
     const subtypeLabel = consolFormatSubtype(t.subTaskType);
-    const updated = t.updatedTime ? consolFormatTime(t.updatedTime) : (t.createdTime ? consolFormatTime(t.createdTime) : '—');
-    const priority = t.priority != null ? t.priority : '—';
-    const assignee = t.assigneeUserId || t.preAssigneeUserId || '—';
-
+    const updated = t.updatedTime ? consolFormatTime(t.updatedTime) : (t.createdTime ? consolFormatTime(t.createdTime) : '\u2014');
+    const priority = t.priority != null ? t.priority : '\u2014';
+    const assignee = t.assigneeUserId || t.preAssigneeUserId || '\u2014';
     return '<tr>' +
-      '<td style="font-family:monospace;font-size:12px;color:#753BBD">' + esc(String(t.id || '—').slice(-8)) + '</td>' +
-      '<td>' + esc(t.batchNo || '—') + '</td>' +
-      '<td>' + esc(t.customerId || '—') + '</td>' +
+      '<td style="font-family:monospace;font-size:12px;color:#753BBD">' + esc(String(t.id || '\u2014').slice(-8)) + '</td>' +
+      '<td>' + esc(t.batchNo || '\u2014') + '</td>' +
+      '<td>' + esc(t.customerId || '\u2014') + '</td>' +
       '<td>' + esc(subtypeLabel) + '</td>' +
-      '<td style="font-family:monospace;font-size:11px">' + esc((CONSOL_LOC_CACHE[t.toLocationId] || {}).name || t.toLocationId || '—') + '</td>' +
-      '<td>' + (itemCount > 0 ? itemCount + ' line' + (itemCount > 1 ? 's' : '') : '—') + '</td>' +
-      '<td>' + (priority !== '—' ? '<span style="font-weight:600;color:' + (priority <= 1 ? '#dc2626' : priority <= 3 ? '#f97316' : '#6b7280') + '">' + priority + '</span>' : '—') + '</td>' +
+      '<td style="font-family:monospace;font-size:11px">' + esc(t.toLocationId || '\u2014') + '</td>' +
+      '<td>' + (itemCount > 0 ? itemCount + ' line' + (itemCount > 1 ? 's' : '') : '\u2014') + '</td>' +
+      '<td>' + (priority !== '\u2014' ? '<span style="font-weight:600">' + esc(String(priority)) + '</span>' : '\u2014') + '</td>' +
       '<td><span class="consol-status ' + statusCls + '">' + statusLabel + '</span></td>' +
       '<td style="font-size:12px">' + esc(String(assignee)) + '</td>' +
       '<td style="font-size:11px;color:#9ca3af">' + updated + '</td>' +
@@ -13095,20 +13080,60 @@ function consolRenderTable(tab, list) {
   }).join('');
 }
 
+function consolRenderInventoryTable(tab, list) {
+  const tbody = document.getElementById(tab === 'bulk' ? 'consol-bulk-body' : 'consol-rack-body');
+  const searchTerm = (document.getElementById('consol-filter-search').value || '').toLowerCase().trim();
+
+  let filtered = list;
+  if (searchTerm) {
+    filtered = list.filter(r => {
+      const hay = [r.locationName, r.itemName, r.customerName, r.lpId, r.lotNo, r.itemId].filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(searchTerm);
+    });
+  }
+
+  if (filtered.length === 0) {
+    consolRenderEmpty(tab, 'No inventory records match for this storage type.');
+    return;
+  }
+
+  // Update table header for inventory mode
+  const thead = tbody.closest('table').querySelector('thead tr');
+  if (thead) thead.innerHTML = '<th>Location</th><th>Item / SKU</th><th>Customer</th><th>Qty</th><th>UOM</th><th>LP</th><th>Lot No</th><th>Pick Type</th><th>Status</th><th>Received</th>';
+
+  tbody.innerHTML = filtered.map(r => {
+    const pickLabel = { PALLET_PICK:'Pallet', CASE_PICK:'Case', PIECE_PICK:'Piece', BULK_PICK:'Bulk' }[r.supportPickType] || r.supportPickType || '\u2014';
+    const received = r.receivedTime ? consolFormatTime(r.receivedTime) : '\u2014';
+    const statusCls = (r.status || '').toLowerCase();
+    return '<tr>' +
+      '<td style="font-family:monospace;font-size:12px;color:#753BBD">' + esc(r.locationName || '\u2014') + '</td>' +
+      '<td title="' + esc(r.itemId || '') + '">' + esc(String(r.itemName || '\u2014').slice(0, 30)) + '</td>' +
+      '<td style="font-size:12px">' + esc(String(r.customerName || '\u2014').slice(0, 25)) + '</td>' +
+      '<td style="font-weight:600">' + esc(String(r.qty || 0)) + '</td>' +
+      '<td style="font-size:11px;color:#6b7280">' + esc(r.uom) + '</td>' +
+      '<td style="font-family:monospace;font-size:11px">' + esc(String(r.lpId || '\u2014').slice(-12)) + '</td>' +
+      '<td style="font-size:11px">' + esc(r.lotNo || '\u2014') + '</td>' +
+      '<td><span style="font-size:11px;padding:2px 6px;border-radius:3px;background:#F3F4F6;color:#374151">' + esc(pickLabel) + '</span></td>' +
+      '<td><span class="consol-status ' + statusCls + '">' + esc(r.status || '\u2014') + '</span></td>' +
+      '<td style="font-size:11px;color:#9ca3af">' + received + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
 function consolFormatStatus(s) {
-  if (!s) return '—';
-  const map = { CREATED: 'Created', STARTED: 'Started', CLOSED: 'Closed', CANCELLED: 'Cancelled', OPEN: 'Open', IN_PROGRESS: 'In Progress', COMPLETED: 'Completed' };
+  if (!s) return '\u2014';
+  const map = { CREATED:'Created', STARTED:'Started', CLOSED:'Closed', CANCELLED:'Cancelled', OPEN:'Open', IN_PROGRESS:'In Progress', COMPLETED:'Completed' };
   return map[s] || s.replace(/_/g, ' ');
 }
 
 function consolFormatSubtype(s) {
-  if (!s) return '—';
-  const map = { BY_SKU: 'By SKU', BY_ITEM_NO: 'By Item No', BY_DEPARTMENT: 'By Department', BY_CUSTOMER: 'By Customer' };
+  if (!s) return '\u2014';
+  const map = { BY_SKU:'By SKU', BY_ITEM_NO:'By Item No', BY_DEPARTMENT:'By Department', BY_CUSTOMER:'By Customer' };
   return map[s] || s.replace(/_/g, ' ');
 }
 
 function consolFormatTime(ts) {
-  if (!ts) return '—';
+  if (!ts) return '\u2014';
   try {
     const d = new Date(ts);
     if (isNaN(d.getTime())) return ts;
@@ -13117,46 +13142,72 @@ function consolFormatTime(ts) {
 }
 
 function consolApplyClientFilter() {
-  consolRenderTable('bulk', CONSOL_BULK_DATA);
-  consolRenderTable('rack', CONSOL_RACK_DATA);
+  if (CONSOL_MODE === 'inventory') {
+    consolRenderInventoryTable('bulk', CONSOL_BULK_DATA);
+    consolRenderInventoryTable('rack', CONSOL_RACK_DATA);
+  } else {
+    consolRenderTaskTable('bulk', CONSOL_BULK_DATA);
+    consolRenderTaskTable('rack', CONSOL_RACK_DATA);
+  }
   consolUpdateResultCount();
 }
 
 function consolUpdateKpis() {
-  const all = [...CONSOL_BULK_DATA, ...CONSOL_RACK_DATA];
-  const pending = all.filter(t => /CREATED|OPEN/i.test(t.status || '')).length;
-  const inProgress = all.filter(t => /STARTED|IN_PROGRESS/i.test(t.status || '')).length;
-  const today = new Date().toISOString().slice(0, 10);
-  const doneToday = all.filter(t => /CLOSED|COMPLETED/i.test(t.status || '') && (t.updatedTime || '').slice(0, 10) === today).length;
-  const total = CONSOL_BULK_TOTAL + CONSOL_RACK_TOTAL;
-
-  document.getElementById('consol-kpi-pending').textContent = pending || '0';
-  document.getElementById('consol-kpi-progress').textContent = inProgress || '0';
-  document.getElementById('consol-kpi-done').textContent = doneToday || '0';
-  document.getElementById('consol-kpi-total').textContent = total || '0';
+  if (CONSOL_MODE === 'inventory') {
+    document.getElementById('consol-kpi-pending').textContent = CONSOL_BULK_TOTAL || '0';
+    document.getElementById('consol-kpi-progress').textContent = CONSOL_RACK_TOTAL || '0';
+    document.getElementById('consol-kpi-done').textContent = (CONSOL_BULK_TOTAL + CONSOL_RACK_TOTAL) || '0';
+    document.getElementById('consol-kpi-total').textContent = (CONSOL_BULK_TOTAL + CONSOL_RACK_TOTAL) || '0';
+    // Update KPI labels for inventory mode
+    var kpiGrid = document.querySelector('#view-consolidation .kpi-grid');
+    if (kpiGrid) {
+      var labels = kpiGrid.querySelectorAll('.kpi-lbl');
+      var subs = kpiGrid.querySelectorAll('.kpi-chg');
+      if (labels[0]) labels[0].textContent = 'BULK Items';
+      if (labels[1]) labels[1].textContent = 'Rack Items';
+      if (labels[2]) labels[2].textContent = 'Total Records';
+      if (labels[3]) labels[3].textContent = 'Candidates';
+      if (subs[0]) subs[0].textContent = 'pallet storage';
+      if (subs[1]) subs[1].textContent = 'rack/shelf storage';
+      if (subs[2]) subs[2].textContent = 'live inventory';
+      if (subs[3]) subs[3].textContent = 'from top customers';
+    }
+  } else {
+    var all = [...CONSOL_BULK_DATA, ...CONSOL_RACK_DATA];
+    var pending = all.filter(function(t){ return /CREATED|OPEN/i.test(t.status || ''); }).length;
+    var inProgress = all.filter(function(t){ return /STARTED|IN_PROGRESS/i.test(t.status || ''); }).length;
+    var today = new Date().toISOString().slice(0, 10);
+    var doneToday = all.filter(function(t){ return /CLOSED|COMPLETED/i.test(t.status || '') && (t.updatedTime || '').slice(0, 10) === today; }).length;
+    var total = CONSOL_BULK_TOTAL + CONSOL_RACK_TOTAL;
+    document.getElementById('consol-kpi-pending').textContent = pending || '0';
+    document.getElementById('consol-kpi-progress').textContent = inProgress || '0';
+    document.getElementById('consol-kpi-done').textContent = doneToday || '0';
+    document.getElementById('consol-kpi-total').textContent = total || '0';
+  }
 }
 
 function consolUpdatePagination() {
-  const total = CONSOL_ACTIVE_TAB === 'bulk' ? CONSOL_BULK_TOTAL : CONSOL_RACK_TOTAL;
-  const totalPages = Math.max(1, Math.ceil(total / CONSOL_PAGE_SIZE));
-  document.getElementById('consol-page-info').textContent = 'Page ' + CONSOL_PAGE + ' of ' + totalPages + ' (' + total + ' tasks)';
+  var total = CONSOL_ACTIVE_TAB === 'bulk' ? CONSOL_BULK_TOTAL : CONSOL_RACK_TOTAL;
+  var totalPages = Math.max(1, Math.ceil(total / CONSOL_PAGE_SIZE));
+  document.getElementById('consol-page-info').textContent = 'Page ' + CONSOL_PAGE + ' of ' + totalPages + ' (' + total + ' items)';
   document.getElementById('consol-prev-btn').disabled = CONSOL_PAGE <= 1;
   document.getElementById('consol-next-btn').disabled = CONSOL_PAGE >= totalPages;
 }
 
 function consolUpdateResultCount() {
-  const count = CONSOL_ACTIVE_TAB === 'bulk' ? CONSOL_BULK_TOTAL : CONSOL_RACK_TOTAL;
-  const label = CONSOL_ACTIVE_TAB === 'bulk' ? 'BULK' : 'Rack';
-  document.getElementById('consol-result-count').textContent = count + ' ' + label + ' task' + (count !== 1 ? 's' : '');
+  var count = CONSOL_ACTIVE_TAB === 'bulk' ? CONSOL_BULK_TOTAL : CONSOL_RACK_TOTAL;
+  var label = CONSOL_ACTIVE_TAB === 'bulk' ? 'BULK' : 'Rack';
+  var suffix = CONSOL_MODE === 'inventory' ? ' inventory records' : ' task' + (count !== 1 ? 's' : '');
+  document.getElementById('consol-result-count').textContent = count + ' ' + label + suffix;
 }
 
 function consolPagePrev() {
-  if (CONSOL_PAGE > 1) { CONSOL_PAGE--; consolFetchTab(CONSOL_ACTIVE_TAB); }
+  if (CONSOL_PAGE > 1) { CONSOL_PAGE--; consolFetchData(); }
 }
 
 function consolPageNext() {
-  const total = CONSOL_ACTIVE_TAB === 'bulk' ? CONSOL_BULK_TOTAL : CONSOL_RACK_TOTAL;
-  if (CONSOL_PAGE < Math.ceil(total / CONSOL_PAGE_SIZE)) { CONSOL_PAGE++; consolFetchTab(CONSOL_ACTIVE_TAB); }
+  var total = CONSOL_ACTIVE_TAB === 'bulk' ? CONSOL_BULK_TOTAL : CONSOL_RACK_TOTAL;
+  if (CONSOL_PAGE < Math.ceil(total / CONSOL_PAGE_SIZE)) { CONSOL_PAGE++; consolFetchData(); }
 }
 
 (async function restoreSessionOnLoad() {
