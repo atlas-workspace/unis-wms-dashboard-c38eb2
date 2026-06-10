@@ -13000,13 +13000,23 @@ async function consolFetchData() {
   const taskResp = await safeFetch(WMS_BASE + '/api/wms-bam/task/consolidate-task/search-by-paging', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ currentPage: CONSOL_PAGE, pageSize: CONSOL_PAGE_SIZE, withItemLine: true }),
+    body: JSON.stringify({ currentPage: CONSOL_PAGE, pageSize: 50, withItemLine: true }),
   });
 
   if (!taskResp || taskResp._needsAuth) {
-    const msg = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#ef4444">Please sign in to view consolidation data.</td></tr>';
-    if (bulkBody) bulkBody.innerHTML = msg;
-    if (rackBody) rackBody.innerHTML = msg;
+    if (!WISE_TOKEN) {
+      const msg = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#ef4444">Please sign in to view consolidation data.</td></tr>';
+      if (bulkBody) bulkBody.innerHTML = msg;
+      if (rackBody) rackBody.innerHTML = msg;
+      return;
+    }
+    // Tasks endpoint unreachable but user is authenticated — try inventory candidates
+    CONSOL_MODE = 'inventory';
+    await consolFetchInventory();
+    consolUpdateKpis();
+    consolUpdatePagination();
+    consolUpdateResultCount();
+    CONSOL_LOADED = true;
     return;
   }
 
@@ -13057,10 +13067,10 @@ async function consolFetchInventory() {
     const resp = await safeFetch(WMS_BASE + '/api/wms-bam/inventory/search-by-paging', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ currentPage: 1, pageSize: CONSOL_PAGE_SIZE, customerId: cust.id }),
+      body: JSON.stringify({ currentPage: 1, pageSize: 50, customerId: cust.id }),
     });
     if (!resp || resp._needsAuth) return;
-    if (resp.code != null && String(resp.code) !== '0' && resp.success === false) return;
+    if (resp.code != null && String(resp.code) !== '0') return;
     const data = resp.data || resp;
     const list = data.list || data.records || [];
     list.forEach(inv => {
@@ -13105,8 +13115,13 @@ async function consolFetchInventory() {
   CONSOL_BULK_TOTAL = bulkItems.length;
   CONSOL_RACK_TOTAL = rackItems.length;
 
-  consolRenderInventoryTable('bulk', bulkItems);
-  consolRenderInventoryTable('rack', rackItems);
+  if (bulkItems.length === 0 && rackItems.length === 0) {
+    consolRenderEmpty('bulk', 'No consolidation candidates found. Checked ' + topCusts.length + ' customer(s) in this facility. Inventory may be fully allocated or no items qualify for consolidation.');
+    consolRenderEmpty('rack', 'No rack-storage candidates found for the sampled customers.');
+  } else {
+    consolRenderInventoryTable('bulk', bulkItems);
+    consolRenderInventoryTable('rack', rackItems);
+  }
 }
 
 function consolRenderEmpty(tab, message) {
