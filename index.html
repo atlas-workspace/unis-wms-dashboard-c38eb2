@@ -12734,7 +12734,16 @@ let LTAG_EDIT_TAG = null;       // full tag object being edited
 let LTAG_EDIT_LOCS = [];        // locations array for the edit view
 let LTAG_EDIT_SELECTED = new Set(); // checked location ids
 
+const LTAG_ADMIN_KEY = 'LT-tag-admin-2024!';
+function ltagRequirePassword() {
+  const input = prompt('This action requires authorization.\nEnter the Location Tag admin password:');
+  if (input === null) return false;
+  if (input !== LTAG_ADMIN_KEY) { alert('Incorrect password. Changes are not allowed.'); return false; }
+  return true;
+}
+
 function ltagOpenEdit(tagId) {
+  if (!ltagRequirePassword()) return;
   LTAG_EDIT_TAG = null;
   LTAG_EDIT_LOCS = [];
   LTAG_EDIT_SELECTED = new Set();
@@ -12851,6 +12860,7 @@ function ltagCloseEdit() {
 }
 
 async function ltagSave() {
+  if (!ltagRequirePassword()) return;
   if (!LTAG_EDIT_TAG) return;
   const name = (document.getElementById('ltag-edit-name').value || '').trim();
   if (!name) { alert('Location Group Tag name is required.'); return; }
@@ -12880,6 +12890,7 @@ async function ltagSave() {
 }
 
 async function ltagDeleteTag(tagId) {
+  if (!ltagRequirePassword()) return;
   if (!confirm('Delete this location tag? This cannot be undone.')) return;
   const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/' + encodeURIComponent(tagId), {
     method: 'DELETE',
@@ -12891,6 +12902,7 @@ async function ltagDeleteTag(tagId) {
 }
 
 function ltagRemoveLoc(locId) {
+  if (!ltagRequirePassword()) return;
   if (!confirm('Remove this location from the tag?')) return;
   LTAG_EDIT_LOCS = LTAG_EDIT_LOCS.filter(l => (l.id || l.name) !== locId);
   LTAG_EDIT_SELECTED.delete(locId);
@@ -12898,6 +12910,7 @@ function ltagRemoveLoc(locId) {
 }
 
 function ltagBatchDeleteLocs() {
+  if (!ltagRequirePassword()) return;
   if (LTAG_EDIT_SELECTED.size === 0) { alert('Select at least one location to remove.'); return; }
   if (!confirm('Remove ' + LTAG_EDIT_SELECTED.size + ' selected location(s) from this tag?')) return;
   LTAG_EDIT_LOCS = LTAG_EDIT_LOCS.filter(l => !LTAG_EDIT_SELECTED.has(l.id || l.name));
@@ -12906,6 +12919,7 @@ function ltagBatchDeleteLocs() {
 }
 
 function ltagAddLocationPrompt() {
+  if (!ltagRequirePassword()) return;
   const locName = prompt('Enter the location name or ID to add:');
   if (!locName || !locName.trim()) return;
   const existing = LTAG_EDIT_LOCS.find(l => (l.name || l.id || '').toLowerCase() === locName.trim().toLowerCase());
