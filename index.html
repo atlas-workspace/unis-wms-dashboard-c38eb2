@@ -12423,6 +12423,7 @@ function resetVlgFilters() {
 let VLG_EDIT_DATA = null;
 
 function vlgOpenEdit(vlgId) {
+  if (!ltagRequirePassword()) return;
   VLG_EDIT_DATA = null;
   document.getElementById('vlg-list-panel').style.display = 'none';
   document.getElementById('vlg-history-panel').style.display = 'none';
@@ -12542,6 +12543,7 @@ function vlgRenderAllocations(allocations) {
 }
 
 function vlgAddAllocation() {
+  if (!ltagRequirePassword()) return;
   if (!VLG_EDIT_DATA) return;
   const allocs = VLG_EDIT_DATA.customerVlgAllocations || [];
   allocs.push({ customerId: '', category: 'PUBLIC', percentage: 100, timeRangeFrom: '00:00', timeRangeTo: '23:59' });
@@ -12550,6 +12552,7 @@ function vlgAddAllocation() {
 }
 
 function vlgRemoveAllocation(idx) {
+  if (!ltagRequirePassword()) return;
   if (!VLG_EDIT_DATA) return;
   const allocs = VLG_EDIT_DATA.customerVlgAllocations || [];
   allocs.splice(idx, 1);
@@ -12558,6 +12561,7 @@ function vlgRemoveAllocation(idx) {
 }
 
 async function vlgSave() {
+  if (!ltagRequirePassword()) return;
   if (!VLG_EDIT_DATA) return;
   const name = (document.getElementById('vlg-edit-name').value || '').trim();
   if (!name) { alert('VLG Name is required.'); return; }
@@ -12620,6 +12624,7 @@ function vlgCloseHistory() {
 }
 
 async function vlgDeleteGroup(vlgId, vlgName) {
+  if (!ltagRequirePassword()) return;
   if (!confirm('Delete virtual location group "' + (vlgName || vlgId) + '"? This cannot be undone.')) return;
   // Ontology-verified: DELETE /api/wms/location/virtual-group/{id}
   const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-group/' + encodeURIComponent(vlgId), {
