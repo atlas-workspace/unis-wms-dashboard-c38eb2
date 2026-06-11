@@ -12230,6 +12230,8 @@ async function submitCycleCount() {
 
   btn.disabled = true; btn.textContent = (custIds.length > 1 ? 'Scheduling ' + custIds.length + ' tickets…' : 'Scheduling…');
 
+  try {
+
   // Editing-mode path: PUT existing single ticket (we only support editing
   // single-customer tasks for now). Submit all customers as new tickets if
   // editing was started but the user added customers.
@@ -12272,6 +12274,7 @@ async function submitCycleCount() {
 
     // IDEMPOTENCY GUARDRAIL: Check if today's ticket already exists for this schedule/customer/type
     // before creating a new one. Prevents duplicate tickets per day.
+    const isPut = !!(wiseTicketId && custIds.length === 1);
     if (!isPut) {
       const nowLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
       const todayStart = nowLA.getFullYear() + '-' + String(nowLA.getMonth()+1).padStart(2,'0') + '-' + String(nowLA.getDate()).padStart(2,'0') + 'T00:00:00';
@@ -12326,7 +12329,6 @@ async function submitCycleCount() {
         lpId:         undefined,
       })),
     });
-    const isPut = !!(wiseTicketId && custIds.length === 1);
     const url    = isPut ? (API.ccSchedule + '/' + encodeURIComponent(wiseTicketId)) : API.ccSchedule;
     const method = isPut ? 'PUT' : 'POST';
     const resp = await safeFetch(url, {
@@ -12509,6 +12511,14 @@ async function submitCycleCount() {
   CC.editingTaskId = null;
   resetCycleForm();
   renderTasksPanel();
+
+  } catch(err) {
+    console.error('submitCycleCount error:', err);
+    alert('An unexpected error occurred while scheduling. Please try again.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = CC.editingTaskId ? 'Update task' : 'Schedule Cycle Count';
+  }
 }
 
 // ════════════════════════════════════════════════════════════════
