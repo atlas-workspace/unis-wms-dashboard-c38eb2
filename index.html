@@ -12223,6 +12223,20 @@ async function submitCycleCount() {
     // Strict match — only lines explicitly tagged for this customer go into
     // this customer's ticket. Each customer becomes its OWN Wise ticket.
     const linesForCust = CC.countLines.filter(l => l.customerId === customerId);
+
+    // GUARDRAIL: For BY_LOCATION tickets, block task creation if no location lines exist
+    const isByLocation = (commonFields.type || '').toUpperCase().includes('LOCATION');
+    if (isByLocation && linesForCust.length === 0) {
+      results.push({customerId, ticketId:null, ok:false, msg:'No count locations selected. An RF task cannot be created without suggested locations.'});
+      continue;
+    }
+    if (isByLocation) {
+      const hasValidLocs = linesForCust.some(l => l.id || l.locationId || l.name);
+      if (!hasValidLocs) {
+        results.push({customerId, ticketId:null, ok:false, msg:'Count lines have no location IDs. Add locations with valid IDs before creating the task.'});
+        continue;
+      }
+    }
     // Name suffix when multiple customers — keep them distinct in Wise
     const custName = (FACILITY_CUSTOMERS[FACILITY_ID] || []).find(c => c.id === customerId);
     const nameSuffix = (custIds.length > 1 && custName) ? ' · ' + custName.name : '';
@@ -12263,10 +12277,18 @@ async function submitCycleCount() {
       // cycle-count create-tasks endpoint. This skips the manual Task
       // Splitting page in Wise. Endpoint contract was captured from the
       // WMS UI's actual request — see notes near CYCLECOUNT_BASE.
+      // CRITICAL: taskLines MUST include locationId so RF/mobile shows suggested locations.
       if (ticketId && commonFields.counterUserId) {
+        // Re-validate: block if By Location but lines lack locationId
+        const validLines = linesForCust.filter(l => l.id || l.locationId || l.name);
+        if (isByLocation && validLines.length === 0) {
+          const last = results[results.length - 1];
+          last.tasksError = 'Ticket created but no RF tasks generated — count lines have no location IDs. Add locations to the ticket in WMS before creating tasks.';
+        } else {
         const maxLines = parseInt((document.getElementById('cc-max-lines-per-task')||{}).value, 10) || 10;
+        const taskSourceLines = isByLocation ? validLines : linesForCust;
         const tasksPayload = [];
-        for (let i = 0; i < linesForCust.length; i += maxLines) {
+        for (let i = 0; i < taskSourceLines.length; i += maxLines) {
           tasksPayload.push({
             ticketId,
             customerId,
@@ -12278,17 +12300,17 @@ async function submitCycleCount() {
             method: commonFields.countMethod,
             assigneeUserId: String(commonFields.counterUserId),
             assigneeUserName: commonFields.counterUserName || null,
-            taskLines: linesForCust.slice(i, i + maxLines).map(l => {
+            taskLines: taskSourceLines.slice(i, i + maxLines).map(l => {
               const locId = l.id || l.locationId || l.name;
               const locName = l.name || l.locationName || String(locId || '');
               const locType = l.type || l.locationType || 'LOCATION';
               const space = l.occupancyStatus || l.spaceStatus || null;
               return {
-                itemId:      null,
+                itemId:      l.itemId || null,
                 locationId:  locId,
                 locationName: locName,
                 name:        locName,
-                lpId:        null,
+                lpId:        l.lpId || null,
                 location:    {
                   id: locId,
                   name: locName,
@@ -12336,6 +12358,7 @@ async function submitCycleCount() {
             console.warn('auto-assign: failed on', ticketId, '-', last.tasksError);
           }
         }
+        } // end else (validLines check)
       }
     } else if (resp && resp.success === false) {
       results.push({customerId, ticketId:null, ok:false, msg: resp.msg || resp.message || JSON.stringify(resp).slice(0,200), payload});
