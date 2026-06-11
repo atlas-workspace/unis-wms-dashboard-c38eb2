@@ -506,6 +506,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
       <div class="sb-sub" id="cycle-sub">
         <div class="sb-item" onclick="showView('cycle')">Cycle Count Dashboard</div>
         <div class="sb-item" onclick="showView('countApproval')">Count Result Approval</div>
+        <div class="sb-item" data-view="countCalendar" onclick="showView('countCalendar')">Count Calendar</div>
       </div>
       <div class="sb-item" data-view="robots" onclick="showView('robots')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
@@ -1814,6 +1815,48 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         </div>
       </div>
 
+      <!-- ════ VIEW: COUNT SCHEDULE CALENDAR ════ -->
+      <div class="view" id="view-countCalendar">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:38px;height:38px;border-radius:8px;background:#EDE9FE;display:flex;align-items:center;justify-content:center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B21B6" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <div>
+              <div style="font-size:15px;font-weight:700;color:#1f2937">Count Schedule Calendar</div>
+              <div style="font-size:12px;color:#6b7280" id="ccal-subtitle">Confirmed Cycle Count &amp; Physical Count schedules</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <select class="cc-input" id="ccal-type-filter" style="font-size:12px;padding:5px 8px" onchange="ccalRender()">
+              <option value="">All Types</option>
+              <option value="CYCLE_COUNT">Cycle Count</option>
+              <option value="PHYSICAL_COUNT">Physical Count</option>
+            </select>
+            <button class="btn btn-secondary" onclick="ccalPrevMonth()" style="font-size:12px;padding:5px 10px">◀</button>
+            <span style="font-size:13px;font-weight:600;min-width:120px;text-align:center" id="ccal-month-label"></span>
+            <button class="btn btn-secondary" onclick="ccalNextMonth()" style="font-size:12px;padding:5px 10px">▶</button>
+            <button class="btn btn-primary" onclick="ccalRefresh()" style="font-size:12px;padding:6px 14px">Refresh</button>
+            <button class="btn btn-secondary" onclick="ccalShowAddForm()" style="font-size:12px;padding:6px 14px">+ Add Schedule</button>
+          </div>
+        </div>
+        <div id="ccal-add-form" style="display:none;margin-bottom:16px" class="card" style="padding:16px"></div>
+        <div class="card" style="padding:12px;margin-bottom:16px;overflow-x:auto">
+          <div id="ccal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;font-size:11px"></div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:12px 16px;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:13px;font-weight:600;color:#374151" id="ccal-list-title">Schedules this month</span>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="tbl" style="margin:0;font-size:12px">
+              <thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Customer</th><th>Method</th><th>Locations</th><th>Ticket</th><th>Task Status</th><th>Evidence</th><th>Notes</th></tr></thead>
+              <tbody id="ccal-tbody"><tr><td colspan="10" style="text-align:center;padding:32px;color:#9ca3af">Click Refresh to load count schedules.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- ════ VIEW: LOCATION TAG ════ -->
       <div class="view" id="view-locationTag">
         <!-- List subview -->
@@ -2222,6 +2265,7 @@ const VIEW_META = {
   scheduler: {t:'Scheduler', s:'Shift coverage, labor planning, and scheduled tasks'},
   cycle:     {t:'Cycle Count', s:'Accuracy, variances, and zone coverage'},
   countApproval: {t:'Count Result Approve', s:'Review and approve cycle count results'},
+  countCalendar: {t:'Count Schedule Calendar', s:'Confirmed Cycle Count and Physical Count schedules'},
   robots:    {t:'Robot Count', s:'Fleet status, battery, and throughput'},
   reports:   {t:'Reports', s:'Saved and scheduled warehouse reports'},
   alerts:    {t:'Alerts', s:'Critical, warning, and info alerts across systems'},
@@ -2273,6 +2317,7 @@ function showView(name, sub) {
   if (name === 'robots') { initRobotChart(); refreshOntologyStatus(); loadRobotKpisFromOntology(); }
   if (name === 'cycle') loadCycleCountView();
   if (name === 'countApproval') initCountApprovalView();
+  if (name === 'countCalendar') loadCountCalendarView();
   if (name === 'vlg') loadVlgData();
   if (name === 'locationTag') loadLocationTagData();
 
@@ -13808,6 +13853,268 @@ async function rsExecuteCreate() {
   }
   html += '<div style="margin-top:8px"><button class="btn btn-primary" onclick="document.getElementById(\'rs-confirm-panel\').style.display=\'none\'; RS_SELECTED.clear(); rsRefresh();" style="font-size:12px;padding:6px 14px">Done — Refresh Suggestions</button></div>';
   panel.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// COUNT SCHEDULE CALENDAR — Confirmed Cycle Count & Physical Count schedules
+// ═══════════════════════════════════════════════════════════════════════════
+
+let CCAL_MONTH = null; // Date object for first of displayed month
+let CCAL_WMS_TICKETS = [];
+let CCAL_LOCAL_SCHEDULES = [];
+
+function ccalGetLocalKey() { return 'count_calendar_' + FACILITY_ID; }
+
+function ccalLoadLocal() {
+  try { CCAL_LOCAL_SCHEDULES = JSON.parse(localStorage.getItem(ccalGetLocalKey()) || '[]'); } catch(_) { CCAL_LOCAL_SCHEDULES = []; }
+}
+function ccalSaveLocal() {
+  try { localStorage.setItem(ccalGetLocalKey(), JSON.stringify(CCAL_LOCAL_SCHEDULES)); } catch(_) {}
+}
+
+function loadCountCalendarView() {
+  if (!CCAL_MONTH) {
+    const now = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
+    CCAL_MONTH = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+  ccalLoadLocal();
+  ccalRefresh();
+}
+
+function ccalPrevMonth() { CCAL_MONTH.setMonth(CCAL_MONTH.getMonth() - 1); ccalRefresh(); }
+function ccalNextMonth() { CCAL_MONTH.setMonth(CCAL_MONTH.getMonth() + 1); ccalRefresh(); }
+
+async function ccalRefresh() {
+  const label = document.getElementById('ccal-month-label');
+  if (label) label.textContent = CCAL_MONTH.toLocaleDateString('en-US', {month:'long', year:'numeric'});
+  const tbody = document.getElementById('ccal-tbody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:#9ca3af"><span class="spinner"></span> Loading schedules…</td></tr>';
+
+  // Fetch WMS tickets for this month
+  const startOfMonth = new Date(CCAL_MONTH);
+  const endOfMonth = new Date(CCAL_MONTH.getFullYear(), CCAL_MONTH.getMonth() + 1, 0, 23, 59, 59);
+  CCAL_WMS_TICKETS = [];
+
+  if (WISE_TOKEN) {
+    const resp = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify({
+        currentPage: 1, pageSize: 100,
+        facilityId: FACILITY_ID, warehouseId: FACILITY_ID,
+        withCountLines: true,
+        scheduleDateFrom: startOfMonth.toISOString(),
+        scheduleDateTo: endOfMonth.toISOString(),
+      }),
+    });
+    if (resp && !resp._needsAuth) {
+      const d = resp.data || resp;
+      CCAL_WMS_TICKETS = (d.list || d.records || []).filter(r => r.scheduleDate);
+    }
+    // Fallback: if scheduleDateFrom filter not supported, use broader search
+    if (CCAL_WMS_TICKETS.length === 0) {
+      const resp2 = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','Accept':'application/json'},
+        body: JSON.stringify({ currentPage: 1, pageSize: 100, facilityId: FACILITY_ID, warehouseId: FACILITY_ID, withCountLines: true }),
+      });
+      if (resp2 && !resp2._needsAuth) {
+        const d2 = resp2.data || resp2;
+        const all = d2.list || d2.records || [];
+        CCAL_WMS_TICKETS = all.filter(t => {
+          if (!t.scheduleDate) return false;
+          const sd = new Date(t.scheduleDate);
+          return sd >= startOfMonth && sd <= endOfMonth;
+        });
+      }
+    }
+  }
+
+  ccalRender();
+}
+
+function ccalClassifyCategory(t) {
+  const cat = (t.countCategory || t.category || '').toUpperCase();
+  if (cat.includes('PHYSICAL') || cat.includes('FULL')) return 'PHYSICAL_COUNT';
+  return 'CYCLE_COUNT';
+}
+
+function ccalEventState(t) {
+  const status = (t.status || '').toUpperCase();
+  if (/CANCEL/.test(status)) return 'Cancelled';
+  if (/COMPLET|CLOSED|DONE|FINISH/.test(status)) {
+    return (t._hasResults) ? 'Completed' : 'Completed (no results)';
+  }
+  if (/PROGRESS|COUNTING/.test(status)) return 'Counting';
+  if (t._hasTask) return 'Task Created';
+  return 'Ticket Created';
+}
+
+function ccalRender() {
+  const typeFilter = (document.getElementById('ccal-type-filter') || {}).value || '';
+  const custLookup = {};
+  (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => custLookup[c.id] = c.name);
+
+  // Merge local confirmed schedules and WMS tickets
+  const events = [];
+
+  // WMS tickets
+  CCAL_WMS_TICKETS.forEach(t => {
+    const cat = ccalClassifyCategory(t);
+    if (typeFilter && cat !== typeFilter) return;
+    const sd = t.scheduleDate ? new Date(t.scheduleDate) : null;
+    if (!sd) return;
+    events.push({
+      date: sd,
+      dateStr: sd.toISOString().slice(0, 10),
+      type: cat,
+      category: t.countCategory || t.category || '—',
+      customer: custLookup[t.customerId] || t.customerId || '—',
+      customerId: t.customerId,
+      method: t.countMethod || t.method || '—',
+      countType: t.type || '—',
+      locs: (t.countLines || []).length,
+      ticketId: t.id,
+      status: t.status || '—',
+      state: ccalEventState(t),
+      notes: t.name || '',
+      source: 'wms',
+    });
+  });
+
+  // Local confirmed schedules
+  CCAL_LOCAL_SCHEDULES.forEach(s => {
+    if (typeFilter && s.type !== typeFilter) return;
+    const sd = new Date(s.date + 'T00:00:00');
+    if (sd.getMonth() !== CCAL_MONTH.getMonth() || sd.getFullYear() !== CCAL_MONTH.getFullYear()) return;
+    // Check if linked to a WMS ticket
+    const linked = events.find(e => e.dateStr === s.date && e.customerId === s.customerId && e.type === s.type);
+    if (linked) { linked.notes = linked.notes || s.notes; return; }
+    events.push({
+      date: sd,
+      dateStr: s.date,
+      type: s.type,
+      category: s.type === 'PHYSICAL_COUNT' ? 'Physical Count' : 'Cycle Count',
+      customer: custLookup[s.customerId] || s.customerId || '—',
+      customerId: s.customerId,
+      method: s.method || '—',
+      countType: s.countType || '—',
+      locs: s.locationCount || 0,
+      ticketId: '',
+      status: '—',
+      state: 'Confirmed / Not Created',
+      notes: s.notes || '',
+      source: 'local',
+    });
+  });
+
+  events.sort((a, b) => a.date - b.date);
+
+  // Render calendar grid
+  ccalRenderGrid(events);
+
+  // Render list
+  const tbody = document.getElementById('ccal-tbody');
+  const listTitle = document.getElementById('ccal-list-title');
+  if (listTitle) listTitle.textContent = events.length + ' schedule(s) in ' + CCAL_MONTH.toLocaleDateString('en-US', {month:'long', year:'numeric'});
+
+  if (events.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:#9ca3af">No count schedules found for this month.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = events.map(e => {
+    const dateFmt = e.date.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+    const typeLabel = e.type === 'PHYSICAL_COUNT' ? '<span style="color:#dc2626;font-weight:600">Physical</span>' : '<span style="color:#5B21B6;font-weight:600">Cycle</span>';
+    const stateCls = /Completed(?! \(no)/.test(e.state) ? 'color:#059669' : /Cancelled/.test(e.state) ? 'color:#9ca3af;text-decoration:line-through' : /Counting|Task/.test(e.state) ? 'color:#d97706' : /Not Created/.test(e.state) ? 'color:#2563eb' : 'color:#374151';
+    const evidenceBadge = /Completed \(no/.test(e.state) ? '<span style="color:#dc2626;font-size:10px">Empty/Invalid</span>' : /Completed/.test(e.state) ? '<span style="color:#059669;font-size:10px">Has Results</span>' : '—';
+    return '<tr>' +
+      '<td style="font-size:12px;white-space:nowrap">' + esc(dateFmt) + '</td>' +
+      '<td>' + typeLabel + '</td>' +
+      '<td style="font-size:11px">' + esc(e.category) + '</td>' +
+      '<td style="font-size:12px">' + esc(String(e.customer).slice(0, 22)) + '</td>' +
+      '<td style="font-size:11px">' + esc(e.method) + '</td>' +
+      '<td>' + (e.locs > 0 ? e.locs + ' loc' + (e.locs > 1 ? 's' : '') : '<span style="color:#9ca3af">—</span>') + '</td>' +
+      '<td style="font-family:monospace;font-size:11px;color:#753BBD">' + (e.ticketId ? esc(e.ticketId) : '<span style="color:#9ca3af">—</span>') + '</td>' +
+      '<td style="font-size:11px;' + stateCls + '">' + esc(e.state) + '</td>' +
+      '<td>' + evidenceBadge + '</td>' +
+      '<td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(e.notes || '—') + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function ccalRenderGrid(events) {
+  const grid = document.getElementById('ccal-grid');
+  if (!grid) return;
+  const year = CCAL_MONTH.getFullYear();
+  const month = CCAL_MONTH.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayStr = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'})).toISOString().slice(0, 10);
+
+  // Group events by date
+  const byDate = {};
+  events.forEach(e => { if (!byDate[e.dateStr]) byDate[e.dateStr] = []; byDate[e.dateStr].push(e); });
+
+  let html = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => '<div style="text-align:center;font-weight:600;color:#6b7280;padding:4px">' + d + '</div>').join('');
+  for (let i = 0; i < firstDay; i++) html += '<div style="padding:4px"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+    const isToday = ds === todayStr;
+    const dayEvents = byDate[ds] || [];
+    const bg = isToday ? '#F3EEFF' : (dayEvents.length > 0 ? '#f9fafb' : '#fff');
+    const border = isToday ? '2px solid #753BBD' : '1px solid #e5e7eb';
+    let dots = '';
+    dayEvents.forEach(e => {
+      const color = e.type === 'PHYSICAL_COUNT' ? '#dc2626' : '#5B21B6';
+      dots += '<div style="width:6px;height:6px;border-radius:50%;background:' + color + ';display:inline-block;margin:0 1px" title="' + esc(e.state) + '"></div>';
+    });
+    html += '<div style="padding:4px 6px;min-height:42px;border:' + border + ';border-radius:4px;background:' + bg + '">' +
+      '<div style="font-weight:' + (isToday ? '700' : '400') + ';color:' + (isToday ? '#5B21B6' : '#374151') + '">' + d + '</div>' +
+      (dots ? '<div style="margin-top:2px">' + dots + '</div>' : '') +
+      '</div>';
+  }
+  grid.innerHTML = html;
+}
+
+function ccalShowAddForm() {
+  const form = document.getElementById('ccal-add-form');
+  const nowLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
+  const todayStr = nowLA.getFullYear() + '-' + String(nowLA.getMonth()+1).padStart(2,'0') + '-' + String(nowLA.getDate()).padStart(2,'0');
+  const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
+  const custOpts = customers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
+  form.style.display = '';
+  form.innerHTML = '<div style="padding:16px"><div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:12px">Add Confirmed Count Schedule</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Date</label><input type="date" class="cc-input" id="ccal-add-date" value="' + todayStr + '"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Type</label><select class="cc-input" id="ccal-add-type"><option value="CYCLE_COUNT">Cycle Count</option><option value="PHYSICAL_COUNT">Physical Count</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Customer</label><select class="cc-input" id="ccal-add-customer"><option value="">—</option>' + custOpts + '</select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Count Type</label><select class="cc-input" id="ccal-add-counttype"><option value="BY_LOCATION">By Location</option><option value="BY_ITEM">By Item</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Method</label><select class="cc-input" id="ccal-add-method"><option value="PIECE">PIECE</option><option value="CASE">CASE</option><option value="PALLET">PALLET</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Location Count</label><input type="number" class="cc-input" id="ccal-add-locs" value="0" min="0"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Notes</label><input class="cc-input" id="ccal-add-notes" placeholder="Optional notes"/></div>' +
+    '</div>' +
+    '<div style="margin-top:12px;display:flex;gap:8px">' +
+    '<button class="btn btn-primary" onclick="ccalSaveNewSchedule()" style="font-size:12px;padding:6px 14px">Save Confirmed Schedule</button>' +
+    '<button class="btn btn-secondary" onclick="document.getElementById(\'ccal-add-form\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Cancel</button>' +
+    '</div></div>';
+}
+
+function ccalSaveNewSchedule() {
+  const date = (document.getElementById('ccal-add-date') || {}).value;
+  const type = (document.getElementById('ccal-add-type') || {}).value;
+  const customerId = (document.getElementById('ccal-add-customer') || {}).value;
+  const countType = (document.getElementById('ccal-add-counttype') || {}).value;
+  const method = (document.getElementById('ccal-add-method') || {}).value;
+  const locationCount = parseInt((document.getElementById('ccal-add-locs') || {}).value, 10) || 0;
+  const notes = (document.getElementById('ccal-add-notes') || {}).value || '';
+  if (!date) { alert('Date is required.'); return; }
+  ccalLoadLocal();
+  CCAL_LOCAL_SCHEDULES.push({ date, type, customerId, countType, method, locationCount, notes, createdAt: new Date().toISOString() });
+  ccalSaveLocal();
+  document.getElementById('ccal-add-form').style.display = 'none';
+  ccalRender();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
