@@ -519,6 +519,10 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg>
         Replenish
       </div>
+      <div class="sb-item" data-view="replenSuggest" onclick="showView('replenSuggest')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><circle cx="12" cy="12" r="4"/></svg>
+        Replen Suggest
+      </div>
       <div class="sb-item" data-view="vlg" onclick="showView('vlg')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M8 7v10"/><path d="M16 7v10"/><path d="M2 12h20"/></svg>
         VLG Management
@@ -1588,6 +1592,40 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         </div>
       </div>
 
+      <!-- ════ VIEW: REPLENISHMENT SUGGESTIONS ════ -->
+      <div class="view" id="view-replenSuggest">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:38px;height:38px;border-radius:8px;background:#F3EEFF;display:flex;align-items:center;justify-content:center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5F2E98" stroke-width="2"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><circle cx="12" cy="12" r="4"/></svg>
+            </div>
+            <div>
+              <div style="font-size:15px;font-weight:700;color:#1f2937">Next-Day Replenishment Suggestions</div>
+              <div style="font-size:12px;color:#6b7280" id="rs-date-label">Loading…</div>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="rsRefresh()" style="font-size:12px;padding:6px 14px" id="rs-refresh-btn">Refresh Suggestions</button>
+        </div>
+        <div class="kpi-grid" id="rs-kpis" style="margin-bottom:16px">
+          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M9 11l3 3L22 4"/></svg></div><div><div class="kpi-lbl">Order Plans</div><div class="kpi-val" id="rs-kpi-plans">—</div><div class="kpi-chg neutral">next-day demand</div></div></div>
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div><div><div class="kpi-lbl">Items Need Replen</div><div class="kpi-val" id="rs-kpi-items">—</div><div class="kpi-chg neutral">shortage lines</div></div></div>
+          <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Already Covered</div><div class="kpi-val" id="rs-kpi-covered">—</div><div class="kpi-chg neutral">open replen tasks</div></div></div>
+          <div class="kpi"><div class="kpi-ico orange"><svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div><div class="kpi-lbl">Action Needed</div><div class="kpi-val" id="rs-kpi-action">—</div><div class="kpi-chg neutral">gaps to fill</div></div></div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:12px 16px;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <span style="font-size:13px;font-weight:600;color:#374151" id="rs-result-count">Suggestions</span>
+            <input class="cc-input" id="rs-search" placeholder="Filter by customer, item, location…" style="width:220px;font-size:12px;padding:5px 10px" oninput="rsFilterTable()"/>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="tbl" style="margin:0;font-size:12px">
+              <thead><tr><th>Customer</th><th>Order Plan</th><th>Item</th><th>Qty</th><th>UOM</th><th>Pick Type</th><th>Task Status</th><th>Recommendation</th></tr></thead>
+              <tbody id="rs-tbody"><tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af">Click "Refresh Suggestions" to load next-day replenishment demand.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- ════ VIEW: VLG MANAGEMENT ════ -->
       <div class="view" id="view-vlg">
         <!-- List subview -->
@@ -2151,6 +2189,7 @@ const VIEW_META = {
   settings:  {t:'Settings', s:'Account, notifications, and integrations'},
   consolidation: {t:'Consolidation', s:'Consolidate inventory across locations to optimize space'},
   replenish: {t:'Replenish', s:'Replenishment tasks to restock pick locations from reserve'},
+  replenSuggest: {t:'Replenishment Suggestions', s:'Next-day pick-face replenishment suggestions based on order demand and shipping rules'},
   vlg: {t:'VLG Management', s:'Virtual Location Groups — manage grouping of locations by customer and type'},
   locationTag: {t:'Location Tag', s:'Location tags and tagged location counts'}
 };
@@ -2190,6 +2229,7 @@ function showView(name, sub) {
   // lazy-init view-specific content
   if (name === 'consolidation') loadConsolidationView();
   if (name === 'replenish') loadReplenishView();
+  if (name === 'replenSuggest') loadReplenSuggestView();
   if (name === 'scheduler') initSchedulerForm();
   if (name === 'robots') { initRobotChart(); refreshOntologyStatus(); loadRobotKpisFromOntology(); }
   if (name === 'cycle') loadCycleCountView();
@@ -12956,6 +12996,227 @@ function ltagAddLocationPrompt() {
 if (WISE_TOKEN || hasStoredRefreshToken()) {
   document.getElementById('login-screen').style.display = 'none';
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// REPLENISHMENT SUGGESTIONS — Next-Day Demand Analysis
+// Ontology-verified endpoints:
+//   POST /api/wms/outbound/order-plan/search-by-paging (find order plans)
+//   POST /api/wms-bam/outbound/order-plan/items-need-replenishment (shortage items)
+//   POST /api/wms/outbound/replenishment-task/search-by-paging (existing tasks)
+// ═══════════════════════════════════════════════════════════════════════════
+
+let RS_DATA = [];
+let RS_OPEN_TASKS = [];
+
+function loadReplenSuggestView() {
+  const lbl = document.getElementById('rs-date-label');
+  if (lbl) {
+    const tomorrow = rsGetTomorrow();
+    lbl.textContent = 'Target: ' + tomorrow.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', year:'numeric'}) + ' (America/Los_Angeles)';
+  }
+}
+
+function rsGetTomorrow() {
+  const now = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
+  const tmr = new Date(now);
+  tmr.setDate(now.getDate() + 1);
+  tmr.setHours(0,0,0,0);
+  return tmr;
+}
+
+async function rsRefresh() {
+  const btn = document.getElementById('rs-refresh-btn');
+  const tbody = document.getElementById('rs-tbody');
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af"><span class="spinner"></span> Searching next-day order plans…</td></tr>';
+
+  RS_DATA = [];
+  RS_OPEN_TASKS = [];
+
+  if (!WISE_TOKEN) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#ef4444">Please sign in to load replenishment suggestions.</td></tr>';
+    if (btn) { btn.disabled = false; btn.textContent = 'Refresh Suggestions'; }
+    return;
+  }
+
+  // Step 1: Find order plans with next-day demand (statuses that need replenishment)
+  const tomorrow = rsGetTomorrow();
+  const tomorrowEnd = new Date(tomorrow);
+  tomorrowEnd.setHours(23,59,59,999);
+
+  const planResp = await safeFetch(WMS_BASE + '/api/wms/outbound/order-plan/search-by-paging', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      currentPage: 1,
+      pageSize: 30,
+      statuses: ['PICK_SUGGESTED','TASK_CREATED','RELEASED'],
+      createdTimeFrom: tomorrow.toISOString(),
+      createdTimeTo: tomorrowEnd.toISOString(),
+    }),
+  });
+
+  // Also try without date filter as plans may have been created earlier for next-day ship
+  let plans = [];
+  if (planResp && !planResp._needsAuth) {
+    const d = planResp.data || planResp;
+    plans = d.list || d.records || [];
+  }
+
+  // If date-filtered search returned nothing, try broader search (recent plans in active states)
+  if (plans.length === 0) {
+    const broadResp = await safeFetch(WMS_BASE + '/api/wms/outbound/order-plan/search-by-paging', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        currentPage: 1,
+        pageSize: 20,
+        statuses: ['PICK_SUGGESTED','TASK_CREATED','RELEASED'],
+      }),
+    });
+    if (broadResp && !broadResp._needsAuth) {
+      const d = broadResp.data || broadResp;
+      plans = d.list || d.records || [];
+    }
+  }
+
+  if (!planResp && !WISE_TOKEN) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#ef4444">Unable to reach the order plan service. Check your connection and try again.</td></tr>';
+    if (btn) { btn.disabled = false; btn.textContent = 'Refresh Suggestions'; }
+    return;
+  }
+
+  // Step 2: For each plan, get items needing replenishment
+  if (plans.length > 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af"><span class="spinner"></span> Checking replenishment needs for ' + plans.length + ' plan(s)…</td></tr>';
+
+    const itemFetches = plans.slice(0, 15).map(async (plan) => {
+      const resp = await safeFetch(WMS_BASE + '/api/wms-bam/outbound/order-plan/items-need-replenishment', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ mode: 'ORDER_PLAN', id: plan.id }),
+      });
+      if (!resp || resp._needsAuth) return [];
+      const items = (resp.data || resp);
+      if (!Array.isArray(items)) return [];
+      return items.map(item => ({
+        planId: plan.id,
+        customerId: plan.customerId || '',
+        customerName: plan.customerName || plan.customerId || '—',
+        itemId: item.itemId,
+        itemName: item.itemName || item.itemId || '—',
+        qty: item.qty || 0,
+        uom: item.uomName || item.uomId || 'EA',
+        pickType: item.replenishLocationPickType || '—',
+        shippingRule: plan.shippingRule || '',
+      }));
+    });
+
+    const results = await Promise.all(itemFetches);
+    results.forEach(arr => { if (arr) RS_DATA.push(...arr); });
+  }
+
+  // Step 3: Check existing open replenishment tasks
+  const taskResp = await safeFetch(WMS_BASE + '/api/wms/outbound/replenishment-task/search-by-paging', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      currentPage: 1,
+      pageSize: 50,
+      statuses: ['NEW','IN_PROGRESS','EXCEPTION','NEEDS_APPROVAL'],
+    }),
+  });
+  if (taskResp && !taskResp._needsAuth) {
+    const td = taskResp.data || taskResp;
+    RS_OPEN_TASKS = td.list || td.records || [];
+  }
+
+  // Step 4: Render
+  rsRender();
+  if (btn) { btn.disabled = false; btn.textContent = 'Refresh Suggestions'; }
+}
+
+function rsRender() {
+  const tbody = document.getElementById('rs-tbody');
+  const openTaskPlanIds = new Set(RS_OPEN_TASKS.map(t => t.orderPlanId).filter(Boolean));
+  const openTaskItemIds = new Set(RS_OPEN_TASKS.flatMap(t => (t.taskSteps || []).map(s => s.itemId)).filter(Boolean));
+
+  // Annotate each suggestion with coverage status
+  const suggestions = RS_DATA.map(row => {
+    let taskStatus = 'No Task';
+    let recommendation = 'Create replenishment';
+    if (openTaskPlanIds.has(row.planId)) {
+      taskStatus = 'Covered';
+      recommendation = 'Already in progress';
+    } else if (openTaskItemIds.has(row.itemId)) {
+      taskStatus = 'Partial';
+      recommendation = 'Check existing task qty';
+    }
+    return { ...row, taskStatus, recommendation };
+  });
+
+  // KPIs
+  const planIds = new Set(RS_DATA.map(r => r.planId));
+  const coveredCount = suggestions.filter(s => s.taskStatus === 'Covered').length;
+  const actionCount = suggestions.filter(s => s.taskStatus === 'No Task').length;
+
+  document.getElementById('rs-kpi-plans').textContent = planIds.size || '0';
+  document.getElementById('rs-kpi-items').textContent = RS_DATA.length || '0';
+  document.getElementById('rs-kpi-covered').textContent = coveredCount || '0';
+  document.getElementById('rs-kpi-action').textContent = actionCount || '0';
+
+  if (suggestions.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af">' +
+      '<div style="margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>' +
+      '<strong style="color:#6b7280">No replenishment gaps found</strong><br>' +
+      '<span style="font-size:12px">No items need replenishment for the active order plans, or no plans exist in PICK_SUGGESTED / TASK_CREATED / RELEASED status. Pick locations appear ready for next-day demand.</span>' +
+      '</td></tr>';
+    document.getElementById('rs-result-count').textContent = 'No suggestions';
+    return;
+  }
+
+  document.getElementById('rs-result-count').textContent = suggestions.length + ' suggestion' + (suggestions.length !== 1 ? 's' : '');
+
+  tbody.innerHTML = suggestions.map(s => {
+    const statusCls = s.taskStatus === 'Covered' ? 'style="color:#059669;font-weight:600"' :
+                      s.taskStatus === 'Partial' ? 'style="color:#d97706;font-weight:600"' :
+                      'style="color:#dc2626;font-weight:600"';
+    const recStyle = s.taskStatus === 'Covered' ? 'color:#6b7280' : 'color:#1f2937;font-weight:600';
+    const ruleTag = s.shippingRule ? '<span style="display:inline-block;font-size:10px;padding:1px 5px;border-radius:3px;background:#EDE9FE;color:#5B21B6;margin-left:4px">' + esc(s.shippingRule) + '</span>' : '';
+    return '<tr>' +
+      '<td style="font-size:12px">' + esc(String(s.customerName).slice(0, 25)) + '</td>' +
+      '<td style="font-family:monospace;font-size:11px;color:#753BBD">' + esc(String(s.planId).slice(-8)) + '</td>' +
+      '<td title="' + esc(s.itemId) + '">' + esc(String(s.itemName).slice(0, 30)) + ruleTag + '</td>' +
+      '<td style="font-weight:600">' + esc(String(s.qty)) + '</td>' +
+      '<td style="font-size:11px;color:#6b7280">' + esc(s.uom) + '</td>' +
+      '<td><span style="font-size:11px;padding:2px 6px;border-radius:3px;background:#F3F4F6;color:#374151">' + esc(s.pickType) + '</span></td>' +
+      '<td><span ' + statusCls + '>' + esc(s.taskStatus) + '</span></td>' +
+      '<td style="font-size:12px;' + recStyle + '">' + esc(s.recommendation) + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function rsFilterTable() {
+  const q = (document.getElementById('rs-search').value || '').toLowerCase().trim();
+  if (!q) { rsRender(); return; }
+  const orig = RS_DATA;
+  const openTaskPlanIds = new Set(RS_OPEN_TASKS.map(t => t.orderPlanId).filter(Boolean));
+  const tbody = document.getElementById('rs-tbody');
+  const filtered = RS_DATA.filter(r => {
+    const hay = [r.customerName, r.itemName, r.itemId, r.planId, r.pickType, r.shippingRule].join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#9ca3af">No suggestions match "' + esc(q) + '"</td></tr>';
+    return;
+  }
+  // Temporarily swap data for render
+  const backup = RS_DATA;
+  RS_DATA = filtered;
+  rsRender();
+  RS_DATA = backup;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════════════════
 // CONSOLIDATION PAGE — BULK / Rack tabs
