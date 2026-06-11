@@ -12292,7 +12292,8 @@ async function submitCycleCount() {
         });
         if (dupList.length > 0) {
           const existingTicket = dupList[0];
-          results.push({customerId, ticketId: existingTicket.id, ok:true, payload, reused: true, msg: 'Today\'s count ticket already exists (' + existingTicket.id + '). Using existing ticket.'});
+          const reusedPayload = Object.assign({}, commonFields, {name: baseName + nameSuffix, customerId: customerId});
+          results.push({customerId, ticketId: existingTicket.id, ok:true, payload: reusedPayload, reused: true, msg: 'Today\'s count ticket already exists (' + existingTicket.id + '). Using existing ticket.'});
           // Check if task already exists for this ticket before auto-assign
           if (commonFields.counterUserId) {
             const taskCheck = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging', {
