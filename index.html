@@ -1625,24 +1625,24 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
             <div style="display:flex;align-items:center;gap:8px">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              <span style="font-size:13px;font-weight:700;color:#1f2937">Autonomous Functions</span>
+              <span style="font-size:13px;font-weight:700;color:#1f2937">Task Creation Mode</span>
             </div>
-            <span style="font-size:11px;color:#6b7280;background:#f3f4f6;padding:2px 8px;border-radius:4px" id="rs-auto-mode-label">Mode: Read-only suggestions</span>
+            <span style="font-size:11px;color:#fff;background:#753BBD;padding:2px 8px;border-radius:4px" id="rs-auto-mode-label">Mode: Suggest + confirm</span>
           </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;font-size:12px">
-            <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #e5e7eb;cursor:pointer;background:#f9fafb">
-              <input type="radio" name="rs-auto-mode" value="readonly" checked onchange="rsOnModeChange()" style="accent-color:#753BBD"/> Read-only suggestions</label>
-            <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #e5e7eb;cursor:pointer;background:#f9fafb">
-              <input type="radio" name="rs-auto-mode" value="suggest-confirm" onchange="rsOnModeChange()" style="accent-color:#753BBD"/> Suggest + confirm</label>
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #753BBD;cursor:pointer;background:#F7F2FF">
+              <input type="radio" name="rs-auto-mode" value="suggest-confirm" checked onchange="rsOnModeChange()" style="accent-color:#753BBD"/> Suggest + confirm</label>
             <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #e5e7eb;cursor:pointer;background:#f9fafb">
               <input type="radio" name="rs-auto-mode" value="auto-create" onchange="rsOnModeChange()" style="accent-color:#753BBD"/> Auto-create unassigned</label>
             <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #e5e7eb;cursor:pointer;background:#f9fafb">
               <input type="radio" name="rs-auto-mode" value="auto-assign" onchange="rsOnModeChange()" style="accent-color:#753BBD"/> Auto-create + assign</label>
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #e5e7eb;cursor:pointer;background:#f9fafb">
+              <input type="radio" name="rs-auto-mode" value="readonly" onchange="rsOnModeChange()" style="accent-color:#753BBD"/> View only (no action)</label>
             <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #fecaca;cursor:not-allowed;background:#fef2f2;color:#9ca3af">
               <input type="radio" name="rs-auto-mode" value="auto-dispatch" disabled style="accent-color:#9ca3af"/> Auto + dispatch <span style="font-size:10px;background:#FEE2E2;color:#991B1B;padding:0 4px;border-radius:3px;margin-left:2px">Locked</span></label>
           </div>
           <div style="margin-top:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap" id="rs-action-bar">
-            <button class="btn btn-primary" id="rs-create-btn" onclick="rsShowConfirmation()" style="font-size:12px;padding:6px 14px;display:none">Create Selected Replenishment Tasks</button>
+            <button class="btn btn-primary" id="rs-create-btn" onclick="rsShowConfirmation()" style="font-size:12px;padding:6px 14px">Create Selected Tasks</button>
             <span style="font-size:11px;color:#6b7280" id="rs-selection-count"></span>
           </div>
           <div id="rs-confirm-panel" style="display:none;margin-top:12px;padding:14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px"></div>
@@ -13515,17 +13515,18 @@ let RS_SELECTED = new Set();
 
 function rsGetMode() {
   const el = document.querySelector('input[name="rs-auto-mode"]:checked');
-  return el ? el.value : 'readonly';
+  return el ? el.value : 'suggest-confirm';
 }
 
 function rsOnModeChange() {
   const mode = rsGetMode();
-  const labels = {readonly:'Read-only suggestions','suggest-confirm':'Suggest + confirm','auto-create':'Auto-create unassigned','auto-assign':'Auto-create + assign'};
-  document.getElementById('rs-auto-mode-label').textContent = 'Mode: ' + (labels[mode] || mode);
+  const labels = {'suggest-confirm':'Suggest + confirm','auto-create':'Auto-create unassigned','auto-assign':'Auto-create + assign','readonly':'View only'};
+  const lbl = document.getElementById('rs-auto-mode-label');
+  lbl.textContent = 'Mode: ' + (labels[mode] || mode);
+  lbl.style.background = mode === 'readonly' ? '#f3f4f6' : '#753BBD';
+  lbl.style.color = mode === 'readonly' ? '#6b7280' : '#fff';
   const btn = document.getElementById('rs-create-btn');
   if (btn) btn.style.display = mode === 'readonly' ? 'none' : '';
-  const selCol = document.getElementById('rs-select-col');
-  if (selCol) selCol.innerHTML = mode !== 'readonly' ? '<input type="checkbox" onchange="rsToggleAll(this.checked)" style="accent-color:#753BBD"/>' : '';
   RS_SELECTED.clear();
   rsUpdateSelectionCount();
   rsRender();
