@@ -9991,11 +9991,13 @@ async function initSchedulerForm() {
   if (CC.schedulerInitDone) return;
   CC.schedulerInitDone = true;
 
-  // Default release time: tomorrow at 08:00 local; target: a week after that
-  const release = new Date();
-  release.setDate(release.getDate() + 1);
+  // Default release time: today at 08:00 local (America/Los_Angeles);
+  // target: end of today. Tasks should only be created for today's date.
+  const nowLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
+  const release = new Date(nowLA);
   release.setHours(8, 0, 0, 0);
-  const target = new Date(release.getTime() + 7*24*60*60*1000);
+  const target = new Date(nowLA);
+  target.setHours(23, 59, 0, 0);
   // datetime-local expects "YYYY-MM-DDTHH:MM" in *local* time
   const fmtLocal = d => {
     const pad = n => String(n).padStart(2,'0');
@@ -12123,8 +12125,25 @@ function toIsoSchedule(local) {
   return local.length === 16 ? local + ':00' : local;
 }
 
+function ccIsScheduleDateToday(schedDateStr) {
+  if (!schedDateStr) return false;
+  const nowLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
+  const todayStr = nowLA.getFullYear() + '-' + String(nowLA.getMonth()+1).padStart(2,'0') + '-' + String(nowLA.getDate()).padStart(2,'0');
+  return schedDateStr.slice(0, 10) === todayStr;
+}
+
 async function submitCycleCount() {
   const btn = document.getElementById('cc-submit-btn');
+
+  // GUARDRAIL: Only create tasks for today's date (America/Los_Angeles)
+  const schedDateVal = (document.getElementById('cc-sched-date') || {}).value || '';
+  if (!ccIsScheduleDateToday(schedDateVal)) {
+    const nowLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
+    const todayLabel = nowLA.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', year:'numeric'});
+    alert('Cycle count tasks can only be created for today (' + todayLabel + ').\n\nThe selected schedule date (' + (schedDateVal ? schedDateVal.slice(0,10) : 'none') + ') is not today. Please adjust the Schedule Date to today before creating the task.');
+    return;
+  }
+
   const quotaNum = parseInt(document.getElementById('cc-quota-num').value, 10);
   const counter = resolveCounter(document.getElementById('cc-counter').value);
   const baseName = document.getElementById('cc-name').value.trim();
