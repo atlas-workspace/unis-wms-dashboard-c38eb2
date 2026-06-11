@@ -1631,19 +1631,21 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;font-size:12px">
             <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #e5e7eb;cursor:pointer;background:#f9fafb">
-              <input type="radio" name="rs-auto-mode" value="readonly" checked style="accent-color:#753BBD"/> Read-only suggestions</label>
+              <input type="radio" name="rs-auto-mode" value="readonly" checked onchange="rsOnModeChange()" style="accent-color:#753BBD"/> Read-only suggestions</label>
             <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #e5e7eb;cursor:pointer;background:#f9fafb">
-              <input type="radio" name="rs-auto-mode" value="suggest-confirm" style="accent-color:#753BBD"/> Suggest + confirm</label>
-            <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #d1d5db;cursor:not-allowed;background:#f3f4f6;color:#9ca3af">
-              <input type="radio" name="rs-auto-mode" value="auto-create" disabled style="accent-color:#9ca3af"/> Auto-create unassigned <span style="font-size:10px;background:#FEF3C7;color:#92400E;padding:0 4px;border-radius:3px;margin-left:2px">Not configured</span></label>
-            <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #d1d5db;cursor:not-allowed;background:#f3f4f6;color:#9ca3af">
-              <input type="radio" name="rs-auto-mode" value="auto-assign" disabled style="accent-color:#9ca3af"/> Auto-create + assign <span style="font-size:10px;background:#FEF3C7;color:#92400E;padding:0 4px;border-radius:3px;margin-left:2px">Not configured</span></label>
+              <input type="radio" name="rs-auto-mode" value="suggest-confirm" onchange="rsOnModeChange()" style="accent-color:#753BBD"/> Suggest + confirm</label>
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #e5e7eb;cursor:pointer;background:#f9fafb">
+              <input type="radio" name="rs-auto-mode" value="auto-create" onchange="rsOnModeChange()" style="accent-color:#753BBD"/> Auto-create unassigned</label>
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #e5e7eb;cursor:pointer;background:#f9fafb">
+              <input type="radio" name="rs-auto-mode" value="auto-assign" onchange="rsOnModeChange()" style="accent-color:#753BBD"/> Auto-create + assign</label>
             <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #fecaca;cursor:not-allowed;background:#fef2f2;color:#9ca3af">
               <input type="radio" name="rs-auto-mode" value="auto-dispatch" disabled style="accent-color:#9ca3af"/> Auto + dispatch <span style="font-size:10px;background:#FEE2E2;color:#991B1B;padding:0 4px;border-radius:3px;margin-left:2px">Locked</span></label>
           </div>
-          <div style="margin-top:10px;font-size:11px;color:#6b7280;line-height:1.5">
-            Task creation modes require verified WMS endpoint schemas and explicit approval. Currently operating in read-only mode — suggestions are displayed but no tasks are created or assigned in WMS.
+          <div style="margin-top:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap" id="rs-action-bar">
+            <button class="btn btn-primary" id="rs-create-btn" onclick="rsShowConfirmation()" style="font-size:12px;padding:6px 14px;display:none">Create Selected Replenishment Tasks</button>
+            <span style="font-size:11px;color:#6b7280" id="rs-selection-count"></span>
           </div>
+          <div id="rs-confirm-panel" style="display:none;margin-top:12px;padding:14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px"></div>
         </div>
 
         <div class="card" style="padding:0;overflow:hidden">
@@ -1656,8 +1658,8 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           </div>
           <div style="overflow-x:auto">
             <table class="tbl" style="margin:0;font-size:12px">
-              <thead><tr><th>Customer</th><th>Order Plan</th><th>Item</th><th>Qty</th><th>UOM</th><th>Pick Type</th><th>From Location</th><th>To Location</th><th>Assignee</th><th>Task Status</th><th>Recommendation</th><th>Note</th></tr></thead>
-              <tbody id="rs-tbody"><tr><td colspan="12" style="text-align:center;padding:40px;color:#9ca3af">Click "Refresh Suggestions" to load next-day replenishment demand.</td></tr></tbody>
+              <thead><tr><th style="width:32px" id="rs-select-col"></th><th>Customer</th><th>Order Plan</th><th>Item</th><th>Qty</th><th>UOM</th><th>Pick Type</th><th>From Location</th><th>To Location</th><th>Assignee</th><th>Task Status</th><th>Recommendation</th><th>Note</th></tr></thead>
+              <tbody id="rs-tbody"><tr><td colspan="13" style="text-align:center;padding:40px;color:#9ca3af">Click "Refresh Suggestions" to load next-day replenishment demand.</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -13376,6 +13378,8 @@ function rsRender() {
   document.getElementById('rs-result-count').textContent = displayRows.length + (consolidated ? ' consolidated' : '') + ' suggestion' + (displayRows.length !== 1 ? 's' : '');
 
   tbody.innerHTML = displayRows.map(s => {
+    const mode = rsGetMode();
+    const rowKey = rsRowKey(s);
     const statusCls = s.taskStatus === 'Covered' ? 'style="color:#059669;font-weight:600"' :
                       s.taskStatus === 'Partial' ? 'style="color:#d97706;font-weight:600"' :
                       'style="color:#dc2626;font-weight:600"';
@@ -13386,7 +13390,9 @@ function rsRender() {
     const planCell = s.planDetail ? '<span title="' + esc(s.planDetail) + '" style="cursor:help;border-bottom:1px dotted #9ca3af">' + esc(s.planLabel) + '</span>' : esc(s.planLabel);
     const noteCell = s.note ? '<span style="color:#b45309;font-size:11px" title="' + esc(s.note) + '">' + esc(String(s.note).slice(0, 40)) + (s.note.length > 40 ? '…' : '') + '</span>' : '<span style="color:#d1d5db">—</span>';
     const assigneeCell = s.assignee ? '<span style="font-size:11px;color:#374151">' + esc(String(s.assignee).slice(0, 20)) + '</span>' : '<span style="color:#9ca3af;font-style:italic;font-size:11px">Not assigned</span>';
+    const checkCell = mode !== 'readonly' ? '<td><input type="checkbox" data-key="' + escAttr(rowKey) + '" onchange="rsToggleRow(\'' + escAttr(rowKey) + '\',this.checked)" ' + (RS_SELECTED.has(rowKey) ? 'checked' : '') + ' style="accent-color:#753BBD"/></td>' : '<td></td>';
     return '<tr>' +
+      checkCell +
       '<td style="font-size:12px">' + esc(String(s.customerName).slice(0, 25)) + '</td>' +
       '<td style="font-family:monospace;font-size:11px;color:#753BBD">' + planCell + '</td>' +
       '<td title="' + esc(s.itemId) + '">' + esc(String(s.itemName).slice(0, 30)) + ruleTag + '</td>' +
@@ -13503,6 +13509,172 @@ function rsExportExcel() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+let RS_SELECTED = new Set();
+
+function rsGetMode() {
+  const el = document.querySelector('input[name="rs-auto-mode"]:checked');
+  return el ? el.value : 'readonly';
+}
+
+function rsOnModeChange() {
+  const mode = rsGetMode();
+  const labels = {readonly:'Read-only suggestions','suggest-confirm':'Suggest + confirm','auto-create':'Auto-create unassigned','auto-assign':'Auto-create + assign'};
+  document.getElementById('rs-auto-mode-label').textContent = 'Mode: ' + (labels[mode] || mode);
+  const btn = document.getElementById('rs-create-btn');
+  if (btn) btn.style.display = mode === 'readonly' ? 'none' : '';
+  const selCol = document.getElementById('rs-select-col');
+  if (selCol) selCol.innerHTML = mode !== 'readonly' ? '<input type="checkbox" onchange="rsToggleAll(this.checked)" style="accent-color:#753BBD"/>' : '';
+  RS_SELECTED.clear();
+  rsUpdateSelectionCount();
+  rsRender();
+}
+
+function rsToggleRow(key, checked) {
+  if (checked) RS_SELECTED.add(key); else RS_SELECTED.delete(key);
+  rsUpdateSelectionCount();
+}
+
+function rsToggleAll(checked) {
+  const checkboxes = document.querySelectorAll('#rs-tbody input[type="checkbox"]');
+  checkboxes.forEach(cb => { cb.checked = checked; rsToggleRow(cb.dataset.key, checked); });
+}
+
+function rsUpdateSelectionCount() {
+  const el = document.getElementById('rs-selection-count');
+  if (el) el.textContent = RS_SELECTED.size > 0 ? RS_SELECTED.size + ' row(s) selected' : '';
+}
+
+function rsShowConfirmation() {
+  if (RS_SELECTED.size === 0) { alert('Select at least one suggestion row to create tasks.'); return; }
+  const mode = rsGetMode();
+  const panel = document.getElementById('rs-confirm-panel');
+  const openTaskPlanIds = new Set(RS_OPEN_TASKS.map(t => t.orderPlanId).filter(Boolean));
+  const openTaskItemIds = new Set(RS_OPEN_TASKS.flatMap(t => (t.taskSteps || []).map(s => s.itemId)).filter(Boolean));
+
+  const eligible = [];
+  const blocked = [];
+  RS_SELECTED.forEach(key => {
+    const row = RS_DATA.find(r => rsRowKey(r) === key);
+    if (!row) return;
+    const setupKey = (row.customerId || '') + '|' + (row.itemId || '');
+    const setup = RS_REPLEN_SETUP[setupKey];
+    const hasTarget = !!(row.toLocation || row.toLocationId);
+    const hasSetup = !!(setup || row.fromLocation || row.toLocation);
+    const noDuplicate = !openTaskPlanIds.has(row.planId) && !openTaskItemIds.has(row.itemId);
+    const hasAssignee = !!(row.suggestedAssignee || row.defaultAssignee);
+    const reasons = [];
+    if (!noDuplicate) reasons.push('Open task already exists');
+    if (!hasSetup) reasons.push('Replenishment setup not configured');
+    if (!hasTarget) reasons.push('Target replenishment location is missing');
+    if (!(row.qty > 0)) reasons.push('Quantity is zero');
+    if (mode === 'auto-assign' && !hasAssignee) reasons.push('No assignee available');
+    if (reasons.length > 0) blocked.push({row, reasons});
+    else eligible.push(row);
+  });
+
+  let html = '<div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:10px">Confirm Task Creation</div>';
+  if (eligible.length > 0) {
+    html += '<div style="font-size:12px;color:#065f46;margin-bottom:8px"><strong>' + eligible.length + '</strong> eligible row(s) will create replenishment task(s):</div>';
+    html += '<table style="width:100%;font-size:11px;border-collapse:collapse;margin-bottom:10px"><thead><tr style="background:#f9fafb"><th style="padding:4px 6px;text-align:left">Customer</th><th style="padding:4px 6px;text-align:left">Item</th><th style="padding:4px 6px;text-align:left">Qty</th><th style="padding:4px 6px;text-align:left">To Location</th><th style="padding:4px 6px;text-align:left">Assignee</th></tr></thead><tbody>';
+    eligible.forEach(r => {
+      html += '<tr><td style="padding:3px 6px">' + esc(String(r.customerName).slice(0,20)) + '</td><td style="padding:3px 6px">' + esc(String(r.itemName).slice(0,25)) + '</td><td style="padding:3px 6px;font-weight:600">' + r.qty + ' ' + esc(r.uom) + '</td><td style="padding:3px 6px;font-family:monospace;font-size:10px">' + esc(r.toLocation || r.toLocationId || '—') + '</td><td style="padding:3px 6px">' + esc(r.suggestedAssignee || r.defaultAssignee || '—') + '</td></tr>';
+    });
+    html += '</tbody></table>';
+  }
+  if (blocked.length > 0) {
+    html += '<div style="font-size:12px;color:#991b1b;margin-bottom:6px"><strong>' + blocked.length + '</strong> row(s) blocked:</div>';
+    blocked.forEach(b => {
+      html += '<div style="font-size:11px;color:#6b7280;margin-bottom:3px">• ' + esc(String(b.row.itemName).slice(0,25)) + ' — <span style="color:#dc2626">' + esc(b.reasons.join('; ')) + '</span></div>';
+    });
+  }
+  if (eligible.length > 0) {
+    html += '<div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-primary" onclick="rsExecuteCreate()" style="font-size:12px;padding:6px 14px">Confirm &amp; Create ' + eligible.length + ' Task(s)</button><button class="btn btn-secondary" onclick="document.getElementById(\'rs-confirm-panel\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Cancel</button></div>';
+  } else {
+    html += '<div style="margin-top:8px;font-size:12px;color:#6b7280">No eligible rows to create. Resolve blockers above.</div>';
+  }
+  panel.innerHTML = html;
+  panel.style.display = '';
+}
+
+function rsRowKey(r) {
+  return [r.customerId, r.itemId, r.uomId || r.uom, r.pickType, r.toLocation || '', r.shippingRule].join('||');
+}
+
+async function rsExecuteCreate() {
+  if (!ltagRequirePassword()) return;
+  const mode = rsGetMode();
+  const panel = document.getElementById('rs-confirm-panel');
+  const openTaskPlanIds = new Set(RS_OPEN_TASKS.map(t => t.orderPlanId).filter(Boolean));
+  const openTaskItemIds = new Set(RS_OPEN_TASKS.flatMap(t => (t.taskSteps || []).map(s => s.itemId)).filter(Boolean));
+
+  const eligible = [];
+  RS_SELECTED.forEach(key => {
+    const row = RS_DATA.find(r => rsRowKey(r) === key);
+    if (!row) return;
+    const setupKey = (row.customerId || '') + '|' + (row.itemId || '');
+    const setup = RS_REPLEN_SETUP[setupKey];
+    const hasTarget = !!(row.toLocation || row.toLocationId);
+    const hasSetup = !!(setup || row.fromLocation || row.toLocation);
+    const noDuplicate = !openTaskPlanIds.has(row.planId) && !openTaskItemIds.has(row.itemId);
+    const hasAssignee = !!(row.suggestedAssignee || row.defaultAssignee);
+    if (!noDuplicate || !hasSetup || !hasTarget || !(row.qty > 0)) return;
+    if (mode === 'auto-assign' && !hasAssignee) return;
+    eligible.push(row);
+  });
+
+  if (eligible.length === 0) { alert('No eligible rows passed final guardrail check.'); return; }
+
+  panel.innerHTML = '<div style="padding:12px;text-align:center;color:#6b7280"><span class="spinner"></span> Creating ' + eligible.length + ' replenishment task(s)…</div>';
+
+  let successes = 0, failures = [];
+  for (const row of eligible) {
+    const planIds = row.plans ? row.plans.map(p => p.planId || p).filter(Boolean) : [row.planId];
+    const note = 'Next-day replenishment. Plans: ' + planIds.map(p => String(p).slice(-8)).join(', ') + (row.replenNote ? '. ' + row.replenNote : '');
+    const payload = {
+      replenishItemLines: [{
+        itemId: row.itemId,
+        customerId: row.customerId,
+        uomId: row.uomId || undefined,
+        qty: row.qty,
+        titleId: row.titleId || undefined,
+        toLocationId: row.toLocationId || undefined,
+        toVlgId: row.toVlgId || undefined,
+      }],
+      customerIds: [row.customerId],
+      note: note,
+      tags: ['NEXT_DAY_REPLENISHMENT', 'AUTO_CREATED'],
+    };
+    if (row.toVlgId) payload.toVlgIds = [row.toVlgId];
+    if (mode === 'auto-assign') {
+      const assignee = row.suggestedAssignee || row.defaultAssignee || '';
+      if (assignee) { payload.assigneeUserId = assignee; payload.tags.push('AUTO_ASSIGNED'); }
+    }
+
+    const resp = await safeFetch(WMS_BASE + '/api/wms/outbound/replenishment-task/create', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (resp && !resp._needsAuth && (String(resp.code) === '0' || resp.data || resp.success !== false)) {
+      successes++;
+    } else {
+      failures.push({ item: row.itemName, msg: (resp && (resp.msg || resp.message)) || 'Creation not confirmed' });
+    }
+  }
+
+  let html = '';
+  if (successes > 0) {
+    html += '<div style="padding:10px 14px;background:#ECFDF5;border-radius:6px;border:1px solid #A7F3D0;margin-bottom:8px"><strong style="color:#047857">' + successes + ' replenishment task(s) created successfully.</strong></div>';
+  }
+  if (failures.length > 0) {
+    html += '<div style="padding:10px 14px;background:#FEF2F2;border-radius:6px;border:1px solid #FECACA;margin-bottom:8px"><strong style="color:#B91C1C">' + failures.length + ' task(s) could not be created:</strong>';
+    failures.forEach(f => { html += '<div style="font-size:11px;color:#991B1B;margin-top:4px">• ' + esc(f.item) + ': ' + esc(f.msg) + '</div>'; });
+    html += '</div>';
+  }
+  html += '<div style="margin-top:8px"><button class="btn btn-primary" onclick="document.getElementById(\'rs-confirm-panel\').style.display=\'none\'; RS_SELECTED.clear(); rsRefresh();" style="font-size:12px;padding:6px 14px">Done — Refresh Suggestions</button></div>';
+  panel.innerHTML = html;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
