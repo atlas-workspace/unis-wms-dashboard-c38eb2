@@ -1597,19 +1597,19 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
       <div class="view" id="view-replenSuggest">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
           <div style="display:flex;align-items:center;gap:10px">
-            <div style="width:38px;height:38px;border-radius:8px;background:#F3EEFF;display:flex;align-items:center;justify-content:center">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5F2E98" stroke-width="2"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><circle cx="12" cy="12" r="4"/></svg>
-            </div>
+            <div id="rs-avatar" style="width:38px;height:38px;border-radius:8px;background:#F3EEFF;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#5F2E98">ALL</div>
             <div>
               <div style="font-size:15px;font-weight:700;color:#1f2937">Next-Day Replenishment Suggestions</div>
               <div style="font-size:12px;color:#6b7280" id="rs-date-label">Loading…</div>
+              <div style="font-size:11px;color:#5F2E98;font-weight:600;margin-top:2px" id="rs-customer-badge">All Customers</div>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <select class="cc-input" id="rs-customer-select" style="font-size:12px;padding:5px 10px;width:220px">
+            <select class="cc-input" id="rs-customer-select" style="font-size:12px;padding:5px 10px;width:220px" onchange="rsUpdateCustomerBadge()">
               <option value="">All Customers</option>
             </select>
             <button class="btn btn-primary" onclick="rsRefresh()" style="font-size:12px;padding:6px 14px" id="rs-refresh-btn">Refresh Suggestions</button>
+            <button class="btn btn-secondary" onclick="rsExportExcel()" style="font-size:12px;padding:6px 14px" id="rs-export-btn">Export Excel</button>
           </div>
         </div>
         <div class="kpi-grid" id="rs-kpis" style="margin-bottom:16px">
@@ -1625,8 +1625,8 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           </div>
           <div style="overflow-x:auto">
             <table class="tbl" style="margin:0;font-size:12px">
-              <thead><tr><th>Customer</th><th>Order Plan</th><th>Item</th><th>Qty</th><th>UOM</th><th>Pick Type</th><th>Task Status</th><th>Recommendation</th></tr></thead>
-              <tbody id="rs-tbody"><tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af">Click "Refresh Suggestions" to load next-day replenishment demand.</td></tr></tbody>
+              <thead><tr><th>Customer</th><th>Order Plan</th><th>Item</th><th>Qty</th><th>UOM</th><th>Pick Type</th><th>From Location</th><th>To Location</th><th>Task Status</th><th>Recommendation</th></tr></thead>
+              <tbody id="rs-tbody"><tr><td colspan="10" style="text-align:center;padding:40px;color:#9ca3af">Click "Refresh Suggestions" to load next-day replenishment demand.</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -13030,6 +13030,7 @@ function loadReplenSuggestView() {
     lbl.textContent = 'Target: ' + tomorrow.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', year:'numeric'}) + ' (America/Los_Angeles)';
   }
   rsPopulateCustomerDropdown();
+  rsUpdateCustomerBadge();
 }
 
 function rsPopulateCustomerDropdown() {
@@ -13048,6 +13049,28 @@ function rsPopulateCustomerDropdown() {
   sel.dataset.loaded = '1';
 }
 
+function rsUpdateCustomerBadge() {
+  const sel = document.getElementById('rs-customer-select');
+  const avatar = document.getElementById('rs-avatar');
+  const badge = document.getElementById('rs-customer-badge');
+  if (!sel || !avatar || !badge) return;
+  const val = sel.value;
+  if (!val) {
+    avatar.textContent = 'ALL';
+    avatar.style.background = '#F3EEFF';
+    avatar.style.color = '#5F2E98';
+    badge.textContent = 'All Customers';
+  } else {
+    const opt = sel.options[sel.selectedIndex];
+    const name = opt ? opt.textContent : val;
+    const initials = name.split(/[\s,]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    avatar.textContent = initials || '?';
+    avatar.style.background = '#EDE9FE';
+    avatar.style.color = '#5B21B6';
+    badge.textContent = name;
+  }
+}
+
 function rsGetTomorrow() {
   const now = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
   const tmr = new Date(now);
@@ -13061,13 +13084,13 @@ async function rsRefresh() {
   const tbody = document.getElementById('rs-tbody');
   const selectedCustomer = (document.getElementById('rs-customer-select') || {}).value || '';
   if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
-  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af"><span class="spinner"></span> Searching next-day order plans…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#9ca3af"><span class="spinner"></span> Searching next-day order plans…</td></tr>';
 
   RS_DATA = [];
   RS_OPEN_TASKS = [];
 
   if (!WISE_TOKEN) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#ef4444">Please sign in to load replenishment suggestions.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#ef4444">Please sign in to load replenishment suggestions.</td></tr>';
     if (btn) { btn.disabled = false; btn.textContent = 'Refresh Suggestions'; }
     return;
   }
@@ -13119,14 +13142,14 @@ async function rsRefresh() {
   }
 
   if (!planResp && !WISE_TOKEN) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#ef4444">Unable to reach the order plan service. Check your connection and try again.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#ef4444">Unable to reach the order plan service. Check your connection and try again.</td></tr>';
     if (btn) { btn.disabled = false; btn.textContent = 'Refresh Suggestions'; }
     return;
   }
 
   // Step 2: For each plan, get items needing replenishment
   if (plans.length > 0) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af"><span class="spinner"></span> Checking replenishment needs for ' + plans.length + ' plan(s)…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#9ca3af"><span class="spinner"></span> Checking replenishment needs for ' + plans.length + ' plan(s)…</td></tr>';
 
     const itemFetches = plans.slice(0, 15).map(async (plan) => {
       const resp = await safeFetch(WMS_BASE + '/api/wms-bam/outbound/order-plan/items-need-replenishment', {
@@ -13146,6 +13169,8 @@ async function rsRefresh() {
         qty: item.qty || 0,
         uom: item.uomName || item.uomId || 'EA',
         pickType: item.replenishLocationPickType || '—',
+        fromLocation: item.sourceLocationName || item.fromLocationName || item.reserveLocationName || '',
+        toLocation: item.toLocationName || item.destinationLocationName || item.pickLocationName || '',
         shippingRule: plan.shippingRule || '',
       }));
     });
@@ -13204,7 +13229,7 @@ function rsRender() {
   document.getElementById('rs-kpi-action').textContent = actionCount || '0';
 
   if (suggestions.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af">' +
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#9ca3af">' +
       '<div style="margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>' +
       '<strong style="color:#6b7280">No replenishment gaps found</strong><br>' +
       '<span style="font-size:12px">No items need replenishment for the active order plans, or no plans exist in PICK_SUGGESTED / TASK_CREATED / RELEASED status. Pick locations appear ready for next-day demand.</span>' +
@@ -13221,6 +13246,8 @@ function rsRender() {
                       'style="color:#dc2626;font-weight:600"';
     const recStyle = s.taskStatus === 'Covered' ? 'color:#6b7280' : 'color:#1f2937;font-weight:600';
     const ruleTag = s.shippingRule ? '<span style="display:inline-block;font-size:10px;padding:1px 5px;border-radius:3px;background:#EDE9FE;color:#5B21B6;margin-left:4px">' + esc(s.shippingRule) + '</span>' : '';
+    const fromLoc = s.fromLocation ? esc(s.fromLocation) : '<span style="color:#9ca3af;font-style:italic">Not configured</span>';
+    const toLoc = s.toLocation ? esc(s.toLocation) : '<span style="color:#9ca3af;font-style:italic">Not configured</span>';
     return '<tr>' +
       '<td style="font-size:12px">' + esc(String(s.customerName).slice(0, 25)) + '</td>' +
       '<td style="font-family:monospace;font-size:11px;color:#753BBD">' + esc(String(s.planId).slice(-8)) + '</td>' +
@@ -13228,6 +13255,8 @@ function rsRender() {
       '<td style="font-weight:600">' + esc(String(s.qty)) + '</td>' +
       '<td style="font-size:11px;color:#6b7280">' + esc(s.uom) + '</td>' +
       '<td><span style="font-size:11px;padding:2px 6px;border-radius:3px;background:#F3F4F6;color:#374151">' + esc(s.pickType) + '</span></td>' +
+      '<td style="font-family:monospace;font-size:11px">' + fromLoc + '</td>' +
+      '<td style="font-family:monospace;font-size:11px">' + toLoc + '</td>' +
       '<td><span ' + statusCls + '>' + esc(s.taskStatus) + '</span></td>' +
       '<td style="font-size:12px;' + recStyle + '">' + esc(s.recommendation) + '</td>' +
       '</tr>';
@@ -13237,22 +13266,71 @@ function rsRender() {
 function rsFilterTable() {
   const q = (document.getElementById('rs-search').value || '').toLowerCase().trim();
   if (!q) { rsRender(); return; }
-  const orig = RS_DATA;
-  const openTaskPlanIds = new Set(RS_OPEN_TASKS.map(t => t.orderPlanId).filter(Boolean));
   const tbody = document.getElementById('rs-tbody');
   const filtered = RS_DATA.filter(r => {
-    const hay = [r.customerName, r.itemName, r.itemId, r.planId, r.pickType, r.shippingRule].join(' ').toLowerCase();
+    const hay = [r.customerName, r.itemName, r.itemId, r.planId, r.pickType, r.shippingRule, r.fromLocation, r.toLocation].join(' ').toLowerCase();
     return hay.includes(q);
   });
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#9ca3af">No suggestions match "' + esc(q) + '"</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#9ca3af">No suggestions match "' + esc(q) + '"</td></tr>';
     return;
   }
-  // Temporarily swap data for render
   const backup = RS_DATA;
   RS_DATA = filtered;
   rsRender();
   RS_DATA = backup;
+}
+
+function rsExportExcel() {
+  if (RS_DATA.length === 0) { alert('No suggestions to export. Run Refresh Suggestions first.'); return; }
+  const sel = document.getElementById('rs-customer-select');
+  const custLabel = sel && sel.value ? sel.options[sel.selectedIndex].textContent : 'All Customers';
+  const tomorrow = rsGetTomorrow();
+  const now = new Date();
+  const openTaskPlanIds = new Set(RS_OPEN_TASKS.map(t => t.orderPlanId).filter(Boolean));
+  const openTaskItemIds = new Set(RS_OPEN_TASKS.flatMap(t => (t.taskSteps || []).map(s => s.itemId)).filter(Boolean));
+
+  const rows = [];
+  rows.push(['Next-Day Replenishment Suggestions Report']);
+  rows.push(['Target Date', tomorrow.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'})]);
+  rows.push(['Customer', custLabel]);
+  rows.push(['Generated', now.toLocaleString('en-US', {timeZone:'America/Los_Angeles'})]);
+  rows.push(['Facility', FACILITY_ID]);
+  rows.push(['Total Suggestions', String(RS_DATA.length)]);
+  rows.push([]);
+  rows.push(['Customer','Order Plan','Item ID','Item Name','Quantity','UOM','Pick Type','From Location','To Location','Task Status','Recommendation']);
+
+  RS_DATA.forEach(r => {
+    let taskStatus = 'No Task';
+    let recommendation = 'Create replenishment';
+    if (openTaskPlanIds.has(r.planId)) { taskStatus = 'Covered'; recommendation = 'Already in progress'; }
+    else if (openTaskItemIds.has(r.itemId)) { taskStatus = 'Partial'; recommendation = 'Check existing task qty'; }
+    rows.push([
+      r.customerName || '',
+      r.planId || '',
+      r.itemId || '',
+      r.itemName || '',
+      String(r.qty || 0),
+      r.uom || '',
+      r.pickType || '',
+      r.fromLocation || 'Not configured',
+      r.toLocation || 'Not configured',
+      taskStatus,
+      recommendation,
+    ]);
+  });
+
+  const csvContent = rows.map(row => row.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+  const bom = '﻿';
+  const blob = new Blob([bom + csvContent], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'Replenishment_Suggestions_' + tomorrow.toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
