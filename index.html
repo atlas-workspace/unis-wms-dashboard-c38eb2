@@ -1620,13 +1620,16 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         </div>
         <div class="card" style="padding:0;overflow:hidden">
           <div style="padding:12px 16px;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-            <span style="font-size:13px;font-weight:600;color:#374151" id="rs-result-count">Suggestions</span>
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="font-size:13px;font-weight:600;color:#374151" id="rs-result-count">Suggestions</span>
+              <label style="font-size:12px;color:#6b7280;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="rs-consolidated-toggle" checked onchange="rsRender()" style="accent-color:#753BBD"/> Consolidated view</label>
+            </div>
             <input class="cc-input" id="rs-search" placeholder="Filter by customer, item, location…" style="width:220px;font-size:12px;padding:5px 10px" oninput="rsFilterTable()"/>
           </div>
           <div style="overflow-x:auto">
             <table class="tbl" style="margin:0;font-size:12px">
-              <thead><tr><th>Customer</th><th>Order Plan</th><th>Item</th><th>Qty</th><th>UOM</th><th>Pick Type</th><th>From Location</th><th>To Location</th><th>Task Status</th><th>Recommendation</th></tr></thead>
-              <tbody id="rs-tbody"><tr><td colspan="10" style="text-align:center;padding:40px;color:#9ca3af">Click "Refresh Suggestions" to load next-day replenishment demand.</td></tr></tbody>
+              <thead><tr><th>Customer</th><th>Order Plan</th><th>Item</th><th>Qty</th><th>UOM</th><th>Pick Type</th><th>From Location</th><th>To Location</th><th>Task Status</th><th>Recommendation</th><th>Note</th></tr></thead>
+              <tbody id="rs-tbody"><tr><td colspan="11" style="text-align:center;padding:40px;color:#9ca3af">Click "Refresh Suggestions" to load next-day replenishment demand.</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -13022,6 +13025,7 @@ if (WISE_TOKEN || hasStoredRefreshToken()) {
 
 let RS_DATA = [];
 let RS_OPEN_TASKS = [];
+let RS_REPLEN_SETUP = {};
 
 function loadReplenSuggestView() {
   const lbl = document.getElementById('rs-date-label');
@@ -13088,6 +13092,7 @@ async function rsRefresh() {
 
   RS_DATA = [];
   RS_OPEN_TASKS = [];
+  RS_REPLEN_SETUP = {};
 
   if (!WISE_TOKEN) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#ef4444">Please sign in to load replenishment suggestions.</td></tr>';
@@ -13168,15 +13173,37 @@ async function rsRefresh() {
         itemName: item.itemName || item.itemId || '—',
         qty: item.qty || 0,
         uom: item.uomName || item.uomId || 'EA',
+        uomId: item.uomId || '',
         pickType: item.replenishLocationPickType || '—',
         fromLocation: item.sourceLocationName || item.fromLocationName || item.reserveLocationName || '',
         toLocation: item.toLocationName || item.destinationLocationName || item.pickLocationName || '',
+        toLocationId: item.toLocationId || item.destinationLocationId || '',
         shippingRule: plan.shippingRule || '',
+        replenNote: plan.replenishmentNote || plan.replenNote || item.replenNote || '',
       }));
     });
 
     const results = await Promise.all(itemFetches);
     results.forEach(arr => { if (arr) RS_DATA.push(...arr); });
+  }
+
+  // Step 2b: Check item replenishment setup for items without location data
+  const itemsNeedingSetup = RS_DATA.filter(r => !r.fromLocation && !r.toLocation);
+  if (itemsNeedingSetup.length > 0) {
+    const uniqueCustomerItems = [...new Set(itemsNeedingSetup.map(r => r.customerId + '|' + r.itemId))];
+    const setupResp = await safeFetch(WMS_BASE + '/api/wms-bam/item-replenishment/search-by-paging', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ currentPage: 1, pageSize: 100 }),
+    });
+    if (setupResp && !setupResp._needsAuth && (setupResp.data || setupResp.list)) {
+      const sd = setupResp.data || setupResp;
+      const setupList = sd.list || sd.records || [];
+      setupList.forEach(s => {
+        const key = (s.customerId || '') + '|' + (s.itemId || '');
+        RS_REPLEN_SETUP[key] = s;
+      });
+    }
   }
 
   // Step 3: Check existing open replenishment tasks
@@ -13201,46 +13228,78 @@ async function rsRefresh() {
 
 function rsRender() {
   const tbody = document.getElementById('rs-tbody');
+  const consolidated = document.getElementById('rs-consolidated-toggle') && document.getElementById('rs-consolidated-toggle').checked;
   const openTaskPlanIds = new Set(RS_OPEN_TASKS.map(t => t.orderPlanId).filter(Boolean));
   const openTaskItemIds = new Set(RS_OPEN_TASKS.flatMap(t => (t.taskSteps || []).map(s => s.itemId)).filter(Boolean));
 
-  // Annotate each suggestion with coverage status
-  const suggestions = RS_DATA.map(row => {
+  // Derive replenishment note per row
+  const annotated = RS_DATA.map(row => {
+    let note = row.replenNote || '';
+    const setupKey = (row.customerId || '') + '|' + (row.itemId || '');
+    const setup = RS_REPLEN_SETUP[setupKey];
+    if (!note && !row.fromLocation && !row.toLocation && !setup) {
+      note = 'No replenishment strategy configured. Maintain in Item Master > Item Replenishment.';
+    } else if (!note && setup && !row.fromLocation) {
+      note = '';
+    }
     let taskStatus = 'No Task';
     let recommendation = 'Create replenishment';
-    if (openTaskPlanIds.has(row.planId)) {
-      taskStatus = 'Covered';
-      recommendation = 'Already in progress';
-    } else if (openTaskItemIds.has(row.itemId)) {
-      taskStatus = 'Partial';
-      recommendation = 'Check existing task qty';
-    }
-    return { ...row, taskStatus, recommendation };
+    if (openTaskPlanIds.has(row.planId)) { taskStatus = 'Covered'; recommendation = 'Already in progress'; }
+    else if (openTaskItemIds.has(row.itemId)) { taskStatus = 'Partial'; recommendation = 'Check existing task qty'; }
+    return { ...row, note, taskStatus, recommendation };
   });
+
+  let displayRows;
+  if (consolidated) {
+    // Group by customerId+itemId+uomId+pickType+toLocation+shippingRule
+    const groups = {};
+    annotated.forEach(r => {
+      const key = [r.customerId, r.itemId, r.uomId || r.uom, r.pickType, r.toLocation || '', r.shippingRule].join('||');
+      if (!groups[key]) {
+        groups[key] = { ...r, totalQty: 0, plans: [], notes: [] };
+      }
+      groups[key].totalQty += (r.qty || 0);
+      groups[key].plans.push({ planId: r.planId, qty: r.qty });
+      if (r.note && !groups[key].notes.includes(r.note)) groups[key].notes.push(r.note);
+      if (r.taskStatus === 'Covered') groups[key].taskStatus = 'Covered';
+      else if (r.taskStatus === 'Partial' && groups[key].taskStatus !== 'Covered') groups[key].taskStatus = 'Partial';
+    });
+    displayRows = Object.values(groups).map(g => {
+      g.qty = g.totalQty;
+      g.note = g.notes.join(' ');
+      if (g.plans.length > 1 && g.taskStatus === 'No Task') {
+        g.recommendation = 'Create one consolidated replenishment (' + g.plans.length + ' plans)';
+      }
+      g.planLabel = g.plans.length > 1 ? g.plans.length + ' plans' : String(g.plans[0].planId).slice(-8);
+      g.planDetail = g.plans.map(p => String(p.planId).slice(-8) + ' (qty ' + p.qty + ')').join(', ');
+      return g;
+    });
+  } else {
+    displayRows = annotated.map(r => ({ ...r, planLabel: String(r.planId).slice(-8), planDetail: '', plans: [{planId: r.planId, qty: r.qty}] }));
+  }
 
   // KPIs
   const planIds = new Set(RS_DATA.map(r => r.planId));
-  const coveredCount = suggestions.filter(s => s.taskStatus === 'Covered').length;
-  const actionCount = suggestions.filter(s => s.taskStatus === 'No Task').length;
+  const coveredCount = displayRows.filter(s => s.taskStatus === 'Covered').length;
+  const actionCount = displayRows.filter(s => s.taskStatus === 'No Task').length;
 
   document.getElementById('rs-kpi-plans').textContent = planIds.size || '0';
-  document.getElementById('rs-kpi-items').textContent = RS_DATA.length || '0';
+  document.getElementById('rs-kpi-items').textContent = (consolidated ? displayRows.length + ' grouped / ' : '') + RS_DATA.length + ' lines';
   document.getElementById('rs-kpi-covered').textContent = coveredCount || '0';
   document.getElementById('rs-kpi-action').textContent = actionCount || '0';
 
-  if (suggestions.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#9ca3af">' +
+  if (displayRows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px;color:#9ca3af">' +
       '<div style="margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>' +
       '<strong style="color:#6b7280">No replenishment gaps found</strong><br>' +
-      '<span style="font-size:12px">No items need replenishment for the active order plans, or no plans exist in PICK_SUGGESTED / TASK_CREATED / RELEASED status. Pick locations appear ready for next-day demand.</span>' +
-      '</td></tr>';
+      '<span style="font-size:12px">Pick locations appear ready for next-day demand.</span></td></tr>';
     document.getElementById('rs-result-count').textContent = 'No suggestions';
     return;
   }
 
-  document.getElementById('rs-result-count').textContent = suggestions.length + ' suggestion' + (suggestions.length !== 1 ? 's' : '');
+  document.getElementById('rs-result-count').textContent = displayRows.length + (consolidated ? ' consolidated' : '') + ' suggestion' + (displayRows.length !== 1 ? 's' : '');
 
-  tbody.innerHTML = suggestions.map(s => {
+  tbody.innerHTML = displayRows.map(s => {
     const statusCls = s.taskStatus === 'Covered' ? 'style="color:#059669;font-weight:600"' :
                       s.taskStatus === 'Partial' ? 'style="color:#d97706;font-weight:600"' :
                       'style="color:#dc2626;font-weight:600"';
@@ -13248,9 +13307,11 @@ function rsRender() {
     const ruleTag = s.shippingRule ? '<span style="display:inline-block;font-size:10px;padding:1px 5px;border-radius:3px;background:#EDE9FE;color:#5B21B6;margin-left:4px">' + esc(s.shippingRule) + '</span>' : '';
     const fromLoc = s.fromLocation ? esc(s.fromLocation) : '<span style="color:#9ca3af;font-style:italic">Not configured</span>';
     const toLoc = s.toLocation ? esc(s.toLocation) : '<span style="color:#9ca3af;font-style:italic">Not configured</span>';
+    const planCell = s.planDetail ? '<span title="' + esc(s.planDetail) + '" style="cursor:help;border-bottom:1px dotted #9ca3af">' + esc(s.planLabel) + '</span>' : esc(s.planLabel);
+    const noteCell = s.note ? '<span style="color:#b45309;font-size:11px" title="' + esc(s.note) + '">' + esc(String(s.note).slice(0, 40)) + (s.note.length > 40 ? '…' : '') + '</span>' : '<span style="color:#d1d5db">—</span>';
     return '<tr>' +
       '<td style="font-size:12px">' + esc(String(s.customerName).slice(0, 25)) + '</td>' +
-      '<td style="font-family:monospace;font-size:11px;color:#753BBD">' + esc(String(s.planId).slice(-8)) + '</td>' +
+      '<td style="font-family:monospace;font-size:11px;color:#753BBD">' + planCell + '</td>' +
       '<td title="' + esc(s.itemId) + '">' + esc(String(s.itemName).slice(0, 30)) + ruleTag + '</td>' +
       '<td style="font-weight:600">' + esc(String(s.qty)) + '</td>' +
       '<td style="font-size:11px;color:#6b7280">' + esc(s.uom) + '</td>' +
@@ -13259,6 +13320,7 @@ function rsRender() {
       '<td style="font-family:monospace;font-size:11px">' + toLoc + '</td>' +
       '<td><span ' + statusCls + '>' + esc(s.taskStatus) + '</span></td>' +
       '<td style="font-size:12px;' + recStyle + '">' + esc(s.recommendation) + '</td>' +
+      '<td style="font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + noteCell + '</td>' +
       '</tr>';
   }).join('');
 }
@@ -13268,11 +13330,11 @@ function rsFilterTable() {
   if (!q) { rsRender(); return; }
   const tbody = document.getElementById('rs-tbody');
   const filtered = RS_DATA.filter(r => {
-    const hay = [r.customerName, r.itemName, r.itemId, r.planId, r.pickType, r.shippingRule, r.fromLocation, r.toLocation].join(' ').toLowerCase();
+    const hay = [r.customerName, r.itemName, r.itemId, r.planId, r.pickType, r.shippingRule, r.fromLocation, r.toLocation, r.replenNote].join(' ').toLowerCase();
     return hay.includes(q);
   });
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#9ca3af">No suggestions match "' + esc(q) + '"</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:30px;color:#9ca3af">No suggestions match "' + esc(q) + '"</td></tr>';
     return;
   }
   const backup = RS_DATA;
@@ -13285,6 +13347,7 @@ function rsExportExcel() {
   if (RS_DATA.length === 0) { alert('No suggestions to export. Run Refresh Suggestions first.'); return; }
   const sel = document.getElementById('rs-customer-select');
   const custLabel = sel && sel.value ? sel.options[sel.selectedIndex].textContent : 'All Customers';
+  const consolidated = document.getElementById('rs-consolidated-toggle') && document.getElementById('rs-consolidated-toggle').checked;
   const tomorrow = rsGetTomorrow();
   const now = new Date();
   const openTaskPlanIds = new Set(RS_OPEN_TASKS.map(t => t.orderPlanId).filter(Boolean));
@@ -13296,29 +13359,42 @@ function rsExportExcel() {
   rows.push(['Customer', custLabel]);
   rows.push(['Generated', now.toLocaleString('en-US', {timeZone:'America/Los_Angeles'})]);
   rows.push(['Facility', FACILITY_ID]);
-  rows.push(['Total Suggestions', String(RS_DATA.length)]);
+  rows.push(['View', consolidated ? 'Consolidated' : 'Plan Detail']);
+  rows.push(['Total Shortage Lines', String(RS_DATA.length)]);
   rows.push([]);
-  rows.push(['Customer','Order Plan','Item ID','Item Name','Quantity','UOM','Pick Type','From Location','To Location','Task Status','Recommendation']);
 
-  RS_DATA.forEach(r => {
-    let taskStatus = 'No Task';
-    let recommendation = 'Create replenishment';
-    if (openTaskPlanIds.has(r.planId)) { taskStatus = 'Covered'; recommendation = 'Already in progress'; }
-    else if (openTaskItemIds.has(r.itemId)) { taskStatus = 'Partial'; recommendation = 'Check existing task qty'; }
-    rows.push([
-      r.customerName || '',
-      r.planId || '',
-      r.itemId || '',
-      r.itemName || '',
-      String(r.qty || 0),
-      r.uom || '',
-      r.pickType || '',
-      r.fromLocation || 'Not configured',
-      r.toLocation || 'Not configured',
-      taskStatus,
-      recommendation,
-    ]);
-  });
+  if (consolidated) {
+    rows.push(['Customer','Item ID','Item Name','Total Qty','UOM','Pick Type','From Location','To Location','Contributing Plans','Task Status','Recommendation','Replenishment Note']);
+    const groups = {};
+    RS_DATA.forEach(r => {
+      const key = [r.customerId, r.itemId, r.uomId || r.uom, r.pickType, r.toLocation || '', r.shippingRule].join('||');
+      if (!groups[key]) groups[key] = { ...r, totalQty: 0, plans: [], notes: [] };
+      groups[key].totalQty += (r.qty || 0);
+      groups[key].plans.push(r.planId);
+      const setupKey = (r.customerId || '') + '|' + (r.itemId || '');
+      let note = r.replenNote || '';
+      if (!note && !r.fromLocation && !r.toLocation && !RS_REPLEN_SETUP[setupKey]) note = 'No replenishment strategy configured';
+      if (note && !groups[key].notes.includes(note)) groups[key].notes.push(note);
+    });
+    Object.values(groups).forEach(g => {
+      let taskStatus = 'No Task'; let rec = 'Create replenishment';
+      if (g.plans.some(p => openTaskPlanIds.has(p))) { taskStatus = 'Covered'; rec = 'Already in progress'; }
+      else if (openTaskItemIds.has(g.itemId)) { taskStatus = 'Partial'; rec = 'Check existing task qty'; }
+      else if (g.plans.length > 1) { rec = 'Create one consolidated replenishment (' + g.plans.length + ' plans)'; }
+      rows.push([g.customerName, g.itemId, g.itemName, String(g.totalQty), g.uom, g.pickType, g.fromLocation || 'Not configured', g.toLocation || 'Not configured', g.plans.map(p => String(p).slice(-8)).join('; '), taskStatus, rec, g.notes.join('; ')]);
+    });
+  } else {
+    rows.push(['Customer','Order Plan','Item ID','Item Name','Quantity','UOM','Pick Type','From Location','To Location','Task Status','Recommendation','Replenishment Note']);
+    RS_DATA.forEach(r => {
+      let taskStatus = 'No Task'; let rec = 'Create replenishment';
+      if (openTaskPlanIds.has(r.planId)) { taskStatus = 'Covered'; rec = 'Already in progress'; }
+      else if (openTaskItemIds.has(r.itemId)) { taskStatus = 'Partial'; rec = 'Check existing task qty'; }
+      const setupKey = (r.customerId || '') + '|' + (r.itemId || '');
+      let note = r.replenNote || '';
+      if (!note && !r.fromLocation && !r.toLocation && !RS_REPLEN_SETUP[setupKey]) note = 'No replenishment strategy configured';
+      rows.push([r.customerName, r.planId, r.itemId, r.itemName, String(r.qty || 0), r.uom, r.pickType, r.fromLocation || 'Not configured', r.toLocation || 'Not configured', taskStatus, rec, note]);
+    });
+  }
 
   const csvContent = rows.map(row => row.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(',')).join('\r\n');
   const bom = '﻿';
@@ -13326,7 +13402,7 @@ function rsExportExcel() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'Replenishment_Suggestions_' + tomorrow.toISOString().slice(0,10) + '.csv';
+  a.download = 'Replenishment_Suggestions_' + (consolidated ? 'Consolidated_' : '') + tomorrow.toISOString().slice(0,10) + '.csv';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
