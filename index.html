@@ -12273,7 +12273,8 @@ async function submitCycleCount() {
     const nameSuffix = (custIds.length > 1 && custName) ? ' · ' + custName.name : '';
 
     // IDEMPOTENCY GUARDRAIL: Check if today's ticket already exists for this schedule/customer/type
-    // before creating a new one. Prevents duplicate tickets per day.
+    // before creating a new one. Prevents duplicate tickets per day — but only blocks if existing
+    // ticket represents active work or valid completed work (has count results).
     const isPut = !!(wiseTicketId && custIds.length === 1);
     if (!isPut) {
       const nowLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
@@ -12292,20 +12293,37 @@ async function submitCycleCount() {
         });
         if (dupList.length > 0) {
           const existingTicket = dupList[0];
-          const reusedPayload = Object.assign({}, commonFields, {name: baseName + nameSuffix, customerId: customerId});
-          results.push({customerId, ticketId: existingTicket.id, ok:true, payload: reusedPayload, reused: true, msg: 'Today\'s count ticket already exists (' + existingTicket.id + '). Using existing ticket.'});
-          // Check if task already exists for this ticket before auto-assign
-          if (commonFields.counterUserId) {
-            const taskCheck = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging', {
+          const existingStatus = (existingTicket.status || '').toUpperCase();
+          const isActiveStatus = /NEW|TASK_CREATED|COUNTING|IN_PROGRESS|OPEN/.test(existingStatus);
+
+          // For closed/completed tickets, check if they have real count results
+          let hasValidResults = false;
+          if (!isActiveStatus) {
+            const resultCheck = await safeFetch(API_COUNT_RESULTS, {
               method: 'POST',
               headers: {'Content-Type':'application/json','Accept':'application/json'},
-              body: JSON.stringify({currentPage:1, pageSize:10, facilityId: FACILITY_ID, warehouseId: FACILITY_ID, withCountLines: true}),
+              body: JSON.stringify({currentPage:1, pageSize:5, ticketIds:[existingTicket.id]}),
             });
-            // Simple heuristic: if the existing ticket was found, skip task creation
-            const last = results[results.length - 1];
-            last.tasksSkipped = 'Task already exists or ticket reused — not creating duplicate task.';
+            if (resultCheck && resultCheck.success !== false) {
+              const rd = resultCheck.data || resultCheck;
+              const rList = rd.list || rd.records || [];
+              hasValidResults = rList.length > 0;
+            }
           }
-          continue;
+
+          // Block only if ticket is actively in progress OR validly completed with results
+          if (isActiveStatus || hasValidResults) {
+            const reusedPayload = Object.assign({}, commonFields, {name: baseName + nameSuffix, customerId: customerId});
+            results.push({customerId, ticketId: existingTicket.id, ok:true, payload: reusedPayload, reused: true, msg: 'Today\'s count ticket already exists (' + existingTicket.id + ', ' + existingStatus + (hasValidResults ? ' with count results' : '') + '). Using existing.'});
+            if (commonFields.counterUserId) {
+              const last = results[results.length - 1];
+              last.tasksSkipped = 'Task already exists or ticket reused — not creating duplicate task.';
+            }
+            continue;
+          }
+          // Existing ticket is closed/completed with NO count results — treat as invalid/failed run
+          // Allow regeneration: do not block, create a new ticket for today
+          console.log('Idempotency: existing ticket ' + existingTicket.id + ' is ' + existingStatus + ' with 0 count results — allowing regeneration.');
         }
       }
     }
