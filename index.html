@@ -11727,11 +11727,40 @@ async function loadCycleCountView() {
       : '—';
     const sched = r.scheduleDate ? new Date(r.scheduleDate).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}) : '—';
     const status = r.status || '—';
-    const badge = /COMPLET|FINISH|CLOSED|DONE/i.test(status) ? 'done'
-                : /CANCEL/i.test(status) ? 'over'
-                : /NEW|OPEN|PENDING|READY/i.test(status) ? 'pend'
-                : /PROGRESS|IN_/i.test(status) ? 'ip'
-                : 'idle';
+
+    // Count evidence logic: do not imply counted unless results exist
+    let badge, statusDisplay;
+    const isClosed = /COMPLET|FINISH|CLOSED|DONE|FORCE.?CLOSED/i.test(status);
+    const isCancelled = /CANCEL/i.test(status);
+    const hasResults = resultStats.total > 0;
+    if (isCancelled) {
+      badge = 'over';
+      statusDisplay = hasResults ? status : '<span title="Cancelled with no count results submitted">' + esc(status) + '</span> <span style="font-size:10px;color:#dc2626;font-weight:400">· no count</span>';
+    } else if (isClosed && !hasResults) {
+      badge = 'over';
+      statusDisplay = '<span title="Closed without count results — review Close/Report Empty/Force Close history">' + esc(status) + '</span> <span style="font-size:10px;color:#dc2626;font-weight:400">· no count results</span>';
+    } else if (isClosed && hasResults) {
+      badge = 'done';
+      statusDisplay = esc(status) + ' <span style="font-size:10px;color:#059669;font-weight:400">· counted</span>';
+    } else if (/NEW|OPEN|PENDING|READY/i.test(status)) {
+      badge = 'pend';
+      statusDisplay = esc(status);
+    } else if (/PROGRESS|IN_|COUNTING/i.test(status)) {
+      badge = 'ip';
+      statusDisplay = esc(status);
+    } else {
+      badge = 'idle';
+      statusDisplay = esc(status);
+    }
+
+    // Diagnostic guidance for suspicious tasks
+    let diagNote = '';
+    if (isClosed && !hasResults) {
+      diagNote = '<div style="font-size:10px;color:#92400E;margin-top:2px" title="This task was closed without count entries. Review history and recreate if counting is still required.">⚠ Closed without count</div>';
+    } else if (isCancelled && !hasResults) {
+      diagNote = '<div style="font-size:10px;color:#6b7280;margin-top:2px">Cancelled — no count submitted</div>';
+    }
+
     return '<tr>' +
       '<td><strong>' + esc(r.id) + '</strong></td>' +
       '<td>' + esc(cust) + '</td>' +
@@ -11740,7 +11769,7 @@ async function loadCycleCountView() {
       '<td><span class="card-link" onclick="openCountResultsModal(\'' + escAttr(r.id) + '\')">' + esc(resultTxt === '—' ? 'View' : resultTxt) + '</span></td>' +
       '<td>' + esc(sched) + '</td>' +
       '<td>' + esc(r.createdBy || '—') + '</td>' +
-      '<td><span class="badge ' + badge + '">' + esc(status) + '</span></td>' +
+      '<td><span class="badge ' + badge + '">' + statusDisplay + '</span>' + diagNote + '</td>' +
     '</tr>';
   }).join('');
 }
