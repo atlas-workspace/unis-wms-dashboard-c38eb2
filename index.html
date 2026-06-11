@@ -1163,7 +1163,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
               <button class="btn btn-secondary" onclick="resetCycleCountFilters()">Reset filters</button>
             </div>
             <table class="tbl" id="cc-recent-tbl">
-              <thead><tr><th>Ticket</th><th>Customer</th><th>Type</th><th>Locations</th><th>Results</th><th>Scheduled</th><th>Created by</th><th>Status</th></tr></thead>
+              <thead><tr><th>Ticket</th><th>Customer</th><th>Type</th><th>Method</th><th>Locations</th><th>Results</th><th>Scheduled</th><th>Created by</th><th>Status</th></tr></thead>
               <tbody id="cc-recent-body">
                 <tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af">Click Cycle Count in the sidebar to load…</td></tr>
               </tbody>
@@ -11633,7 +11633,7 @@ async function fetchCountResultsByTicketIds(ticketIds) {
 // KPI cards and the Recent Cycle Counts table.
 async function loadCycleCountView() {
   const body = document.getElementById('cc-recent-body');
-  if (body) body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af">Loading from Wise…</td></tr>';
+  if (body) body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:#9ca3af">Loading from Wise…</td></tr>';
 
   // Pull 50 most recent tickets at this facility, plus a "totalCount" we can use as a KPI
   const url = WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging';
@@ -11647,7 +11647,7 @@ async function loadCycleCountView() {
   });
   if (reqFacility !== FACILITY_ID) return;
   if (!resp || resp.success === false) {
-    if (body) body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:#ef4444">Could not reach Wise. ' +
+    if (body) body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:#ef4444">Could not reach Wise. ' +
       (resp && resp.msg ? esc(resp.msg) : '') + '</td></tr>';
     return;
   }
@@ -11656,6 +11656,23 @@ async function loadCycleCountView() {
   const facilityRows = rawRows.filter(rowMatchesCurrentFacility);
   const rows = applyCycleCountFilters(facilityRows);
   const total = facilityRows.length;
+
+  // Enrich rows missing countLines or countMethod by fetching ticket detail
+  const needsEnrich = rows.filter(r => (!(r.countLines && r.countLines.length > 0) && !(r.countTaskLineDtos && r.countTaskLineDtos.length > 0)) || !r.countMethod);
+  if (needsEnrich.length > 0) {
+    const enrichFetches = needsEnrich.slice(0, 10).map(async (r) => {
+      const detResp = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/' + encodeURIComponent(r.id), {
+        method: 'GET', headers: {'Accept':'application/json'},
+      });
+      if (!detResp || detResp._needsAuth) return;
+      const det = detResp.data || detResp;
+      if (det.countLines && det.countLines.length > 0 && !(r.countLines && r.countLines.length > 0)) r.countLines = det.countLines;
+      if (det.countTaskLineDtos && det.countTaskLineDtos.length > 0 && !(r.countTaskLineDtos && r.countTaskLineDtos.length > 0)) r.countTaskLineDtos = det.countTaskLineDtos;
+      if (det.countMethod && !r.countMethod) r.countMethod = det.countMethod;
+      if (det.method && !r.method) r.method = det.method;
+    });
+    await Promise.all(enrichFetches);
+  }
 
   // Group by status for the KPIs
   const open = rows.filter(r => /NEW|OPEN|IN_PROGRESS|PROGRESS|PENDING|READY/i.test(r.status||'')).length;
@@ -11698,7 +11715,7 @@ async function loadCycleCountView() {
   if (meta) meta.textContent = 'Live from Wise · ' + filterBits.join(' · ') + ' · ' + new Date().toLocaleTimeString();
 
   if (rows.length === 0) {
-    body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af">No cycle counts match the selected filters at ' + esc(FACILITY_NAME) + '.</td></tr>';
+    body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:#9ca3af">No cycle counts match the selected filters at ' + esc(FACILITY_NAME) + '.</td></tr>';
     return;
   }
   const resultStatsByTicket = await fetchCountResultsByTicketIds(rows.map(r => r.id).filter(Boolean));
@@ -11711,11 +11728,12 @@ async function loadCycleCountView() {
 
   body.innerHTML = rows.map(r => {
     const cust = custLookup[r.customerId] || r.customerId || '—';
+    const method = r.countMethod || r.method || r.countMethodType || '—';
     const lines = r.countLines || r.countTaskLineDtos || [];
     const locNames = lines.map(l => l.locationName || l.locationCode || l.name || l.locationId || '').filter(Boolean);
     let locsCell;
     if (locNames.length === 0) {
-      locsCell = '<span style="color:#9ca3af;font-style:italic">No locations on task</span>';
+      locsCell = '<span style="color:#9ca3af;font-style:italic">No locations on ticket</span>';
     } else if (locNames.length <= 2) {
       locsCell = locNames.map(n => '<span style="font-family:monospace;font-size:11px">' + esc(n) + '</span>').join(', ');
     } else {
@@ -11765,6 +11783,7 @@ async function loadCycleCountView() {
       '<td><strong>' + esc(r.id) + '</strong></td>' +
       '<td>' + esc(cust) + '</td>' +
       '<td>' + esc(r.type || '—') + '</td>' +
+      '<td>' + esc(method) + '</td>' +
       '<td>' + locsCell + '</td>' +
       '<td><span class="card-link" onclick="openCountResultsModal(\'' + escAttr(r.id) + '\')">' + esc(resultTxt === '—' ? 'View' : resultTxt) + '</span></td>' +
       '<td>' + esc(sched) + '</td>' +
