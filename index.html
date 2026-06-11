@@ -519,6 +519,10 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg>
         Replenish
       </div>
+      <div class="sb-item" data-view="rackReplenish" onclick="showView('rackReplenish')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="8"/><rect x="12" y="6" width="3" height="12"/><rect x="17" y="3" width="3" height="15"/></svg>
+        Rack Replenish
+      </div>
       <div class="sb-item" data-view="vlg" onclick="showView('vlg')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M8 7v10"/><path d="M16 7v10"/><path d="M2 12h20"/></svg>
         VLG Management
@@ -1588,6 +1592,11 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         </div>
       </div>
 
+      <!-- ════ VIEW: RACK REPLENISHMENT WORKFLOW ════ -->
+      <div class="view" id="view-rackReplenish">
+        <div id="rack-replen-content"></div>
+      </div>
+
       <!-- ════ VIEW: VLG MANAGEMENT ════ -->
       <div class="view" id="view-vlg">
         <!-- List subview -->
@@ -2151,6 +2160,7 @@ const VIEW_META = {
   settings:  {t:'Settings', s:'Account, notifications, and integrations'},
   consolidation: {t:'Consolidation', s:'Consolidate inventory across locations to optimize space'},
   replenish: {t:'Replenish', s:'Replenishment tasks to restock pick locations from reserve'},
+  rackReplenish: {t:'Rack Replenishment', s:'Workflow guide for replenishing rack pick-face locations from bulk reserve'},
   vlg: {t:'VLG Management', s:'Virtual Location Groups — manage grouping of locations by customer and type'},
   locationTag: {t:'Location Tag', s:'Location tags and tagged location counts'}
 };
@@ -2190,6 +2200,7 @@ function showView(name, sub) {
   // lazy-init view-specific content
   if (name === 'consolidation') loadConsolidationView();
   if (name === 'replenish') loadReplenishView();
+  if (name === 'rackReplenish') loadRackReplenishView();
   if (name === 'scheduler') initSchedulerForm();
   if (name === 'robots') { initRobotChart(); refreshOntologyStatus(); loadRobotKpisFromOntology(); }
   if (name === 'cycle') loadCycleCountView();
@@ -12956,6 +12967,166 @@ function ltagAddLocationPrompt() {
 if (WISE_TOKEN || hasStoredRefreshToken()) {
   document.getElementById('login-screen').style.display = 'none';
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// RACK REPLENISHMENT WORKFLOW — SOP / Guide Page
+// ═══════════════════════════════════════════════════════════════════════════
+
+function loadRackReplenishView() {
+  const el = document.getElementById('rack-replen-content');
+  if (!el) return;
+  if (el.dataset.loaded) return;
+  el.dataset.loaded = '1';
+
+  el.innerHTML = '<div style="max-width:900px;margin:0 auto;padding:0 8px">' +
+
+  '<div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">' +
+  '<div style="width:44px;height:44px;border-radius:10px;background:#F3EEFF;display:flex;align-items:center;justify-content:center">' +
+  '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5F2E98" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="8"/><rect x="12" y="6" width="3" height="12"/><rect x="17" y="3" width="3" height="15"/></svg></div>' +
+  '<div><div style="font-size:18px;font-weight:700;color:#1f2937">Rack Replenishment Workflow</div>' +
+  '<div style="font-size:13px;color:#6b7280">Standard Operating Procedure — Pick-face restock from bulk reserve</div></div></div>' +
+
+  // Trigger
+  '<div class="card" style="margin-bottom:16px;padding:20px">' +
+  '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">' +
+  '<span style="width:24px;height:24px;border-radius:50%;background:#DBEAFE;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#1e40af">1</span>' +
+  '<span style="font-size:14px;font-weight:700;color:#1f2937">Trigger</span></div>' +
+  '<div style="font-size:13px;color:#374151;line-height:1.7">' +
+  'Rack replenishment is triggered when a <strong>pick-face location</strong> falls below its configured minimum threshold. ' +
+  'The system monitors on-hand quantity vs. reorder point in real time. When <code>on_hand &le; reorder_point</code>, ' +
+  'a replenishment task is generated automatically.<br><br>' +
+  '<strong>Trigger sources:</strong><ul style="margin:6px 0 0 18px;padding:0">' +
+  '<li>System auto-trigger on inventory deduction (post-pick)</li>' +
+  '<li>Wave release pre-check — ensures pick-face can satisfy demand before wave starts</li>' +
+  '<li>Manual request by supervisor via WMS task console</li></ul>' +
+  '</div></div>' +
+
+  // Source Selection
+  '<div class="card" style="margin-bottom:16px;padding:20px">' +
+  '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">' +
+  '<span style="width:24px;height:24px;border-radius:50%;background:#DBEAFE;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#1e40af">2</span>' +
+  '<span style="font-size:14px;font-weight:700;color:#1f2937">Source Selection</span></div>' +
+  '<div style="font-size:13px;color:#374151;line-height:1.7">' +
+  'The system identifies the <strong>best source location</strong> in bulk/reserve storage to replenish from:<br><br>' +
+  '<strong>Selection priority:</strong><ol style="margin:6px 0 0 18px;padding:0">' +
+  '<li>Same SKU, same lot, FEFO-compliant (earliest expiry first)</li>' +
+  '<li>Closest physical distance to the destination pick-face</li>' +
+  '<li>Full pallet preferred over partial (minimize touches)</li>' +
+  '<li>Oldest received date when expiry is equal</li></ol><br>' +
+  '<strong>Constraints:</strong><ul style="margin:6px 0 0 18px;padding:0">' +
+  '<li>Source must have status = USABLE and not be allocated to another task</li>' +
+  '<li>Source quantity must meet or exceed the replenishment quantity (partial pull allowed if configured)</li>' +
+  '<li>Lot/batch compatibility with destination pick-face must pass validation</li></ul>' +
+  '</div></div>' +
+
+  // Task Assignment
+  '<div class="card" style="margin-bottom:16px;padding:20px">' +
+  '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">' +
+  '<span style="width:24px;height:24px;border-radius:50%;background:#DBEAFE;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#1e40af">3</span>' +
+  '<span style="font-size:14px;font-weight:700;color:#1f2937">Task Assignment</span></div>' +
+  '<div style="font-size:13px;color:#374151;line-height:1.7">' +
+  'Once source and destination are determined, the system creates a <strong>replenishment task</strong> and assigns it:<br><br>' +
+  '<strong>Assignment rules:</strong><ul style="margin:6px 0 0 18px;padding:0">' +
+  '<li>Priority based on wave urgency — tasks supporting imminent waves are escalated</li>' +
+  '<li>Assigned to operators in the replenishment work group for the zone</li>' +
+  '<li>RF-directed: operator receives task on handheld with source → destination path</li>' +
+  '<li>Pre-assignment to specific operator when configured (e.g., dedicated replen crew)</li></ul><br>' +
+  '<strong>Task fields:</strong> Task ID, SKU, source location, destination location, replenish qty, UOM, priority, assigned operator, due-by time.' +
+  '</div></div>' +
+
+  // Execution / Scan Discipline
+  '<div class="card" style="margin-bottom:16px;padding:20px">' +
+  '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">' +
+  '<span style="width:24px;height:24px;border-radius:50%;background:#FEF3C7;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#92400e">4</span>' +
+  '<span style="font-size:14px;font-weight:700;color:#1f2937">Execution &amp; Scan Discipline</span></div>' +
+  '<div style="font-size:13px;color:#374151;line-height:1.7">' +
+  'The operator executes the replenishment with RF scan verification at each step:<br><br>' +
+  '<table style="width:100%;font-size:12px;border-collapse:collapse;margin:8px 0"><thead><tr style="background:#f9fafb;border-bottom:1px solid #e5e7eb">' +
+  '<th style="padding:8px;text-align:left">Step</th><th style="padding:8px;text-align:left">Action</th><th style="padding:8px;text-align:left">Scan Required</th></tr></thead><tbody>' +
+  '<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:8px">1</td><td style="padding:8px">Travel to source location</td><td style="padding:8px">Scan source location barcode</td></tr>' +
+  '<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:8px">2</td><td style="padding:8px">Pick inventory from source</td><td style="padding:8px">Scan LP / pallet ID or SKU barcode</td></tr>' +
+  '<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:8px">3</td><td style="padding:8px">Confirm quantity</td><td style="padding:8px">Enter or confirm qty on RF</td></tr>' +
+  '<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:8px">4</td><td style="padding:8px">Travel to destination pick-face</td><td style="padding:8px">Scan destination location barcode</td></tr>' +
+  '<tr><td style="padding:8px">5</td><td style="padding:8px">Place &amp; confirm deposit</td><td style="padding:8px">Confirm placement on RF</td></tr>' +
+  '</tbody></table>' +
+  '<div style="margin-top:8px;padding:8px 12px;background:#FEF9C3;border-radius:6px;border:1px solid #FDE68A;font-size:12px;color:#92400E">' +
+  '<strong>Scan mismatch:</strong> If any scan does not match expected values, the RF rejects the action and requires re-scan or supervisor override.</div>' +
+  '</div></div>' +
+
+  // Inventory Move & Confirmation
+  '<div class="card" style="margin-bottom:16px;padding:20px">' +
+  '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">' +
+  '<span style="width:24px;height:24px;border-radius:50%;background:#D1FAE5;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#065f46">5</span>' +
+  '<span style="font-size:14px;font-weight:700;color:#1f2937">Inventory Move &amp; Confirmation</span></div>' +
+  '<div style="font-size:13px;color:#374151;line-height:1.7">' +
+  'Upon successful deposit confirmation:<br><br>' +
+  '<ul style="margin:6px 0 0 18px;padding:0">' +
+  '<li><strong>Source location:</strong> qty decremented; if empty, status set to EMPTY/available for putaway</li>' +
+  '<li><strong>Destination pick-face:</strong> qty incremented; on-hand updated in real time</li>' +
+  '<li><strong>Inventory transaction:</strong> REPLENISH movement record created with full audit trail (who, when, from, to, qty, lot)</li>' +
+  '<li><strong>Task status:</strong> marked COMPLETED with timestamp</li>' +
+  '<li><strong>Wave unblock:</strong> if this replenishment was blocking a wave, the wave pick tasks are released</li></ul>' +
+  '</div></div>' +
+
+  // Exception Handling
+  '<div class="card" style="margin-bottom:16px;padding:20px">' +
+  '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">' +
+  '<span style="width:24px;height:24px;border-radius:50%;background:#FEE2E2;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#991b1b">6</span>' +
+  '<span style="font-size:14px;font-weight:700;color:#1f2937">Exception Handling</span></div>' +
+  '<div style="font-size:13px;color:#374151;line-height:1.7">' +
+  '<table style="width:100%;font-size:12px;border-collapse:collapse;margin:8px 0"><thead><tr style="background:#f9fafb;border-bottom:1px solid #e5e7eb">' +
+  '<th style="padding:8px;text-align:left">Exception</th><th style="padding:8px;text-align:left">System Response</th><th style="padding:8px;text-align:left">Operator Action</th></tr></thead><tbody>' +
+  '<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:8px">Source empty / short</td><td style="padding:8px">Task re-sourced to next eligible location</td><td style="padding:8px">Confirm short; system reassigns</td></tr>' +
+  '<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:8px">Destination full / blocked</td><td style="padding:8px">Alert generated; task held</td><td style="padding:8px">Clear obstruction or notify supervisor</td></tr>' +
+  '<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:8px">Damaged inventory found</td><td style="padding:8px">Damaged qty excluded; partial replen allowed</td><td style="padding:8px">Flag damaged, proceed with good qty</td></tr>' +
+  '<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:8px">Lot/expiry mismatch</td><td style="padding:8px">Scan rejection; task blocked</td><td style="padding:8px">Return to source, report to supervisor</td></tr>' +
+  '<tr><td style="padding:8px">Equipment failure</td><td style="padding:8px">Task unassigned; returned to pool</td><td style="padding:8px">Report equipment issue; task auto-reassigns</td></tr>' +
+  '</tbody></table>' +
+  '</div></div>' +
+
+  // Verification
+  '<div class="card" style="margin-bottom:16px;padding:20px">' +
+  '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">' +
+  '<span style="width:24px;height:24px;border-radius:50%;background:#D1FAE5;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#065f46">7</span>' +
+  '<span style="font-size:14px;font-weight:700;color:#1f2937">Verification</span></div>' +
+  '<div style="font-size:13px;color:#374151;line-height:1.7">' +
+  'Post-completion verification ensures accuracy:<br><br>' +
+  '<ul style="margin:6px 0 0 18px;padding:0">' +
+  '<li><strong>System check:</strong> Destination on-hand matches expected (prior + replen qty)</li>' +
+  '<li><strong>Source check:</strong> Source deducted correctly; if zero, location freed</li>' +
+  '<li><strong>Cycle count trigger:</strong> If replenishment qty variance &gt; threshold, auto-schedule cycle count on the pick-face</li>' +
+  '<li><strong>KPI logging:</strong> Replenishment time, travel distance, and fill-rate metrics recorded for performance dashboards</li></ul>' +
+  '</div></div>' +
+
+  // Key Rules
+  '<div class="card" style="margin-bottom:16px;padding:20px;border-left:4px solid #753BBD">' +
+  '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">' +
+  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>' +
+  '<span style="font-size:14px;font-weight:700;color:#1f2937">Key Rules</span></div>' +
+  '<div style="font-size:13px;color:#374151;line-height:1.7">' +
+  '<ol style="margin:0 0 0 18px;padding:0">' +
+  '<li><strong>FEFO compliance is mandatory</strong> — earliest expiry must always be in the pick-face; newer stock stays in reserve</li>' +
+  '<li><strong>No mixing lots</strong> in a single pick-face unless the location is explicitly configured as mixed-lot</li>' +
+  '<li><strong>Full-pallet priority</strong> — replenish with the fullest available pallet to minimize future replenishments</li>' +
+  '<li><strong>Do not over-fill</strong> — replenishment qty must not exceed the location max capacity</li>' +
+  '<li><strong>Scan every step</strong> — no manual overrides without supervisor approval and exception log entry</li>' +
+  '<li><strong>Urgent replenishments first</strong> — wave-blocking replenishments take priority over threshold-based</li>' +
+  '<li><strong>Short-ship prevention</strong> — if replenishment cannot be completed, escalate before wave cut-off time</li>' +
+  '<li><strong>One task at a time per destination</strong> — no concurrent replenishment tasks for the same pick-face location</li></ol>' +
+  '</div></div>' +
+
+  // Live Data Placeholder
+  '<div class="card" style="margin-bottom:16px;padding:20px;background:#f9fafb;border:1px dashed #d1d5db">' +
+  '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>' +
+  '<span style="font-size:13px;font-weight:600;color:#6b7280">Live Replenishment Tasks</span></div>' +
+  '<div style="font-size:12px;color:#9ca3af;line-height:1.6">' +
+  'Active replenishment task data will appear here once integrated with the WMS replenishment task API. ' +
+  'Tasks are facility-scoped and require an authenticated session.</div></div>' +
+
+  '</div>';
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════════════════
 // CONSOLIDATION PAGE — BULK / Rack tabs
