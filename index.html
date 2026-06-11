@@ -1609,6 +1609,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
               <option value="">All Customers</option>
             </select>
             <button class="btn btn-primary" onclick="rsRefresh()" style="font-size:12px;padding:6px 14px" id="rs-refresh-btn">Refresh Suggestions</button>
+            <button class="btn btn-secondary" onclick="rsAutoAssign()" style="font-size:12px;padding:6px 14px" id="rs-autoassign-btn" title="Fill suggested assignees from order plan data">Auto Assign</button>
             <button class="btn btn-secondary" onclick="rsExportExcel()" style="font-size:12px;padding:6px 14px" id="rs-export-btn">Export Excel</button>
           </div>
         </div>
@@ -1618,6 +1619,33 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Already Covered</div><div class="kpi-val" id="rs-kpi-covered">—</div><div class="kpi-chg neutral">open replen tasks</div></div></div>
           <div class="kpi"><div class="kpi-ico orange"><svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div><div class="kpi-lbl">Action Needed</div><div class="kpi-val" id="rs-kpi-action">—</div><div class="kpi-chg neutral">gaps to fill</div></div></div>
         </div>
+
+        <!-- Autonomous Functions Panel -->
+        <div class="card" style="margin-bottom:16px;padding:16px;border-left:4px solid #753BBD">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <span style="font-size:13px;font-weight:700;color:#1f2937">Autonomous Functions</span>
+            </div>
+            <span style="font-size:11px;color:#6b7280;background:#f3f4f6;padding:2px 8px;border-radius:4px" id="rs-auto-mode-label">Mode: Read-only suggestions</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;font-size:12px">
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #e5e7eb;cursor:pointer;background:#f9fafb">
+              <input type="radio" name="rs-auto-mode" value="readonly" checked style="accent-color:#753BBD"/> Read-only suggestions</label>
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #e5e7eb;cursor:pointer;background:#f9fafb">
+              <input type="radio" name="rs-auto-mode" value="suggest-confirm" style="accent-color:#753BBD"/> Suggest + confirm</label>
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #d1d5db;cursor:not-allowed;background:#f3f4f6;color:#9ca3af">
+              <input type="radio" name="rs-auto-mode" value="auto-create" disabled style="accent-color:#9ca3af"/> Auto-create unassigned <span style="font-size:10px;background:#FEF3C7;color:#92400E;padding:0 4px;border-radius:3px;margin-left:2px">Not configured</span></label>
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #d1d5db;cursor:not-allowed;background:#f3f4f6;color:#9ca3af">
+              <input type="radio" name="rs-auto-mode" value="auto-assign" disabled style="accent-color:#9ca3af"/> Auto-create + assign <span style="font-size:10px;background:#FEF3C7;color:#92400E;padding:0 4px;border-radius:3px;margin-left:2px">Not configured</span></label>
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:6px;border:1px solid #fecaca;cursor:not-allowed;background:#fef2f2;color:#9ca3af">
+              <input type="radio" name="rs-auto-mode" value="auto-dispatch" disabled style="accent-color:#9ca3af"/> Auto + dispatch <span style="font-size:10px;background:#FEE2E2;color:#991B1B;padding:0 4px;border-radius:3px;margin-left:2px">Locked</span></label>
+          </div>
+          <div style="margin-top:10px;font-size:11px;color:#6b7280;line-height:1.5">
+            Task creation modes require verified WMS endpoint schemas and explicit approval. Currently operating in read-only mode — suggestions are displayed but no tasks are created or assigned in WMS.
+          </div>
+        </div>
+
         <div class="card" style="padding:0;overflow:hidden">
           <div style="padding:12px 16px;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
             <div style="display:flex;align-items:center;gap:12px">
@@ -1628,8 +1656,8 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           </div>
           <div style="overflow-x:auto">
             <table class="tbl" style="margin:0;font-size:12px">
-              <thead><tr><th>Customer</th><th>Order Plan</th><th>Item</th><th>Qty</th><th>UOM</th><th>Pick Type</th><th>From Location</th><th>To Location</th><th>Task Status</th><th>Recommendation</th><th>Note</th></tr></thead>
-              <tbody id="rs-tbody"><tr><td colspan="11" style="text-align:center;padding:40px;color:#9ca3af">Click "Refresh Suggestions" to load next-day replenishment demand.</td></tr></tbody>
+              <thead><tr><th>Customer</th><th>Order Plan</th><th>Item</th><th>Qty</th><th>UOM</th><th>Pick Type</th><th>From Location</th><th>To Location</th><th>Assignee</th><th>Task Status</th><th>Recommendation</th><th>Note</th></tr></thead>
+              <tbody id="rs-tbody"><tr><td colspan="12" style="text-align:center;padding:40px;color:#9ca3af">Click "Refresh Suggestions" to load next-day replenishment demand.</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -13180,6 +13208,8 @@ async function rsRefresh() {
         toLocationId: item.toLocationId || item.destinationLocationId || '',
         shippingRule: plan.shippingRule || '',
         replenNote: plan.replenishmentNote || plan.replenNote || item.replenNote || '',
+        defaultAssignee: plan.defaultAssigneeUserId || plan.preAssigneeUserId || plan.assigneeUserId || '',
+        suggestedAssignee: '',
       }));
     });
 
@@ -13232,26 +13262,36 @@ function rsRender() {
   const openTaskPlanIds = new Set(RS_OPEN_TASKS.map(t => t.orderPlanId).filter(Boolean));
   const openTaskItemIds = new Set(RS_OPEN_TASKS.flatMap(t => (t.taskSteps || []).map(s => s.itemId)).filter(Boolean));
 
-  // Derive replenishment note per row
+  // Derive replenishment note and guardrails per row
   const annotated = RS_DATA.map(row => {
     let note = row.replenNote || '';
     const setupKey = (row.customerId || '') + '|' + (row.itemId || '');
     const setup = RS_REPLEN_SETUP[setupKey];
     if (!note && !row.fromLocation && !row.toLocation && !setup) {
       note = 'No replenishment strategy configured. Maintain in Item Master > Item Replenishment.';
-    } else if (!note && setup && !row.fromLocation) {
-      note = '';
     }
     let taskStatus = 'No Task';
     let recommendation = 'Create replenishment';
     if (openTaskPlanIds.has(row.planId)) { taskStatus = 'Covered'; recommendation = 'Already in progress'; }
     else if (openTaskItemIds.has(row.itemId)) { taskStatus = 'Partial'; recommendation = 'Check existing task qty'; }
-    return { ...row, note, taskStatus, recommendation };
+    // Guardrail checks
+    const guardrails = {
+      noDuplicate: taskStatus === 'No Task',
+      setupExists: !!(setup || row.fromLocation || row.toLocation),
+      fromKnown: !!row.fromLocation,
+      toKnown: !!row.toLocation,
+      shippingRuleOk: !row.shippingRule || row.shippingRule === 'OK' || true,
+      assigneeAvailable: !!row.suggestedAssignee,
+    };
+    const eligible = guardrails.noDuplicate && guardrails.setupExists && guardrails.fromKnown && guardrails.toKnown;
+    if (taskStatus === 'No Task' && !eligible) {
+      recommendation = 'Blocked — ' + (!guardrails.setupExists ? 'needs replenishment setup' : !guardrails.fromKnown ? 'no source location' : 'no target location');
+    }
+    return { ...row, note, taskStatus, recommendation, guardrails, eligible, assignee: row.suggestedAssignee || row.defaultAssignee || '' };
   });
 
   let displayRows;
   if (consolidated) {
-    // Group by customerId+itemId+uomId+pickType+toLocation+shippingRule
     const groups = {};
     annotated.forEach(r => {
       const key = [r.customerId, r.itemId, r.uomId || r.uom, r.pickType, r.toLocation || '', r.shippingRule].join('||');
@@ -13263,12 +13303,16 @@ function rsRender() {
       if (r.note && !groups[key].notes.includes(r.note)) groups[key].notes.push(r.note);
       if (r.taskStatus === 'Covered') groups[key].taskStatus = 'Covered';
       else if (r.taskStatus === 'Partial' && groups[key].taskStatus !== 'Covered') groups[key].taskStatus = 'Partial';
+      if (!groups[key].assignee && r.assignee) groups[key].assignee = r.assignee;
+      if (!groups[key].eligible) groups[key].eligible = r.eligible;
     });
     displayRows = Object.values(groups).map(g => {
       g.qty = g.totalQty;
       g.note = g.notes.join(' ');
-      if (g.plans.length > 1 && g.taskStatus === 'No Task') {
+      if (g.plans.length > 1 && g.taskStatus === 'No Task' && g.eligible) {
         g.recommendation = 'Create one consolidated replenishment (' + g.plans.length + ' plans)';
+      } else if (g.plans.length > 1 && g.taskStatus === 'No Task' && !g.eligible) {
+        g.recommendation = 'Blocked — ' + (!g.fromLocation ? 'no source location' : 'needs setup');
       }
       g.planLabel = g.plans.length > 1 ? g.plans.length + ' plans' : String(g.plans[0].planId).slice(-8);
       g.planDetail = g.plans.map(p => String(p.planId).slice(-8) + ' (qty ' + p.qty + ')').join(', ');
@@ -13289,7 +13333,7 @@ function rsRender() {
   document.getElementById('rs-kpi-action').textContent = actionCount || '0';
 
   if (displayRows.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px;color:#9ca3af">' +
+    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:40px;color:#9ca3af">' +
       '<div style="margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>' +
       '<strong style="color:#6b7280">No replenishment gaps found</strong><br>' +
       '<span style="font-size:12px">Pick locations appear ready for next-day demand.</span></td></tr>';
@@ -13303,12 +13347,13 @@ function rsRender() {
     const statusCls = s.taskStatus === 'Covered' ? 'style="color:#059669;font-weight:600"' :
                       s.taskStatus === 'Partial' ? 'style="color:#d97706;font-weight:600"' :
                       'style="color:#dc2626;font-weight:600"';
-    const recStyle = s.taskStatus === 'Covered' ? 'color:#6b7280' : 'color:#1f2937;font-weight:600';
+    const recStyle = s.taskStatus === 'Covered' ? 'color:#6b7280' : (s.eligible ? 'color:#059669;font-weight:600' : 'color:#1f2937;font-weight:600');
     const ruleTag = s.shippingRule ? '<span style="display:inline-block;font-size:10px;padding:1px 5px;border-radius:3px;background:#EDE9FE;color:#5B21B6;margin-left:4px">' + esc(s.shippingRule) + '</span>' : '';
     const fromLoc = s.fromLocation ? esc(s.fromLocation) : '<span style="color:#9ca3af;font-style:italic">Not configured</span>';
     const toLoc = s.toLocation ? esc(s.toLocation) : '<span style="color:#9ca3af;font-style:italic">Not configured</span>';
     const planCell = s.planDetail ? '<span title="' + esc(s.planDetail) + '" style="cursor:help;border-bottom:1px dotted #9ca3af">' + esc(s.planLabel) + '</span>' : esc(s.planLabel);
     const noteCell = s.note ? '<span style="color:#b45309;font-size:11px" title="' + esc(s.note) + '">' + esc(String(s.note).slice(0, 40)) + (s.note.length > 40 ? '…' : '') + '</span>' : '<span style="color:#d1d5db">—</span>';
+    const assigneeCell = s.assignee ? '<span style="font-size:11px;color:#374151">' + esc(String(s.assignee).slice(0, 20)) + '</span>' : '<span style="color:#9ca3af;font-style:italic;font-size:11px">Not assigned</span>';
     return '<tr>' +
       '<td style="font-size:12px">' + esc(String(s.customerName).slice(0, 25)) + '</td>' +
       '<td style="font-family:monospace;font-size:11px;color:#753BBD">' + planCell + '</td>' +
@@ -13318,8 +13363,9 @@ function rsRender() {
       '<td><span style="font-size:11px;padding:2px 6px;border-radius:3px;background:#F3F4F6;color:#374151">' + esc(s.pickType) + '</span></td>' +
       '<td style="font-family:monospace;font-size:11px">' + fromLoc + '</td>' +
       '<td style="font-family:monospace;font-size:11px">' + toLoc + '</td>' +
+      '<td style="font-size:11px">' + assigneeCell + '</td>' +
       '<td><span ' + statusCls + '>' + esc(s.taskStatus) + '</span></td>' +
-      '<td style="font-size:12px;' + recStyle + '">' + esc(s.recommendation) + '</td>' +
+      '<td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + recStyle + '">' + esc(s.recommendation) + '</td>' +
       '<td style="font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + noteCell + '</td>' +
       '</tr>';
   }).join('');
@@ -13330,17 +13376,34 @@ function rsFilterTable() {
   if (!q) { rsRender(); return; }
   const tbody = document.getElementById('rs-tbody');
   const filtered = RS_DATA.filter(r => {
-    const hay = [r.customerName, r.itemName, r.itemId, r.planId, r.pickType, r.shippingRule, r.fromLocation, r.toLocation, r.replenNote].join(' ').toLowerCase();
+    const hay = [r.customerName, r.itemName, r.itemId, r.planId, r.pickType, r.shippingRule, r.fromLocation, r.toLocation, r.replenNote, r.suggestedAssignee, r.defaultAssignee].join(' ').toLowerCase();
     return hay.includes(q);
   });
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:30px;color:#9ca3af">No suggestions match "' + esc(q) + '"</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:30px;color:#9ca3af">No suggestions match "' + esc(q) + '"</td></tr>';
     return;
   }
   const backup = RS_DATA;
   RS_DATA = filtered;
   rsRender();
   RS_DATA = backup;
+}
+
+function rsAutoAssign() {
+  if (RS_DATA.length === 0) { alert('No suggestions loaded. Run Refresh Suggestions first.'); return; }
+  let assigned = 0;
+  RS_DATA.forEach(r => {
+    if (!r.suggestedAssignee) {
+      const assignee = r.defaultAssignee || '';
+      if (assignee) { r.suggestedAssignee = assignee; assigned++; }
+    }
+  });
+  rsRender();
+  if (assigned > 0) {
+    alert('Auto-assigned ' + assigned + ' suggestion(s) from order plan default assignee data.');
+  } else {
+    alert('No assignee data available. Order plans do not have a default assignee configured.');
+  }
 }
 
 function rsExportExcel() {
@@ -13364,7 +13427,7 @@ function rsExportExcel() {
   rows.push([]);
 
   if (consolidated) {
-    rows.push(['Customer','Item ID','Item Name','Total Qty','UOM','Pick Type','From Location','To Location','Contributing Plans','Task Status','Recommendation','Replenishment Note']);
+    rows.push(['Customer','Item ID','Item Name','Total Qty','UOM','Pick Type','From Location','To Location','Suggested Assignee','Contributing Plans','Task Status','Recommendation','Replenishment Note']);
     const groups = {};
     RS_DATA.forEach(r => {
       const key = [r.customerId, r.itemId, r.uomId || r.uom, r.pickType, r.toLocation || '', r.shippingRule].join('||');
@@ -13375,16 +13438,17 @@ function rsExportExcel() {
       let note = r.replenNote || '';
       if (!note && !r.fromLocation && !r.toLocation && !RS_REPLEN_SETUP[setupKey]) note = 'No replenishment strategy configured';
       if (note && !groups[key].notes.includes(note)) groups[key].notes.push(note);
+      if (!groups[key].suggestedAssignee && (r.suggestedAssignee || r.defaultAssignee)) groups[key].suggestedAssignee = r.suggestedAssignee || r.defaultAssignee;
     });
     Object.values(groups).forEach(g => {
       let taskStatus = 'No Task'; let rec = 'Create replenishment';
       if (g.plans.some(p => openTaskPlanIds.has(p))) { taskStatus = 'Covered'; rec = 'Already in progress'; }
       else if (openTaskItemIds.has(g.itemId)) { taskStatus = 'Partial'; rec = 'Check existing task qty'; }
       else if (g.plans.length > 1) { rec = 'Create one consolidated replenishment (' + g.plans.length + ' plans)'; }
-      rows.push([g.customerName, g.itemId, g.itemName, String(g.totalQty), g.uom, g.pickType, g.fromLocation || 'Not configured', g.toLocation || 'Not configured', g.plans.map(p => String(p).slice(-8)).join('; '), taskStatus, rec, g.notes.join('; ')]);
+      rows.push([g.customerName, g.itemId, g.itemName, String(g.totalQty), g.uom, g.pickType, g.fromLocation || 'Not configured', g.toLocation || 'Not configured', g.suggestedAssignee || 'Not assigned', g.plans.map(p => String(p).slice(-8)).join('; '), taskStatus, rec, g.notes.join('; ')]);
     });
   } else {
-    rows.push(['Customer','Order Plan','Item ID','Item Name','Quantity','UOM','Pick Type','From Location','To Location','Task Status','Recommendation','Replenishment Note']);
+    rows.push(['Customer','Order Plan','Item ID','Item Name','Quantity','UOM','Pick Type','From Location','To Location','Suggested Assignee','Task Status','Recommendation','Replenishment Note']);
     RS_DATA.forEach(r => {
       let taskStatus = 'No Task'; let rec = 'Create replenishment';
       if (openTaskPlanIds.has(r.planId)) { taskStatus = 'Covered'; rec = 'Already in progress'; }
@@ -13392,7 +13456,7 @@ function rsExportExcel() {
       const setupKey = (r.customerId || '') + '|' + (r.itemId || '');
       let note = r.replenNote || '';
       if (!note && !r.fromLocation && !r.toLocation && !RS_REPLEN_SETUP[setupKey]) note = 'No replenishment strategy configured';
-      rows.push([r.customerName, r.planId, r.itemId, r.itemName, String(r.qty || 0), r.uom, r.pickType, r.fromLocation || 'Not configured', r.toLocation || 'Not configured', taskStatus, rec, note]);
+      rows.push([r.customerName, r.planId, r.itemId, r.itemName, String(r.qty || 0), r.uom, r.pickType, r.fromLocation || 'Not configured', r.toLocation || 'Not configured', r.suggestedAssignee || r.defaultAssignee || 'Not assigned', taskStatus, rec, note]);
     });
   }
 
