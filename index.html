@@ -1163,7 +1163,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
               <button class="btn btn-secondary" onclick="resetCycleCountFilters()">Reset filters</button>
             </div>
             <table class="tbl" id="cc-recent-tbl">
-              <thead><tr><th>Ticket</th><th>Customer</th><th>Type</th><th>Locs</th><th>Results</th><th>Scheduled</th><th>Created by</th><th>Status</th></tr></thead>
+              <thead><tr><th>Ticket</th><th>Customer</th><th>Type</th><th>Locations</th><th>Results</th><th>Scheduled</th><th>Created by</th><th>Status</th></tr></thead>
               <tbody id="cc-recent-body">
                 <tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af">Click Cycle Count in the sidebar to load…</td></tr>
               </tbody>
@@ -11312,7 +11312,9 @@ function renderCustomerRow(t, custLookup) {
   const complete = pct >= 100;
   const editing = t.id === CC.editingTaskId;
   const customer = custLookup[t.customerId] || t.customerName || t.customerId || '—';
-  const locs = (t.countLines||[]).length;
+  const lines = t.countLines || [];
+  const locNames = lines.map(l => l.locationName || l.name || l.locationId || '').filter(Boolean);
+  const locsLabel = locNames.length > 0 ? locNames.slice(0, 2).join(', ') + (locNames.length > 2 ? ' +' + (locNames.length - 2) : '') : (lines.length + ' location' + (lines.length === 1 ? '' : 's'));
   // Live WMS status for this row's ticket
   const rowStatus = (() => {
     if (t.wiseStatus) return t.wiseStatus.replace(/_/g, ' ');
@@ -11327,7 +11329,7 @@ function renderCustomerRow(t, custLookup) {
       <span class="tc-name">${esc(customer)}</span>
       ${t.ticketId ? '<span class="tc-ticket">' + esc(t.ticketId) + '</span>' : ''}
       <span class="task-status-chip ${rowStatusCls}" style="margin-left:6px">${esc(rowStatus)}</span>
-      <span class="tc-sub">${locs.toLocaleString()} location${locs===1?'':'s'}</span>
+      <span class="tc-sub">${esc(locsLabel)}</span>
     </div>
     <div class="tc-actions">
       ${t.ticketId ? `<button onclick="refreshTaskProgressFromWise('${escapeAttr(t.id)}')" title="Refresh">↻</button>` : ''}
@@ -11351,7 +11353,9 @@ function renderSoloTaskCard(t, custLookup) {
   const editing = t.id === CC.editingTaskId;
   const release = t.scheduleDate ? new Date(t.scheduleDate).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}) : '—';
   const customer = custLookup[t.customerId] || t.customerName || t.customerId || '—';
-  const lines = (t.countLines||[]).length;
+  const soloLines = t.countLines || [];
+  const soloLocNames = soloLines.map(l => l.locationName || l.name || l.locationId || '').filter(Boolean);
+  const locsLabel = soloLocNames.length > 0 ? soloLocNames.slice(0, 2).join(', ') + (soloLocNames.length > 2 ? ' +' + (soloLocNames.length - 2) : '') : (soloLines.length + ' location' + (soloLines.length === 1 ? '' : 's'));
   // Prefer live WMS status when available
   const displayStatus = (() => {
     if (editing) return 'EDITING';
@@ -11367,7 +11371,7 @@ function renderSoloTaskCard(t, custLookup) {
     <div class="task-card-hdr">
       <div style="flex:1;min-width:0">
         <div class="task-card-name">${esc(t.name||'(no name)')}${ticketTag}</div>
-        <div class="task-card-sub">${esc(customer)} · ${lines.toLocaleString()} location${lines===1?'':'s'} · Release ${esc(release)}</div>
+        <div class="task-card-sub">${esc(customer)} · ${esc(locsLabel)} · Release ${esc(release)}</div>
         <div style="margin-top:6px"><span class="task-status-chip ${statusCls}">${esc(displayStatus)}</span></div>
       </div>
       <div class="task-card-actions">
@@ -11637,7 +11641,7 @@ async function loadCycleCountView() {
     headers:{'Content-Type':'application/json','Accept':'application/json'},
     // Send facility in the payload as well as the x-facility-id header.
     // Some Wise endpoints ignore the header and otherwise return mixed warehouses.
-    body: JSON.stringify({currentPage:1, pageSize:50, facilityId: FACILITY_ID, warehouseId: FACILITY_ID}),
+    body: JSON.stringify({currentPage:1, pageSize:50, facilityId: FACILITY_ID, warehouseId: FACILITY_ID, withCountLines: true}),
   });
   if (reqFacility !== FACILITY_ID) return;
   if (!resp || resp.success === false) {
@@ -11705,7 +11709,16 @@ async function loadCycleCountView() {
 
   body.innerHTML = rows.map(r => {
     const cust = custLookup[r.customerId] || r.customerId || '—';
-    const locs = (r.countLines || []).length;
+    const lines = r.countLines || r.countTaskLineDtos || [];
+    const locNames = lines.map(l => l.locationName || l.locationCode || l.name || l.locationId || '').filter(Boolean);
+    let locsCell;
+    if (locNames.length === 0) {
+      locsCell = '<span style="color:#9ca3af;font-style:italic">No locations on task</span>';
+    } else if (locNames.length <= 2) {
+      locsCell = locNames.map(n => '<span style="font-family:monospace;font-size:11px">' + esc(n) + '</span>').join(', ');
+    } else {
+      locsCell = '<span style="font-family:monospace;font-size:11px">' + esc(locNames[0]) + '</span>, <span style="font-family:monospace;font-size:11px">' + esc(locNames[1]) + '</span> <span style="color:#6b7280;font-size:11px">+' + (locNames.length - 2) + ' more</span>';
+    }
     const resultStats = resultStatsByTicket[r.id] || {total:0, diff:0, pending:0, closed:0};
     const resultTxt = resultStats.total
       ? (resultStats.total + ' result' + (resultStats.total === 1 ? '' : 's') + (resultStats.diff ? ' · ' + resultStats.diff + ' diff' : ''))
@@ -11721,7 +11734,7 @@ async function loadCycleCountView() {
       '<td><strong>' + esc(r.id) + '</strong></td>' +
       '<td>' + esc(cust) + '</td>' +
       '<td>' + esc(r.type || '—') + '</td>' +
-      '<td>' + locs.toLocaleString() + '</td>' +
+      '<td>' + locsCell + '</td>' +
       '<td><span class="card-link" onclick="openCountResultsModal(\'' + escAttr(r.id) + '\')">' + esc(resultTxt === '—' ? 'View' : resultTxt) + '</span></td>' +
       '<td>' + esc(sched) + '</td>' +
       '<td>' + esc(r.createdBy || '—') + '</td>' +
