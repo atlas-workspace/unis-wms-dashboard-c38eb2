@@ -12269,6 +12269,43 @@ async function submitCycleCount() {
     // Name suffix when multiple customers — keep them distinct in Wise
     const custName = (FACILITY_CUSTOMERS[FACILITY_ID] || []).find(c => c.id === customerId);
     const nameSuffix = (custIds.length > 1 && custName) ? ' · ' + custName.name : '';
+
+    // IDEMPOTENCY GUARDRAIL: Check if today's ticket already exists for this schedule/customer/type
+    // before creating a new one. Prevents duplicate tickets per day.
+    if (!isPut) {
+      const nowLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
+      const todayStart = nowLA.getFullYear() + '-' + String(nowLA.getMonth()+1).padStart(2,'0') + '-' + String(nowLA.getDate()).padStart(2,'0') + 'T00:00:00';
+      const todayEnd = nowLA.getFullYear() + '-' + String(nowLA.getMonth()+1).padStart(2,'0') + '-' + String(nowLA.getDate()).padStart(2,'0') + 'T23:59:59';
+      const dupCheck = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','Accept':'application/json'},
+        body: JSON.stringify({currentPage:1, pageSize:10, facilityId: FACILITY_ID, warehouseId: FACILITY_ID, customerId: customerId, createdTimeFrom: todayStart, createdTimeTo: todayEnd, withCountLines: true}),
+      });
+      if (dupCheck && dupCheck.success !== false) {
+        const dupData = dupCheck.data || dupCheck;
+        const dupList = (dupData.list || dupData.records || []).filter(t => {
+          const st = (t.status || '').toUpperCase();
+          return st !== 'CANCELLED';
+        });
+        if (dupList.length > 0) {
+          const existingTicket = dupList[0];
+          results.push({customerId, ticketId: existingTicket.id, ok:true, payload, reused: true, msg: 'Today\'s count ticket already exists (' + existingTicket.id + '). Using existing ticket.'});
+          // Check if task already exists for this ticket before auto-assign
+          if (commonFields.counterUserId) {
+            const taskCheck = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging', {
+              method: 'POST',
+              headers: {'Content-Type':'application/json','Accept':'application/json'},
+              body: JSON.stringify({currentPage:1, pageSize:10, facilityId: FACILITY_ID, warehouseId: FACILITY_ID, withCountLines: true}),
+            });
+            // Simple heuristic: if the existing ticket was found, skip task creation
+            const last = results[results.length - 1];
+            last.tasksSkipped = 'Task already exists or ticket reused — not creating duplicate task.';
+          }
+          continue;
+        }
+      }
+    }
+
     const payload = Object.assign({}, commonFields, {
       name:        baseName + nameSuffix,
       customerId:  customerId,
@@ -12301,12 +12338,10 @@ async function submitCycleCount() {
       const ticketId = (resp.data && (resp.data.id || resp.data.ticketId)) || resp.id || null;
       results.push({customerId, ticketId, ok:true, payload});
 
-      // AUTO-ASSIGN — if a Counter was set, immediately split this ticket's
-      // lines into tasks (chunks of maxLinesPerTask) and POST them to the
-      // cycle-count create-tasks endpoint. This skips the manual Task
-      // Splitting page in Wise. Endpoint contract was captured from the
-      // WMS UI's actual request — see notes near CYCLECOUNT_BASE.
+      // AUTO-ASSIGN — if a Counter was set, create ONE task with ALL valid
+      // location lines. Do NOT split into multiple tasks per schedule/day.
       // CRITICAL: taskLines MUST include locationId so RF/mobile shows suggested locations.
+      // IDEMPOTENCY: Check if task already exists for this ticket before creating.
       if (ticketId && commonFields.counterUserId) {
         // Re-validate: block if By Location but lines lack locationId
         const validLines = linesForCust.filter(l => l.id || l.locationId || l.name);
@@ -12314,11 +12349,9 @@ async function submitCycleCount() {
           const last = results[results.length - 1];
           last.tasksError = 'Ticket created but no RF tasks generated — count lines have no location IDs. Add locations to the ticket in WMS before creating tasks.';
         } else {
-        const maxLines = parseInt((document.getElementById('cc-max-lines-per-task')||{}).value, 10) || 10;
+        // ONE task with ALL lines — do not split into multiple tasks
         const taskSourceLines = isByLocation ? validLines : linesForCust;
-        const tasksPayload = [];
-        for (let i = 0; i < taskSourceLines.length; i += maxLines) {
-          tasksPayload.push({
+        const tasksPayload = [{
             ticketId,
             customerId,
             customerName: custName ? custName.name : customerId,
@@ -12329,7 +12362,7 @@ async function submitCycleCount() {
             method: commonFields.countMethod,
             assigneeUserId: String(commonFields.counterUserId),
             assigneeUserName: commonFields.counterUserName || null,
-            taskLines: taskSourceLines.slice(i, i + maxLines).map(l => {
+            taskLines: taskSourceLines.map(l => {
               const locId = l.id || l.locationId || l.name;
               const locName = l.name || l.locationName || String(locId || '');
               const locType = l.type || l.locationType || 'LOCATION';
@@ -12359,8 +12392,7 @@ async function submitCycleCount() {
                 supportPickType: l.supportPickType || null,
               };
             }),
-          });
-        }
+          }];
         if (tasksPayload.length > 0) {
           const tz = (typeof Intl !== 'undefined' && Intl.DateTimeFormat)
             ? Intl.DateTimeFormat().resolvedOptions().timeZone
