@@ -515,13 +515,14 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-6"/><path d="M12 8V2"/><path d="M21 3l-9 9"/><path d="M3 3l9 9"/><rect x="8" y="16" width="8" height="5" rx="1"/></svg>
         Consolidation
       </div>
-      <div class="sb-item" data-view="replenish" onclick="showView('replenish')">
+      <div class="sb-item" onclick="toggleReplenGroup(event)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg>
-        Replenish
+        Replenishment
+        <svg class="caret" id="replen-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="sb-item" data-view="replenSuggest" onclick="showView('replenSuggest')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><circle cx="12" cy="12" r="4"/></svg>
-        Replen Suggest
+      <div class="sb-sub" id="replen-sub">
+        <div class="sb-item" data-view="replenish" onclick="showView('replenish')">Replenish</div>
+        <div class="sb-item" data-view="replenSuggest" onclick="showView('replenSuggest')">Suggestions</div>
       </div>
       <div class="sb-item" data-view="vlg" onclick="showView('vlg')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M8 7v10"/><path d="M16 7v10"/><path d="M2 12h20"/></svg>
@@ -1604,7 +1605,12 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
               <div style="font-size:12px;color:#6b7280" id="rs-date-label">Loading…</div>
             </div>
           </div>
-          <button class="btn btn-primary" onclick="rsRefresh()" style="font-size:12px;padding:6px 14px" id="rs-refresh-btn">Refresh Suggestions</button>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <select class="cc-input" id="rs-customer-select" style="font-size:12px;padding:5px 10px;width:220px">
+              <option value="">All Customers</option>
+            </select>
+            <button class="btn btn-primary" onclick="rsRefresh()" style="font-size:12px;padding:6px 14px" id="rs-refresh-btn">Refresh Suggestions</button>
+          </div>
         </div>
         <div class="kpi-grid" id="rs-kpis" style="margin-bottom:16px">
           <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M9 11l3 3L22 4"/></svg></div><div><div class="kpi-lbl">Order Plans</div><div class="kpi-val" id="rs-kpi-plans">—</div><div class="kpi-chg neutral">next-day demand</div></div></div>
@@ -2249,6 +2255,15 @@ function toggleInv(e) {
   car.classList.toggle('open', opened);
   // also switch to inventory view
   showView('inventory','all');
+}
+
+function toggleReplenGroup(e) {
+  e.stopPropagation();
+  const sub = document.getElementById('replen-sub');
+  const car = document.getElementById('replen-caret');
+  const opened = sub.classList.toggle('open');
+  car.classList.toggle('open', opened);
+  if (opened) showView('replenish');
 }
 
 function toggleCycle(e) {
@@ -13014,6 +13029,23 @@ function loadReplenSuggestView() {
     const tomorrow = rsGetTomorrow();
     lbl.textContent = 'Target: ' + tomorrow.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', year:'numeric'}) + ' (America/Los_Angeles)';
   }
+  rsPopulateCustomerDropdown();
+}
+
+function rsPopulateCustomerDropdown() {
+  const sel = document.getElementById('rs-customer-select');
+  if (!sel || sel.dataset.loaded) return;
+  const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
+  if (customers.length === 0) {
+    sel.innerHTML = '<option value="">All Customers</option><option disabled>No customers available for this facility</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">All Customers (' + customers.length + ')</option>';
+  const sorted = [...customers].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  sorted.forEach(c => {
+    sel.innerHTML += '<option value="' + (c.id || '') + '">' + (c.name || c.code || c.id) + '</option>';
+  });
+  sel.dataset.loaded = '1';
 }
 
 function rsGetTomorrow() {
@@ -13027,6 +13059,7 @@ function rsGetTomorrow() {
 async function rsRefresh() {
   const btn = document.getElementById('rs-refresh-btn');
   const tbody = document.getElementById('rs-tbody');
+  const selectedCustomer = (document.getElementById('rs-customer-select') || {}).value || '';
   if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
   tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af"><span class="spinner"></span> Searching next-day order plans…</td></tr>';
 
@@ -13044,16 +13077,19 @@ async function rsRefresh() {
   const tomorrowEnd = new Date(tomorrow);
   tomorrowEnd.setHours(23,59,59,999);
 
+  const queryBase = {
+    currentPage: 1,
+    pageSize: 30,
+    statuses: ['PICK_SUGGESTED','TASK_CREATED','RELEASED'],
+    createdTimeFrom: tomorrow.toISOString(),
+    createdTimeTo: tomorrowEnd.toISOString(),
+  };
+  if (selectedCustomer) queryBase.customerId = selectedCustomer;
+
   const planResp = await safeFetch(WMS_BASE + '/api/wms/outbound/order-plan/search-by-paging', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({
-      currentPage: 1,
-      pageSize: 30,
-      statuses: ['PICK_SUGGESTED','TASK_CREATED','RELEASED'],
-      createdTimeFrom: tomorrow.toISOString(),
-      createdTimeTo: tomorrowEnd.toISOString(),
-    }),
+    body: JSON.stringify(queryBase),
   });
 
   // Also try without date filter as plans may have been created earlier for next-day ship
@@ -13065,14 +13101,16 @@ async function rsRefresh() {
 
   // If date-filtered search returned nothing, try broader search (recent plans in active states)
   if (plans.length === 0) {
+    const broadQuery = {
+      currentPage: 1,
+      pageSize: 20,
+      statuses: ['PICK_SUGGESTED','TASK_CREATED','RELEASED'],
+    };
+    if (selectedCustomer) broadQuery.customerId = selectedCustomer;
     const broadResp = await safeFetch(WMS_BASE + '/api/wms/outbound/order-plan/search-by-paging', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        currentPage: 1,
-        pageSize: 20,
-        statuses: ['PICK_SUGGESTED','TASK_CREATED','RELEASED'],
-      }),
+      body: JSON.stringify(broadQuery),
     });
     if (broadResp && !broadResp._needsAuth) {
       const d = broadResp.data || broadResp;
