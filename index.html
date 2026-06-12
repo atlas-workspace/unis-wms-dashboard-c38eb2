@@ -490,7 +490,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
       </div>
       <div class="sb-item" data-view="calendar" onclick="showView('calendar')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        Calendar
+        Physical Inv
       </div>
 
       <div class="sb-sect" style="margin-top:6px">Operations</div>
@@ -873,9 +873,40 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 
       <!-- ════ VIEW: CALENDAR ════ -->
       <div class="view" id="view-calendar">
-        <div id="cal-redirect-container" style="text-align:center;padding:40px;color:#6b7280">
-          <span class="spinner"></span> Loading Count Schedule Calendar…
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:38px;height:38px;border-radius:8px;background:#FEE2E2;display:flex;align-items:center;justify-content:center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <div>
+              <div style="font-size:15px;font-weight:700;color:#1f2937">Physical Inventory Calendar</div>
+              <div style="font-size:12px;color:#6b7280" id="pical-subtitle">Confirmed physical inventory dates for this facility</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-secondary" onclick="picalPrevMonth()" style="font-size:12px;padding:5px 10px">◀</button>
+            <span style="font-size:13px;font-weight:600;min-width:120px;text-align:center" id="pical-month-label"></span>
+            <button class="btn btn-secondary" onclick="picalNextMonth()" style="font-size:12px;padding:5px 10px">▶</button>
+            <button class="btn btn-primary" onclick="picalRefresh()" style="font-size:12px;padding:6px 14px">Refresh</button>
+            <button class="btn btn-secondary" onclick="picalShowAddForm()" style="font-size:12px;padding:6px 14px">+ Add Physical Inventory Date</button>
+          </div>
         </div>
+        <div id="pical-add-form" style="display:none"></div>
+        <div class="card" style="padding:12px;margin-bottom:16px;overflow-x:auto">
+          <div id="pical-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;font-size:11px"></div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:12px 16px;border-bottom:1px solid #f3f4f6">
+            <span style="font-size:13px;font-weight:600;color:#374151" id="pical-list-title">Physical inventory dates</span>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="tbl" style="margin:0;font-size:12px">
+              <thead><tr><th>Date</th><th>Customer</th><th>Method</th><th>Area / Locations</th><th>WMS Ticket</th><th>Status</th><th>Evidence</th><th>Notes</th></tr></thead>
+              <tbody id="pical-tbody"><tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af">Click Refresh to load physical inventory dates.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div style="margin-top:12px;font-size:11px;color:#9ca3af">Cycle count schedules are managed separately under Cycle Count → Count Calendar. Only physical inventory events appear here.</div>
       </div>
 
       <!-- ════ VIEW: SCHEDULER ════ -->
@@ -2241,7 +2272,7 @@ const VIEW_META = {
   dashboard: {t:'Dashboard', s:'Overview of inventory status and task progress'},
   inventory: {t:'Inventory', s:'All tracked SKUs, on-hand quantities, and locations'},
   tasks:     {t:'Tasks', s:'Warehouse tasks across all teams and shifts'},
-  calendar:  {t:'Calendar', s:'Scheduled events, cycle counts, and shipments'},
+  calendar:  {t:'Physical Inventory Calendar', s:'Confirmed physical inventory dates and schedules'},
   scheduler: {t:'Scheduler', s:'Shift coverage, labor planning, and scheduled tasks'},
   cycle:     {t:'Cycle Count', s:'Accuracy, variances, and zone coverage'},
   countApproval: {t:'Count Result Approve', s:'Review and approve cycle count results'},
@@ -2293,7 +2324,7 @@ function showView(name, sub) {
   if (name === 'consolidation') loadConsolidationView();
   if (name === 'replenish') loadReplenishView();
   if (name === 'replenSuggest') loadReplenSuggestView();
-  if (name === 'calendar') { showView('countCalendar'); return; }
+  if (name === 'calendar') loadPhysicalInvCalendar();
   if (name === 'scheduler') initSchedulerForm();
   if (name === 'robots') { initRobotChart(); refreshOntologyStatus(); loadRobotKpisFromOntology(); }
   if (name === 'cycle') loadCycleCountView();
@@ -14181,6 +14212,253 @@ function ccalSaveNewSchedule() {
   ccalSaveLocal();
   document.getElementById('ccal-add-form').style.display = 'none';
   ccalRender();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PHYSICAL INVENTORY CALENDAR — standalone page for physical inv dates only
+// ═══════════════════════════════════════════════════════════════════════════
+
+let PICAL_MONTH = null;
+let PICAL_WMS_TICKETS = [];
+let PICAL_RESULT_STATS = {};
+let PICAL_LOCAL = [];
+
+function picalGetLocalKey() { return 'physical_inv_cal_' + FACILITY_ID; }
+function picalLoadLocal() {
+  try { PICAL_LOCAL = JSON.parse(localStorage.getItem(picalGetLocalKey()) || '[]'); } catch(_) { PICAL_LOCAL = []; }
+}
+function picalSaveLocal() {
+  try { localStorage.setItem(picalGetLocalKey(), JSON.stringify(PICAL_LOCAL)); } catch(_) {}
+}
+
+function loadPhysicalInvCalendar() {
+  if (!PICAL_MONTH) {
+    const now = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
+    PICAL_MONTH = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+  picalLoadLocal();
+  picalRefresh();
+}
+
+function picalPrevMonth() { PICAL_MONTH.setMonth(PICAL_MONTH.getMonth() - 1); picalRefresh(); }
+function picalNextMonth() { PICAL_MONTH.setMonth(PICAL_MONTH.getMonth() + 1); picalRefresh(); }
+
+function picalIsPhysical(t) {
+  const cat = (t.countCategory || '').toUpperCase();
+  const src = (t.countSource || '').toUpperCase();
+  if (cat.includes('PHYSICAL') || cat.includes('FULL') || src.includes('PHYSICAL')) return true;
+  if (t.countDeclarationNo) return true;
+  return false;
+}
+
+async function picalRefresh() {
+  const label = document.getElementById('pical-month-label');
+  if (label) label.textContent = PICAL_MONTH.toLocaleDateString('en-US', {month:'long', year:'numeric'});
+  const tbody = document.getElementById('pical-tbody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af"><span class="spinner"></span> Loading physical inventory data…</td></tr>';
+
+  const year = PICAL_MONTH.getFullYear();
+  const month = PICAL_MONTH.getMonth();
+  const startOfMonth = new Date(year, month, 1);
+  const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59);
+  PICAL_WMS_TICKETS = [];
+  PICAL_RESULT_STATS = {};
+
+  if (WISE_TOKEN) {
+    const resp = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify({
+        currentPage: 1, pageSize: 100,
+        facilityId: FACILITY_ID, warehouseId: FACILITY_ID,
+        withCountLines: true,
+      }),
+    });
+    if (resp && !resp._needsAuth) {
+      const d = resp.data || resp;
+      const all = d.list || d.records || [];
+      // Filter to physical inventory only and this month
+      const monthPrefix = year + '-' + String(month + 1).padStart(2, '0');
+      PICAL_WMS_TICKETS = all.filter(t => {
+        if (!picalIsPhysical(t)) return false;
+        const dateStr = t.scheduleDate ? ccalToLADateStr(t.scheduleDate) : (t.createdTime ? ccalToLADateStr(t.createdTime) : '');
+        return dateStr.startsWith(monthPrefix);
+      });
+      PICAL_WMS_TICKETS.forEach(t => {
+        t._localDate = t.scheduleDate ? ccalToLADateStr(t.scheduleDate) : ccalToLADateStr(t.createdTime);
+        t._dateSource = t.scheduleDate ? 'scheduleDate' : 'createdTime';
+      });
+    }
+    // Fetch count results for evidence
+    const tids = PICAL_WMS_TICKETS.map(t => t.id).filter(Boolean);
+    if (tids.length > 0) PICAL_RESULT_STATS = await fetchCountResultsByTicketIds(tids);
+  }
+
+  picalRender();
+}
+
+function picalRender() {
+  const custLookup = {};
+  (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => custLookup[c.id] = c.name);
+  picalLoadLocal();
+
+  const events = [];
+  const monthPrefix = PICAL_MONTH.getFullYear() + '-' + String(PICAL_MONTH.getMonth() + 1).padStart(2, '0');
+
+  // WMS physical inventory tickets
+  PICAL_WMS_TICKETS.forEach(t => {
+    const dateStr = t._localDate || '';
+    if (!dateStr) return;
+    const stats = PICAL_RESULT_STATS[t.id] || {total: 0};
+    const status = (t.status || '').toUpperCase();
+    let state = 'Ticket Created';
+    if (/CANCEL/.test(status)) state = 'Cancelled';
+    else if (/COMPLET|CLOSED|DONE/.test(status)) state = stats.total > 0 ? 'Completed with Results' : 'Completed Empty / Invalid';
+    else if (/COUNTING|IN_PROGRESS/.test(status)) state = 'Counting';
+    events.push({
+      date: new Date(dateStr + 'T00:00:00'),
+      dateStr,
+      customer: custLookup[t.customerId] || t.customerId || '—',
+      customerId: t.customerId,
+      method: t.countMethod || t.method || '—',
+      locs: (t.countLines || []).length,
+      ticketId: t.id,
+      state,
+      dateSource: t._dateSource,
+      notes: t.name || '',
+      source: 'wms',
+      resultCount: stats.total || 0,
+    });
+  });
+
+  // Local physical inventory dates
+  PICAL_LOCAL.forEach(s => {
+    if (!s.date || !s.date.startsWith(monthPrefix)) return;
+    const linked = events.find(e => e.dateStr === s.date && e.customerId === (s.customerId || ''));
+    if (linked) { if (s.notes && !linked.notes) linked.notes = s.notes; return; }
+    events.push({
+      date: new Date(s.date + 'T00:00:00'),
+      dateStr: s.date,
+      customer: custLookup[s.customerId] || s.customerId || '—',
+      customerId: s.customerId || '',
+      method: s.method || '—',
+      locs: s.locationCount || 0,
+      ticketId: '',
+      state: 'Local only — not created in WMS',
+      dateSource: 'local',
+      notes: s.notes || '',
+      source: 'local',
+      resultCount: 0,
+    });
+  });
+
+  events.sort((a, b) => a.date - b.date);
+
+  // Grid
+  picalRenderGrid(events);
+
+  // List
+  const tbody = document.getElementById('pical-tbody');
+  const listTitle = document.getElementById('pical-list-title');
+  const wmsCount = events.filter(e => e.source === 'wms').length;
+  const localCount = events.filter(e => e.source === 'local').length;
+  if (listTitle) listTitle.textContent = (wmsCount + localCount) + ' physical inventory date(s)' + (localCount > 0 ? ' (' + localCount + ' local)' : '') + ' — ' + PICAL_MONTH.toLocaleDateString('en-US', {month:'long', year:'numeric'});
+
+  if (events.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af">' +
+      '<div style="margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>' +
+      '<strong style="color:#6b7280">No physical inventory dates this month</strong><br>' +
+      '<span style="font-size:12px">Click "+ Add Physical Inventory Date" to schedule one.</span></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = events.map(e => {
+    const dateFmt = e.date.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+    const dateNote = e.dateSource === 'createdTime' ? ' <span style="font-size:9px;color:#9ca3af">(created date)</span>' : '';
+    const stateCls = /with Results/.test(e.state) ? 'color:#059669' :
+                     /Cancelled/.test(e.state) ? 'color:#9ca3af;text-decoration:line-through' :
+                     /Counting/.test(e.state) ? 'color:#d97706' :
+                     /Local only/.test(e.state) ? 'color:#2563eb;font-style:italic' :
+                     /Empty.*Invalid/.test(e.state) ? 'color:#dc2626' : 'color:#374151';
+    const evidenceBadge = /Empty.*Invalid/.test(e.state) ? '<span style="color:#dc2626;font-size:10px;font-weight:600">Empty/Invalid</span>' :
+                          /with Results/.test(e.state) ? '<span style="color:#059669;font-size:10px">' + e.resultCount + ' result(s)</span>' :
+                          e.source === 'local' ? '<span style="color:#9ca3af;font-size:10px">N/A</span>' : '—';
+    const sourceTag = e.source === 'local' ? ' <span style="font-size:9px;background:#DBEAFE;color:#1e40af;padding:1px 4px;border-radius:3px">Local</span>' : '';
+    return '<tr>' +
+      '<td style="font-size:12px;white-space:nowrap">' + esc(dateFmt) + dateNote + '</td>' +
+      '<td style="font-size:12px">' + esc(String(e.customer).slice(0, 22)) + sourceTag + '</td>' +
+      '<td style="font-size:11px">' + esc(e.method) + '</td>' +
+      '<td>' + (e.locs > 0 ? e.locs + ' loc' + (e.locs > 1 ? 's' : '') : '<span style="color:#9ca3af">—</span>') + '</td>' +
+      '<td style="font-family:monospace;font-size:11px;color:#753BBD">' + (e.ticketId ? esc(e.ticketId) : '<span style="color:#9ca3af">—</span>') + '</td>' +
+      '<td style="font-size:11px;' + stateCls + '">' + esc(e.state) + '</td>' +
+      '<td>' + evidenceBadge + '</td>' +
+      '<td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(e.notes || '—') + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function picalRenderGrid(events) {
+  const grid = document.getElementById('pical-grid');
+  if (!grid) return;
+  const year = PICAL_MONTH.getFullYear();
+  const month = PICAL_MONTH.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayStr = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'})).toISOString().slice(0, 10);
+  const byDate = {};
+  events.forEach(e => { if (!byDate[e.dateStr]) byDate[e.dateStr] = []; byDate[e.dateStr].push(e); });
+
+  let html = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => '<div style="text-align:center;font-weight:600;color:#6b7280;padding:4px">' + d + '</div>').join('');
+  for (let i = 0; i < firstDay; i++) html += '<div style="padding:4px"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+    const isToday = ds === todayStr;
+    const dayEvents = byDate[ds] || [];
+    const bg = isToday ? '#FEF2F2' : (dayEvents.length > 0 ? '#fef2f2' : '#fff');
+    const border = isToday ? '2px solid #dc2626' : '1px solid #e5e7eb';
+    let dots = '';
+    dayEvents.forEach(() => { dots += '<div style="width:6px;height:6px;border-radius:50%;background:#dc2626;display:inline-block;margin:0 1px"></div>'; });
+    html += '<div style="padding:4px 6px;min-height:42px;border:' + border + ';border-radius:4px;background:' + bg + '">' +
+      '<div style="font-weight:' + (isToday ? '700' : '400') + ';color:' + (isToday ? '#dc2626' : '#374151') + '">' + d + '</div>' +
+      (dots ? '<div style="margin-top:2px">' + dots + '</div>' : '') + '</div>';
+  }
+  grid.innerHTML = html;
+}
+
+function picalShowAddForm() {
+  const form = document.getElementById('pical-add-form');
+  const nowLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
+  const todayStr = nowLA.getFullYear() + '-' + String(nowLA.getMonth()+1).padStart(2,'0') + '-' + String(nowLA.getDate()).padStart(2,'0');
+  const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
+  const custOpts = customers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
+  form.style.display = '';
+  form.innerHTML = '<div class="card" style="padding:16px;margin-bottom:16px;border-left:4px solid #dc2626"><div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:12px">Add Physical Inventory Date</div>' +
+    '<div style="font-size:11px;color:#6b7280;margin-bottom:10px">This saves a planned physical inventory date locally in your browser. It will be linked to WMS when a matching ticket is created.</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Date</label><input type="date" class="cc-input" id="pical-add-date" value="' + todayStr + '"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Customer</label><select class="cc-input" id="pical-add-customer"><option value="">All / Facility-wide</option>' + custOpts + '</select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Method</label><select class="cc-input" id="pical-add-method"><option value="PIECE">PIECE</option><option value="CASE">CASE</option><option value="PALLET">PALLET</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Location Count / Area</label><input type="number" class="cc-input" id="pical-add-locs" value="0" min="0" placeholder="Approx locations"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Notes</label><input class="cc-input" id="pical-add-notes" placeholder="Area, zone, or description"/></div>' +
+    '</div>' +
+    '<div style="margin-top:12px;display:flex;gap:8px">' +
+    '<button class="btn btn-primary" onclick="picalSaveNew()" style="font-size:12px;padding:6px 14px">Save Physical Inventory Date</button>' +
+    '<button class="btn btn-secondary" onclick="document.getElementById(\'pical-add-form\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Cancel</button>' +
+    '</div></div>';
+}
+
+function picalSaveNew() {
+  const date = (document.getElementById('pical-add-date') || {}).value;
+  const customerId = (document.getElementById('pical-add-customer') || {}).value;
+  const method = (document.getElementById('pical-add-method') || {}).value;
+  const locationCount = parseInt((document.getElementById('pical-add-locs') || {}).value, 10) || 0;
+  const notes = (document.getElementById('pical-add-notes') || {}).value || '';
+  if (!date) { alert('Date is required.'); return; }
+  picalLoadLocal();
+  PICAL_LOCAL.push({ date, customerId, method, locationCount, notes, createdAt: new Date().toISOString() });
+  picalSaveLocal();
+  document.getElementById('pical-add-form').style.display = 'none';
+  picalRender();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
