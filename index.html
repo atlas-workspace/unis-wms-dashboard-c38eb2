@@ -873,28 +873,8 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 
       <!-- ════ VIEW: CALENDAR ════ -->
       <div class="view" id="view-calendar">
-        <div class="card">
-          <div class="card-hdr">
-            <div class="card-ttl">May 2026</div>
-            <select class="sel"><option>Month</option><option>Week</option><option>Day</option></select>
-          </div>
-          <div class="cal-grid">
-            <div class="cal-head">Mon</div><div class="cal-head">Tue</div><div class="cal-head">Wed</div><div class="cal-head">Thu</div><div class="cal-head">Fri</div><div class="cal-head">Sat</div><div class="cal-head">Sun</div>
-            <div class="cal-day"><div class="dn">20</div><div class="cal-evt">Receiving 9am</div></div>
-            <div class="cal-day"><div class="dn">21</div><div class="cal-evt warn">Audit Zone A</div></div>
-            <div class="cal-day"><div class="dn">22</div></div>
-            <div class="cal-day"><div class="dn">23</div><div class="cal-evt ok">Shift swap</div></div>
-            <div class="cal-day"><div class="dn">24</div><div class="cal-evt warn">Supplier update</div></div>
-            <div class="cal-day"><div class="dn">25</div></div>
-            <div class="cal-day"><div class="dn">26</div><div class="cal-evt ok">Reviewed stock</div></div>
-            <div class="cal-day today"><div class="dn">27 · Today</div><div class="cal-evt">Inv update A</div><div class="cal-evt warn">Cycle count B</div></div>
-            <div class="cal-day"><div class="dn">28</div><div class="cal-evt">PO monitors</div></div>
-            <div class="cal-day"><div class="dn">29</div></div>
-            <div class="cal-day"><div class="dn">30</div><div class="cal-evt">Audit close</div></div>
-            <div class="cal-day"><div class="dn">31</div></div>
-            <div class="cal-day"><div class="dn">1 Jun</div></div>
-            <div class="cal-day"><div class="dn">2</div><div class="cal-evt">Robot service</div></div>
-          </div>
+        <div id="cal-redirect-container" style="text-align:center;padding:40px;color:#6b7280">
+          <span class="spinner"></span> Loading Count Schedule Calendar…
         </div>
       </div>
 
@@ -2313,6 +2293,7 @@ function showView(name, sub) {
   if (name === 'consolidation') loadConsolidationView();
   if (name === 'replenish') loadReplenishView();
   if (name === 'replenSuggest') loadReplenSuggestView();
+  if (name === 'calendar') { showView('countCalendar'); return; }
   if (name === 'scheduler') initSchedulerForm();
   if (name === 'robots') { initRobotChart(); refreshOntologyStatus(); loadRobotKpisFromOntology(); }
   if (name === 'cycle') loadCycleCountView();
