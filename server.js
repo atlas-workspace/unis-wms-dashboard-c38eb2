@@ -49,13 +49,37 @@ async function handleApi(req, res, url) {
   try {
     if (req.method === 'POST' && url.pathname === '/api/proxy/auth/password-grant') {
       const raw = await readBody(req);
-      const out = await upstreamJson('POST', 'atlas.item.com', '/api/auth/password-grant', raw);
-      return send(res, out.status, out.json || out.raw || {success:false,msg:'empty upstream response'});
+      // Primary: id.item.com IAM exchange-token (reachable, responds)
+      let body;
+      try { body = JSON.parse(raw); } catch(_) { body = {}; }
+      const iamPayload = JSON.stringify({grant_type:'password', username: body.username || '', password: body.password || ''});
+      const out = await upstreamJson('POST', 'id.item.com', '/auth/exchange-token', iamPayload);
+      // IAM returns {code:"0", data:{access_token, refresh_token, ...}} on success
+      if (out.json && String(out.json.code) === '0' && out.json.data) {
+        return send(res, 200, out.json);
+      }
+      // Fallback: try atlas.item.com legacy endpoint
+      const out2 = await upstreamJson('POST', 'atlas.item.com', '/api/auth/password-grant', raw);
+      if (out2.status < 500 && out2.json) {
+        return send(res, out2.status, out2.json);
+      }
+      // Return IAM error if both failed
+      return send(res, out.status || 401, out.json || {success:false, msg: 'Authentication failed. Please check your credentials.'});
     }
     if (req.method === 'POST' && url.pathname === '/api/proxy/auth/refresh') {
       const raw = await readBody(req);
-      const out = await upstreamJson('POST', 'atlas.item.com', '/api/auth/refresh', raw);
-      return send(res, out.status, out.json || out.raw || {success:false,msg:'empty upstream response'});
+      let body;
+      try { body = JSON.parse(raw); } catch(_) { body = {}; }
+      const rt = body.refreshToken || body.refresh_token || '';
+      // Try id.item.com refresh
+      const iamPayload = JSON.stringify({grant_type:'refresh_token', refresh_token: rt});
+      const out = await upstreamJson('POST', 'id.item.com', '/auth/exchange-token', iamPayload);
+      if (out.json && String(out.json.code) === '0' && out.json.data) {
+        return send(res, 200, out.json);
+      }
+      // Fallback: atlas
+      const out2 = await upstreamJson('POST', 'atlas.item.com', '/api/auth/refresh', raw);
+      return send(res, out2.status, out2.json || out2.raw || {success:false,msg:'Refresh failed'});
     }
     return send(res, 404, {success:false,msg:'Unknown API route'});
   } catch (e) {
