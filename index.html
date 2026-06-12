@@ -12349,30 +12349,51 @@ async function submitCycleCount() {
     const nameSuffix = (custIds.length > 1 && custName) ? ' · ' + custName.name : '';
 
     // IDEMPOTENCY GUARDRAIL: Check if today's ticket already exists for this schedule/customer/type
-    // before creating a new one. Prevents duplicate tickets per day — but only blocks if existing
-    // ticket represents active work or valid completed work (has count results).
+    // before creating a new one. Prevents duplicate tickets per day — only blocks if existing
+    // ticket has scheduleDate within TODAY's LA local day and represents active/valid work.
+    // Prior-day active tickets (e.g. yesterday's COUNTING task) do NOT block today's creation.
     const isPut = !!(wiseTicketId && custIds.length === 1);
     if (!isPut) {
       const nowLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
-      const todayStart = nowLA.getFullYear() + '-' + String(nowLA.getMonth()+1).padStart(2,'0') + '-' + String(nowLA.getDate()).padStart(2,'0') + 'T00:00:00';
-      const todayEnd = nowLA.getFullYear() + '-' + String(nowLA.getMonth()+1).padStart(2,'0') + '-' + String(nowLA.getDate()).padStart(2,'0') + 'T23:59:59';
+      const todayStr = nowLA.getFullYear() + '-' + String(nowLA.getMonth()+1).padStart(2,'0') + '-' + String(nowLA.getDate()).padStart(2,'0');
       const dupCheck = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging', {
         method: 'POST',
         headers: {'Content-Type':'application/json','Accept':'application/json'},
-        body: JSON.stringify({currentPage:1, pageSize:10, facilityId: FACILITY_ID, warehouseId: FACILITY_ID, customerId: customerId, createdTimeFrom: todayStart, createdTimeTo: todayEnd, withCountLines: true}),
+        body: JSON.stringify({currentPage:1, pageSize:20, facilityId: FACILITY_ID, warehouseId: FACILITY_ID, customerId: customerId, withCountLines: true}),
       });
+      let priorDayWarning = '';
       if (dupCheck && dupCheck.success !== false) {
         const dupData = dupCheck.data || dupCheck;
         const dupList = (dupData.list || dupData.records || []).filter(t => {
           const st = (t.status || '').toUpperCase();
           return st !== 'CANCELLED';
         });
-        if (dupList.length > 0) {
-          const existingTicket = dupList[0];
+
+        // Separate today's tickets from prior-day tickets by scheduleDate (LA local day)
+        const todayTickets = [];
+        const priorDayActive = [];
+        dupList.forEach(t => {
+          const sd = t.scheduleDate ? ccalToLADateStr(t.scheduleDate) : '';
+          const st = (t.status || '').toUpperCase();
+          const isActive = /NEW|TASK_CREATED|COUNTING|IN_PROGRESS|OPEN/.test(st);
+          if (sd === todayStr) {
+            todayTickets.push(t);
+          } else if (isActive && sd && sd < todayStr) {
+            priorDayActive.push(t);
+          }
+        });
+
+        // Warn about prior-day active tickets but do NOT block
+        if (priorDayActive.length > 0) {
+          priorDayWarning = 'Prior-day count is still open (' + priorDayActive.map(t => t.id).join(', ') + ' scheduled ' + priorDayActive.map(t => ccalToLADateStr(t.scheduleDate)).join(', ') + '). Today\'s count will still be created for today\'s schedule.';
+        }
+
+        // Only block if a TODAY-scheduled ticket exists with active work or valid results
+        if (todayTickets.length > 0) {
+          const existingTicket = todayTickets[0];
           const existingStatus = (existingTicket.status || '').toUpperCase();
           const isActiveStatus = /NEW|TASK_CREATED|COUNTING|IN_PROGRESS|OPEN/.test(existingStatus);
 
-          // For closed/completed tickets, check if they have real count results
           let hasValidResults = false;
           if (!isActiveStatus) {
             const resultCheck = await safeFetch(API_COUNT_RESULTS, {
@@ -12387,20 +12408,22 @@ async function submitCycleCount() {
             }
           }
 
-          // Block only if ticket is actively in progress OR validly completed with results
           if (isActiveStatus || hasValidResults) {
             const reusedPayload = Object.assign({}, commonFields, {name: baseName + nameSuffix, customerId: customerId});
-            results.push({customerId, ticketId: existingTicket.id, ok:true, payload: reusedPayload, reused: true, msg: 'Today\'s count ticket already exists (' + existingTicket.id + ', ' + existingStatus + (hasValidResults ? ' with count results' : '') + '). Using existing.'});
+            results.push({customerId, ticketId: existingTicket.id, ok:true, payload: reusedPayload, reused: true, msg: 'Today\'s count ticket already exists (' + existingTicket.id + ', ' + existingStatus + (hasValidResults ? ' with count results' : '') + '). Using existing.' + (priorDayWarning ? ' Note: ' + priorDayWarning : '')});
             if (commonFields.counterUserId) {
               const last = results[results.length - 1];
               last.tasksSkipped = 'Task already exists or ticket reused — not creating duplicate task.';
             }
             continue;
           }
-          // Existing ticket is closed/completed with NO count results — treat as invalid/failed run
-          // Allow regeneration: do not block, create a new ticket for today
+          // Today's ticket closed with 0 results — allow regeneration
           console.log('Idempotency: existing ticket ' + existingTicket.id + ' is ' + existingStatus + ' with 0 count results — allowing regeneration.');
         }
+      }
+      // Show prior-day warning in results if applicable but proceed with creation
+      if (priorDayWarning) {
+        results.push({customerId, ticketId: null, ok: true, reused: false, msg: priorDayWarning, warningOnly: true});
       }
     }
 
