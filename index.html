@@ -490,7 +490,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
       </div>
       <div class="sb-item" data-view="calendar" onclick="showView('calendar')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        Physical Inv
+        Calendar PI
       </div>
 
       <div class="sb-sect" style="margin-top:6px">Operations</div>
@@ -901,8 +901,8 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           </div>
           <div style="overflow-x:auto">
             <table class="tbl" style="margin:0;font-size:12px">
-              <thead><tr><th>Date</th><th>Customer</th><th>Confirmation</th><th>Internal Email</th><th>Quote Amount</th><th>Status</th><th>Notes</th></tr></thead>
-              <tbody id="pical-tbody"><tr><td colspan="7" style="text-align:center;padding:32px;color:#9ca3af">Click Refresh to load physical inventory dates.</td></tr></tbody>
+              <thead><tr><th>Date</th><th>Customer</th><th>Confirmation</th><th>Internal Email</th><th>Quote Amount</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead>
+              <tbody id="pical-tbody"><tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af">Click Refresh to load physical inventory dates.</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -14255,7 +14255,7 @@ async function picalRefresh() {
   const label = document.getElementById('pical-month-label');
   if (label) label.textContent = PICAL_MONTH.toLocaleDateString('en-US', {month:'long', year:'numeric'});
   const tbody = document.getElementById('pical-tbody');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#9ca3af"><span class="spinner"></span> Loading physical inventory data…</td></tr>';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af"><span class="spinner"></span> Loading physical inventory data…</td></tr>';
 
   const year = PICAL_MONTH.getFullYear();
   const month = PICAL_MONTH.getMonth();
@@ -14333,6 +14333,7 @@ function picalRender() {
 
   // Local physical inventory dates
   PICAL_LOCAL.forEach(s => {
+    if (!s.id) s.id = 'pi_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
     if (!s.date || !s.date.startsWith(monthPrefix)) return;
     const linked = events.find(e => e.dateStr === s.date && e.customerId === (s.customerId || '') && e.source === 'wms');
     if (linked) {
@@ -14355,8 +14356,10 @@ function picalRender() {
       dateSource: 'local',
       notes: s.notes || '',
       source: 'local',
+      _localId: s.id,
     });
   });
+  picalSaveLocal();
 
   events.sort((a, b) => a.date - b.date);
 
@@ -14371,7 +14374,7 @@ function picalRender() {
   if (listTitle) listTitle.textContent = (wmsCount + localCount) + ' physical inventory date(s)' + (localCount > 0 ? ' (' + localCount + ' local)' : '') + ' — ' + PICAL_MONTH.toLocaleDateString('en-US', {month:'long', year:'numeric'});
 
   if (events.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#9ca3af">' +
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af">' +
       '<div style="margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>' +
       '<strong style="color:#6b7280">No physical inventory dates this month</strong><br>' +
       '<span style="font-size:12px">Click "+ Add Physical Inventory Date" to schedule one.</span></td></tr>';
@@ -14391,6 +14394,13 @@ function picalRender() {
                      /Local only/.test(e.state) ? 'color:#2563eb;font-style:italic' :
                      /Empty.*Invalid/.test(e.state) ? 'color:#dc2626' : 'color:#374151';
     const sourceTag = e.source === 'local' ? ' <span style="font-size:9px;background:#DBEAFE;color:#1e40af;padding:1px 4px;border-radius:3px">Local</span>' : '';
+    let actionsCell;
+    if (e.source === 'local' && e._localId) {
+      actionsCell = '<span style="color:#753BBD;cursor:pointer;font-size:11px;font-weight:600;margin-right:8px" onclick="picalEditLocal(\'' + escAttr(e._localId) + '\')">Edit</span>' +
+        '<span style="color:#dc2626;cursor:pointer;font-size:11px;font-weight:600" onclick="picalDeleteLocal(\'' + escAttr(e._localId) + '\')">Delete</span>';
+    } else {
+      actionsCell = '<span style="color:#9ca3af;font-size:11px">—</span>';
+    }
     return '<tr>' +
       '<td style="font-size:12px;white-space:nowrap">' + esc(dateFmt) + dateNote + '</td>' +
       '<td style="font-size:12px">' + esc(String(e.customer).slice(0, 22)) + sourceTag + '</td>' +
@@ -14399,6 +14409,7 @@ function picalRender() {
       '<td style="font-size:11px">' + (e.quoteAmount ? '$' + esc(e.quoteAmount) : '<span style="color:#9ca3af">—</span>') + '</td>' +
       '<td style="font-size:11px;' + stateCls + '">' + esc(e.state) + '</td>' +
       '<td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(e.notes || '—') + '</td>' +
+      '<td style="white-space:nowrap">' + actionsCell + '</td>' +
       '</tr>';
   }).join('');
 }
@@ -14463,7 +14474,62 @@ function picalSaveNew() {
   const notes = (document.getElementById('pical-add-notes') || {}).value || '';
   if (!date) { alert('Date is required.'); return; }
   picalLoadLocal();
-  PICAL_LOCAL.push({ date, customerId, confirmation, internalEmail, quoteAmount, notes, createdAt: new Date().toISOString() });
+  const id = 'pi_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  PICAL_LOCAL.push({ id, date, customerId, confirmation, internalEmail, quoteAmount, notes, createdAt: new Date().toISOString() });
+  picalSaveLocal();
+  document.getElementById('pical-add-form').style.display = 'none';
+  picalRender();
+}
+
+function picalDeleteLocal(localId) {
+  if (!confirm('Delete this physical inventory date? This cannot be undone.')) return;
+  picalLoadLocal();
+  PICAL_LOCAL = PICAL_LOCAL.filter(s => s.id !== localId);
+  picalSaveLocal();
+  picalRender();
+}
+
+function picalEditLocal(localId) {
+  picalLoadLocal();
+  const rec = PICAL_LOCAL.find(s => s.id === localId);
+  if (!rec) { alert('Record not found.'); return; }
+  const form = document.getElementById('pical-add-form');
+  const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
+  const custOpts = customers.map(c => '<option value="' + c.id + '"' + (c.id === rec.customerId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('');
+  form.style.display = '';
+  form.innerHTML = '<div class="card" style="padding:16px;margin-bottom:16px;border-left:4px solid #d97706"><div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:12px">Edit Physical Inventory Date</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Date</label><input type="date" class="cc-input" id="pical-edit-date" value="' + (rec.date || '') + '"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Customer</label><select class="cc-input" id="pical-edit-customer"><option value="">All / Facility-wide</option>' + custOpts + '</select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Confirmation</label><select class="cc-input" id="pical-edit-confirmation"><option value="Pending"' + (rec.confirmation === 'Pending' ? ' selected' : '') + '>Pending</option><option value="Confirmed"' + (rec.confirmation === 'Confirmed' ? ' selected' : '') + '>Confirmed</option><option value="Re-scheduled"' + (rec.confirmation === 'Re-scheduled' ? ' selected' : '') + '>Re-scheduled</option><option value="Canceled"' + (rec.confirmation === 'Canceled' ? ' selected' : '') + '>Canceled</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Internal Email(s)</label><input class="cc-input" id="pical-edit-email" value="' + escAttr(rec.internalEmail || '') + '" placeholder="email@company.com"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Quote Amount ($)</label><input type="number" class="cc-input" id="pical-edit-quote" value="' + escAttr(rec.quoteAmount || '') + '" min="0" step="0.01"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Notes</label><input class="cc-input" id="pical-edit-notes" value="' + escAttr(rec.notes || '') + '"/></div>' +
+    '</div>' +
+    '<div style="margin-top:12px;display:flex;gap:8px">' +
+    '<button class="btn btn-primary" onclick="picalSaveEdit(\'' + escAttr(localId) + '\')" style="font-size:12px;padding:6px 14px">Save Changes</button>' +
+    '<button class="btn btn-secondary" onclick="document.getElementById(\'pical-add-form\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Cancel</button>' +
+    '</div></div>';
+  form.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function picalSaveEdit(localId) {
+  const date = (document.getElementById('pical-edit-date') || {}).value;
+  const customerId = (document.getElementById('pical-edit-customer') || {}).value;
+  const confirmation = (document.getElementById('pical-edit-confirmation') || {}).value || 'Pending';
+  const internalEmail = (document.getElementById('pical-edit-email') || {}).value || '';
+  const quoteAmount = (document.getElementById('pical-edit-quote') || {}).value || '';
+  const notes = (document.getElementById('pical-edit-notes') || {}).value || '';
+  if (!date) { alert('Date is required.'); return; }
+  picalLoadLocal();
+  const rec = PICAL_LOCAL.find(s => s.id === localId);
+  if (!rec) { alert('Record not found.'); return; }
+  rec.date = date;
+  rec.customerId = customerId;
+  rec.confirmation = confirmation;
+  rec.internalEmail = internalEmail;
+  rec.quoteAmount = quoteAmount;
+  rec.notes = notes;
   picalSaveLocal();
   document.getElementById('pical-add-form').style.display = 'none';
   picalRender();
