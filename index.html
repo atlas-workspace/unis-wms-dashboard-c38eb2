@@ -13860,17 +13860,23 @@ async function rsExecuteCreate() {
 // COUNT SCHEDULE CALENDAR — Confirmed Cycle Count & Physical Count schedules
 // ═══════════════════════════════════════════════════════════════════════════
 
-let CCAL_MONTH = null; // Date object for first of displayed month
+let CCAL_MONTH = null;
 let CCAL_WMS_TICKETS = [];
+let CCAL_RESULT_STATS = {};
 let CCAL_LOCAL_SCHEDULES = [];
 
 function ccalGetLocalKey() { return 'count_calendar_' + FACILITY_ID; }
-
 function ccalLoadLocal() {
   try { CCAL_LOCAL_SCHEDULES = JSON.parse(localStorage.getItem(ccalGetLocalKey()) || '[]'); } catch(_) { CCAL_LOCAL_SCHEDULES = []; }
 }
 function ccalSaveLocal() {
   try { localStorage.setItem(ccalGetLocalKey(), JSON.stringify(CCAL_LOCAL_SCHEDULES)); } catch(_) {}
+}
+
+function ccalToLADateStr(isoOrDate) {
+  if (!isoOrDate) return '';
+  const d = typeof isoOrDate === 'string' ? new Date(isoOrDate) : isoOrDate;
+  return d.toLocaleDateString('en-US', {timeZone:'America/Los_Angeles', year:'numeric', month:'2-digit', day:'2-digit'}).replace(/(\d+)\/(\d+)\/(\d+)/, '$3-$1-$2');
 }
 
 function loadCountCalendarView() {
@@ -13889,46 +13895,92 @@ async function ccalRefresh() {
   const label = document.getElementById('ccal-month-label');
   if (label) label.textContent = CCAL_MONTH.toLocaleDateString('en-US', {month:'long', year:'numeric'});
   const tbody = document.getElementById('ccal-tbody');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:#9ca3af"><span class="spinner"></span> Loading schedules…</td></tr>';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:#9ca3af"><span class="spinner"></span> Loading from WMS…</td></tr>';
 
-  // Fetch WMS tickets for this month
-  const startOfMonth = new Date(CCAL_MONTH);
-  const endOfMonth = new Date(CCAL_MONTH.getFullYear(), CCAL_MONTH.getMonth() + 1, 0, 23, 59, 59);
+  const year = CCAL_MONTH.getFullYear();
+  const month = CCAL_MONTH.getMonth();
+  const startOfMonth = new Date(year, month, 1);
+  const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59);
   CCAL_WMS_TICKETS = [];
+  CCAL_RESULT_STATS = {};
 
-  if (WISE_TOKEN) {
-    const resp = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging', {
+  if (!WISE_TOKEN) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:#ef4444">Please sign in to load count schedules.</td></tr>';
+    ccalRender();
+    return;
+  }
+
+  // Step 1: Fetch WMS tickets with scheduleDate filter
+  let allTickets = [];
+  const resp = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','Accept':'application/json'},
+    body: JSON.stringify({
+      currentPage: 1, pageSize: 100,
+      facilityId: FACILITY_ID, warehouseId: FACILITY_ID,
+      withCountLines: true,
+      scheduleDateFrom: startOfMonth.toISOString(),
+      scheduleDateTo: endOfMonth.toISOString(),
+    }),
+  });
+  if (resp && !resp._needsAuth) {
+    const d = resp.data || resp;
+    allTickets = d.list || d.records || [];
+  }
+  // Fallback: broader search if date filter not supported
+  if (allTickets.length === 0) {
+    const resp2 = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging', {
       method: 'POST',
       headers: {'Content-Type':'application/json','Accept':'application/json'},
-      body: JSON.stringify({
-        currentPage: 1, pageSize: 100,
-        facilityId: FACILITY_ID, warehouseId: FACILITY_ID,
-        withCountLines: true,
-        scheduleDateFrom: startOfMonth.toISOString(),
-        scheduleDateTo: endOfMonth.toISOString(),
-      }),
+      body: JSON.stringify({ currentPage: 1, pageSize: 100, facilityId: FACILITY_ID, warehouseId: FACILITY_ID, withCountLines: true }),
     });
-    if (resp && !resp._needsAuth) {
-      const d = resp.data || resp;
-      CCAL_WMS_TICKETS = (d.list || d.records || []).filter(r => r.scheduleDate);
+    if (resp2 && !resp2._needsAuth) {
+      const d2 = resp2.data || resp2;
+      allTickets = d2.list || d2.records || [];
     }
-    // Fallback: if scheduleDateFrom filter not supported, use broader search
-    if (CCAL_WMS_TICKETS.length === 0) {
-      const resp2 = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json','Accept':'application/json'},
-        body: JSON.stringify({ currentPage: 1, pageSize: 100, facilityId: FACILITY_ID, warehouseId: FACILITY_ID, withCountLines: true }),
+  }
+
+  // Step 2: Bucket tickets by LA local scheduleDate; handle missing scheduleDate
+  allTickets.forEach(t => {
+    if (t.scheduleDate) {
+      t._localDate = ccalToLADateStr(t.scheduleDate);
+      t._dateSource = 'scheduleDate';
+    } else if (t.createdTime) {
+      t._localDate = ccalToLADateStr(t.createdTime);
+      t._dateSource = 'createdTime';
+    } else {
+      t._localDate = '';
+      t._dateSource = 'none';
+    }
+  });
+
+  // Filter to this month
+  const monthPrefix = year + '-' + String(month + 1).padStart(2, '0');
+  CCAL_WMS_TICKETS = allTickets.filter(t => t._localDate && t._localDate.startsWith(monthPrefix));
+
+  // Step 3: Enrich tickets missing countMethod/countLines
+  const needsEnrich = CCAL_WMS_TICKETS.filter(t => !t.countMethod || !(t.countLines && t.countLines.length > 0));
+  if (needsEnrich.length > 0) {
+    const enriches = needsEnrich.slice(0, 10).map(async (t) => {
+      const det = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/' + encodeURIComponent(t.id), {
+        method: 'GET', headers: {'Accept':'application/json'},
       });
-      if (resp2 && !resp2._needsAuth) {
-        const d2 = resp2.data || resp2;
-        const all = d2.list || d2.records || [];
-        CCAL_WMS_TICKETS = all.filter(t => {
-          if (!t.scheduleDate) return false;
-          const sd = new Date(t.scheduleDate);
-          return sd >= startOfMonth && sd <= endOfMonth;
-        });
-      }
-    }
+      if (!det || det._needsAuth) return;
+      const d = det.data || det;
+      if (d.countMethod && !t.countMethod) t.countMethod = d.countMethod;
+      if (d.method && !t.method) t.method = d.method;
+      if (d.countLines && d.countLines.length > 0 && !(t.countLines && t.countLines.length > 0)) t.countLines = d.countLines;
+      if (d.countCategory && !t.countCategory) t.countCategory = d.countCategory;
+      if (d.countSource && !t.countSource) t.countSource = d.countSource;
+      if (d.countDeclarationNo && !t.countDeclarationNo) t.countDeclarationNo = d.countDeclarationNo;
+    });
+    await Promise.all(enriches);
+  }
+
+  // Step 4: Fetch count results for evidence status
+  const ticketIds = CCAL_WMS_TICKETS.map(t => t.id).filter(Boolean);
+  if (ticketIds.length > 0) {
+    CCAL_RESULT_STATS = await fetchCountResultsByTicketIds(ticketIds);
   }
 
   ccalRender();
@@ -13936,18 +13988,29 @@ async function ccalRefresh() {
 
 function ccalClassifyCategory(t) {
   const cat = (t.countCategory || t.category || '').toUpperCase();
-  if (cat.includes('PHYSICAL') || cat.includes('FULL')) return 'PHYSICAL_COUNT';
+  const src = (t.countSource || '').toUpperCase();
+  if (cat.includes('PHYSICAL') || cat.includes('FULL') || src.includes('PHYSICAL')) return 'PHYSICAL_COUNT';
+  if (t.countDeclarationNo) return 'PHYSICAL_COUNT';
+  if (cat.includes('CYCLE') || cat.includes('DAILY') || src.includes('CYCLE') || src.includes('DAILY')) return 'CYCLE_COUNT';
+  if (cat || src) return 'UNCLASSIFIED';
   return 'CYCLE_COUNT';
+}
+
+function ccalClassifyLabel(type) {
+  if (type === 'PHYSICAL_COUNT') return 'Physical Count';
+  if (type === 'CYCLE_COUNT') return 'Cycle Count';
+  return 'Unclassified Count';
 }
 
 function ccalEventState(t) {
   const status = (t.status || '').toUpperCase();
+  const stats = CCAL_RESULT_STATS[t.id] || {total: 0};
   if (/CANCEL/.test(status)) return 'Cancelled';
   if (/COMPLET|CLOSED|DONE|FINISH/.test(status)) {
-    return (t._hasResults) ? 'Completed' : 'Completed (no results)';
+    return stats.total > 0 ? 'Completed with Results' : 'Completed Empty / Invalid';
   }
-  if (/PROGRESS|COUNTING/.test(status)) return 'Counting';
-  if (t._hasTask) return 'Task Created';
+  if (/COUNTING|IN_PROGRESS|PROGRESS/.test(status)) return 'Counting';
+  if (/TASK_CREATED/.test(status)) return 'Task Created';
   return 'Ticket Created';
 }
 
@@ -13955,19 +14018,24 @@ function ccalRender() {
   const typeFilter = (document.getElementById('ccal-type-filter') || {}).value || '';
   const custLookup = {};
   (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => custLookup[c.id] = c.name);
+  ccalLoadLocal();
 
-  // Merge local confirmed schedules and WMS tickets
   const events = [];
+  const seenKeys = new Set();
 
-  // WMS tickets
+  // WMS tickets — primary source of truth
   CCAL_WMS_TICKETS.forEach(t => {
     const cat = ccalClassifyCategory(t);
     if (typeFilter && cat !== typeFilter) return;
-    const sd = t.scheduleDate ? new Date(t.scheduleDate) : null;
-    if (!sd) return;
+    const dateStr = t._localDate;
+    if (!dateStr) return;
+    const key = [FACILITY_ID, dateStr, cat, t.customerId || '', t.countCategory || '', t.countSource || '', t.type || '', t.id].join('|');
+    if (seenKeys.has(key)) return;
+    seenKeys.add(key);
+    const stats = CCAL_RESULT_STATS[t.id] || {total: 0};
     events.push({
-      date: sd,
-      dateStr: sd.toISOString().slice(0, 10),
+      date: new Date(dateStr + 'T00:00:00'),
+      dateStr: dateStr,
       type: cat,
       category: t.countCategory || t.category || '—',
       customer: custLookup[t.customerId] || t.customerId || '—',
@@ -13978,24 +14046,30 @@ function ccalRender() {
       ticketId: t.id,
       status: t.status || '—',
       state: ccalEventState(t),
+      dateSource: t._dateSource,
       notes: t.name || '',
       source: 'wms',
+      resultCount: stats.total || 0,
     });
   });
 
-  // Local confirmed schedules
+  // Local confirmed schedules — planning records only
+  const monthPrefix = CCAL_MONTH.getFullYear() + '-' + String(CCAL_MONTH.getMonth() + 1).padStart(2, '0');
   CCAL_LOCAL_SCHEDULES.forEach(s => {
+    if (!s.date || !s.date.startsWith(monthPrefix)) return;
     if (typeFilter && s.type !== typeFilter) return;
-    const sd = new Date(s.date + 'T00:00:00');
-    if (sd.getMonth() !== CCAL_MONTH.getMonth() || sd.getFullYear() !== CCAL_MONTH.getFullYear()) return;
-    // Check if linked to a WMS ticket
-    const linked = events.find(e => e.dateStr === s.date && e.customerId === s.customerId && e.type === s.type);
-    if (linked) { linked.notes = linked.notes || s.notes; return; }
+    // Try to link to a WMS ticket
+    const linked = events.find(e => e.dateStr === s.date && e.customerId === s.customerId && e.type === s.type && e.source === 'wms');
+    if (linked) {
+      if (s.notes && !linked.notes) linked.notes = s.notes;
+      linked._localLinked = true;
+      return;
+    }
     events.push({
-      date: sd,
+      date: new Date(s.date + 'T00:00:00'),
       dateStr: s.date,
-      type: s.type,
-      category: s.type === 'PHYSICAL_COUNT' ? 'Physical Count' : 'Cycle Count',
+      type: s.type || 'CYCLE_COUNT',
+      category: ccalClassifyLabel(s.type),
       customer: custLookup[s.customerId] || s.customerId || '—',
       customerId: s.customerId,
       method: s.method || '—',
@@ -14003,21 +14077,22 @@ function ccalRender() {
       locs: s.locationCount || 0,
       ticketId: '',
       status: '—',
-      state: 'Confirmed / Not Created',
+      state: 'Local only — not created in WMS',
+      dateSource: 'local',
       notes: s.notes || '',
       source: 'local',
+      resultCount: 0,
     });
   });
 
   events.sort((a, b) => a.date - b.date);
-
-  // Render calendar grid
   ccalRenderGrid(events);
 
-  // Render list
   const tbody = document.getElementById('ccal-tbody');
   const listTitle = document.getElementById('ccal-list-title');
-  if (listTitle) listTitle.textContent = events.length + ' schedule(s) in ' + CCAL_MONTH.toLocaleDateString('en-US', {month:'long', year:'numeric'});
+  const wmsCount = events.filter(e => e.source === 'wms').length;
+  const localCount = events.filter(e => e.source === 'local').length;
+  if (listTitle) listTitle.textContent = wmsCount + ' WMS ticket(s)' + (localCount > 0 ? ' + ' + localCount + ' local plan(s)' : '') + ' in ' + CCAL_MONTH.toLocaleDateString('en-US', {month:'long', year:'numeric'});
 
   if (events.length === 0) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:#9ca3af">No count schedules found for this month.</td></tr>';
@@ -14026,12 +14101,22 @@ function ccalRender() {
 
   tbody.innerHTML = events.map(e => {
     const dateFmt = e.date.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
-    const typeLabel = e.type === 'PHYSICAL_COUNT' ? '<span style="color:#dc2626;font-weight:600">Physical</span>' : '<span style="color:#5B21B6;font-weight:600">Cycle</span>';
-    const stateCls = /Completed(?! \(no)/.test(e.state) ? 'color:#059669' : /Cancelled/.test(e.state) ? 'color:#9ca3af;text-decoration:line-through' : /Counting|Task/.test(e.state) ? 'color:#d97706' : /Not Created/.test(e.state) ? 'color:#2563eb' : 'color:#374151';
-    const evidenceBadge = /Completed \(no/.test(e.state) ? '<span style="color:#dc2626;font-size:10px">Empty/Invalid</span>' : /Completed/.test(e.state) ? '<span style="color:#059669;font-size:10px">Has Results</span>' : '—';
+    const dateNote = e.dateSource === 'createdTime' ? ' <span style="font-size:9px;color:#9ca3af">(created date)</span>' : '';
+    const typeLabel = e.type === 'PHYSICAL_COUNT' ? '<span style="color:#dc2626;font-weight:600">Physical</span>' :
+                      e.type === 'CYCLE_COUNT' ? '<span style="color:#5B21B6;font-weight:600">Cycle</span>' :
+                      '<span style="color:#6b7280;font-weight:600">Unclassified</span>';
+    const stateCls = /with Results/.test(e.state) ? 'color:#059669' :
+                     /Cancelled/.test(e.state) ? 'color:#9ca3af;text-decoration:line-through' :
+                     /Counting|Task Created/.test(e.state) ? 'color:#d97706' :
+                     /Local only/.test(e.state) ? 'color:#2563eb;font-style:italic' :
+                     /Empty.*Invalid/.test(e.state) ? 'color:#dc2626' : 'color:#374151';
+    const evidenceBadge = /Empty.*Invalid/.test(e.state) ? '<span style="color:#dc2626;font-size:10px;font-weight:600">Empty/Invalid</span>' :
+                          /with Results/.test(e.state) ? '<span style="color:#059669;font-size:10px">' + e.resultCount + ' result(s)</span>' :
+                          e.source === 'local' ? '<span style="color:#9ca3af;font-size:10px">N/A</span>' : '—';
+    const sourceTag = e.source === 'local' ? ' <span style="font-size:9px;background:#DBEAFE;color:#1e40af;padding:1px 4px;border-radius:3px">Local</span>' : '';
     return '<tr>' +
-      '<td style="font-size:12px;white-space:nowrap">' + esc(dateFmt) + '</td>' +
-      '<td>' + typeLabel + '</td>' +
+      '<td style="font-size:12px;white-space:nowrap">' + esc(dateFmt) + dateNote + '</td>' +
+      '<td>' + typeLabel + sourceTag + '</td>' +
       '<td style="font-size:11px">' + esc(e.category) + '</td>' +
       '<td style="font-size:12px">' + esc(String(e.customer).slice(0, 22)) + '</td>' +
       '<td style="font-size:11px">' + esc(e.method) + '</td>' +
