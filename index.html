@@ -13009,7 +13009,12 @@ async function loadLocationTagData(page) {
   });
 
   if (!resp || resp._needsAuth) {
-    if (body) body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#ef4444">Authentication required. Please sign in to view location tags.</td></tr>';
+    if (!resp && WISE_TOKEN) {
+      // Network/CORS error but session token exists — not an auth issue
+      if (body) body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#d97706">Unable to reach the WMS service. Your session is active but the server may be temporarily unavailable. Try refreshing in a moment.</td></tr>';
+    } else {
+      if (body) body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#ef4444">Authentication required. Please sign in to view location tags.</td></tr>';
+    }
     return;
   }
   if (!resp.success && resp.success !== undefined) {
