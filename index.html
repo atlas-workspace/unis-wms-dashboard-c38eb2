@@ -2181,17 +2181,38 @@ function populateFacilitySwitcher() {
   let saved = 'LT_F1';
   try { saved = localStorage.getItem('facility_id') || 'LT_F1'; } catch(_) {}
   sel.innerHTML = '';
-  FACILITIES.forEach(f => {
+  sel.style.maxHeight = '300px';
+  // Try to load facilities from IAM JWT permissions if available
+  let facList = FACILITIES;
+  const payload = decodeJwt(WISE_TOKEN);
+  if (payload && payload.data && payload.data.facility_ids && payload.data.facility_ids.length > 0) {
+    const iamFacIds = payload.data.facility_ids;
+    const merged = [...FACILITIES];
+    iamFacIds.forEach(fid => {
+      if (!merged.find(f => f.id === fid)) merged.push({id: fid, code: '', name: fid});
+    });
+    facList = merged;
+  }
+  facList.sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
+  facList.forEach(f => {
     const o = document.createElement('option');
     o.value = f.id;
     o.textContent = f.name + ' (' + f.id + ')';
     if (f.id === saved) o.selected = true;
     sel.appendChild(o);
   });
+  // If saved facility not in list, add it
+  if (!facList.find(f => f.id === saved)) {
+    const o = document.createElement('option');
+    o.value = saved;
+    o.textContent = saved;
+    o.selected = true;
+    sel.insertBefore(o, sel.firstChild);
+  }
   // Apply the saved selection without triggering any reload work
-  const fac = FACILITIES.find(f => f.id === saved) || FACILITIES[0];
+  const fac = facList.find(f => f.id === saved) || facList[0];
   FACILITY_ID = fac.id;
-  FACILITY_NAME = fac.name;
+  FACILITY_NAME = fac.name || fac.id;
   updateSchedulerFacilityHelp(fac);
   refreshFacilityCustomers();
 }
@@ -2716,6 +2737,18 @@ const FACILITIES = [
   {id:'LT_ORG-61213', code:'FAC260', name:'Joliet'},
   {id:'LT_ORG-67669', code:'FAC261', name:'Innovation'},
   {id:'LT_ORG-77709', code:'FAC262', name:'Quality_4400'},
+  {id:'LT_F2',        code:'FAC263', name:'Valley View 2'},
+  {id:'LT_F3',        code:'FAC264', name:'Valley View 3'},
+  {id:'LT_F4',        code:'FAC265', name:'Valley View 4'},
+  {id:'LT_F5',        code:'FAC266', name:'Valley View 5'},
+  {id:'LT_F10',       code:'FAC267', name:'Valley View 10'},
+  {id:'LT_F12',       code:'FAC268', name:'Alessandro 2'},
+  {id:'LT_F20',       code:'FAC269', name:'Riverside'},
+  {id:'LT_F30',       code:'FAC270', name:'San Bernardino'},
+  {id:'LT_F41',       code:'FAC271', name:'Vista 2'},
+  {id:'LT_F43',       code:'FAC272', name:'Airport 2'},
+  {id:'LT_F44',       code:'FAC273', name:'Ontario East'},
+  {id:'LT_F45',       code:'FAC274', name:'Chino'},
 ];
 // All 6,343 users assigned to Valley View (LT_F1) — pulled from
 // /api/wms-bam/user/facility/search-by-paging on 2026-05-27.
