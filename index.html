@@ -1366,25 +1366,59 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 
       <!-- ════ VIEW: REPORTS ════ -->
       <div class="view" id="view-reports">
-        <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><div><div class="kpi-lbl">Reports Generated</div><div class="kpi-val">42</div><div class="kpi-chg neutral">This month</div></div></div>
-          <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg></div><div><div class="kpi-lbl">Inventory Turns</div><div class="kpi-val">4.2x</div><div class="kpi-chg up">▲ 0.3 QoQ</div></div></div>
-          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg></div><div><div class="kpi-lbl">Order Accuracy</div><div class="kpi-val">99.6%</div><div class="kpi-chg up">▲ 0.2 pts</div></div></div>
-          <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-lbl">Avg Pick Time</div><div class="kpi-val">42s</div><div class="kpi-chg down">▼ 5s WoW</div></div></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+          <div style="width:38px;height:38px;border-radius:8px;background:#F3EEFF;display:flex;align-items:center;justify-content:center">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5F2E98" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <div>
+            <div style="font-size:16px;font-weight:700;color:#1f2937">Cycle Count Daily Report</div>
+            <div style="font-size:12px;color:#6b7280" id="rpt-subtitle">Today's cycle count metrics — <span id="rpt-fac-label"></span></div>
+          </div>
         </div>
 
-        <div class="card">
-          <div class="card-hdr"><div class="card-ttl">Saved Reports</div><span class="card-link">+ New Report</span></div>
-          <table class="tbl">
-            <thead><tr><th>Name</th><th>Type</th><th>Schedule</th><th>Last Run</th><th>Owner</th><th>Action</th></tr></thead>
-            <tbody>
-              <tr><td>Weekly Inventory Snapshot</td><td>Inventory</td><td>Mon 06:00</td><td>May 25</td><td>Admin</td><td><span class="card-link">Run</span></td></tr>
-              <tr><td>Cycle Count Variance — Monthly</td><td>Cycle</td><td>1st of month</td><td>May 1</td><td>Admin</td><td><span class="card-link">Run</span></td></tr>
-              <tr><td>Robot Fleet Utilization</td><td>Robotics</td><td>Daily 23:00</td><td>May 26</td><td>Tech Team</td><td><span class="card-link">Run</span></td></tr>
-              <tr><td>Open PO Aging</td><td>Purchasing</td><td>Wed 08:00</td><td>May 21</td><td>Admin</td><td><span class="card-link">Run</span></td></tr>
-              <tr><td>Shift Labor Summary</td><td>Scheduler</td><td>Sun 18:00</td><td>May 24</td><td>HR</td><td><span class="card-link">Run</span></td></tr>
-            </tbody>
-          </table>
+        <!-- KPIs -->
+        <div class="kpi-grid" style="margin-bottom:16px" id="rpt-kpis">
+          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M21 12a9 9 0 1 1-3.5-7.1"/><polyline points="21 4 21 10 15 10"/></svg></div><div><div class="kpi-lbl">Scheduled</div><div class="kpi-val" id="rpt-kpi-sched">—</div><div class="kpi-chg neutral">today</div></div></div>
+          <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Completed</div><div class="kpi-val" id="rpt-kpi-done">—</div><div class="kpi-chg neutral">with results</div></div></div>
+          <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-lbl">Open / In Progress</div><div class="kpi-val" id="rpt-kpi-open">—</div><div class="kpi-chg neutral">active</div></div></div>
+          <div class="kpi"><div class="kpi-ico red"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div><div class="kpi-lbl">Exceptions</div><div class="kpi-val" id="rpt-kpi-exc">—</div><div class="kpi-chg neutral">empty/invalid/cancelled</div></div></div>
+        </div>
+
+        <!-- Actions -->
+        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="rptGenerateReport()" style="font-size:12px;padding:6px 14px">Generate Report</button>
+          <button class="btn btn-secondary" onclick="rptExportCSV()" style="font-size:12px;padding:6px 14px">Export CSV</button>
+        </div>
+
+        <!-- Detail Table -->
+        <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
+          <div style="padding:12px 16px;border-bottom:1px solid #f3f4f6">
+            <span style="font-size:13px;font-weight:600;color:#374151" id="rpt-table-title">Cycle Count Tickets — Today</span>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="tbl" style="margin:0;font-size:12px">
+              <thead><tr><th>Ticket</th><th>Customer</th><th>Type</th><th>Method</th><th>Locations</th><th>Status</th><th>Results</th><th>Scheduled</th></tr></thead>
+              <tbody id="rpt-tbody"><tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af">Click "Generate Report" to load today's cycle count data.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Daily Email Automation -->
+        <div class="card" style="padding:20px;border-left:4px solid #753BBD">
+          <div style="font-size:14px;font-weight:700;color:#1f2937;margin-bottom:4px">Daily Email Automation</div>
+          <div style="font-size:11px;color:#6b7280;margin-bottom:12px">Configure daily cycle count report delivery. Daily email delivery requires backend/assistant scheduled automation; this page stores recipients and report preferences.</div>
+          <div class="set-row"><div><div class="lbl">Enabled</div><div class="desc">Activate daily report email</div></div><div class="toggle" id="rpt-email-toggle" onclick="this.classList.toggle('on'); rptSaveEmailConfig()"></div></div>
+          <div class="set-row"><div><div class="lbl">Send Time</div><div class="desc">Based on warehouse local timezone</div></div><span style="font-size:13px;color:#374151;font-weight:600">7:00 AM warehouse local time (America/Los_Angeles)</span></div>
+          <div class="set-row"><div><div class="lbl">Facility Scope</div></div><span style="font-size:12px;color:#374151" id="rpt-email-facility">Current: <span id="rpt-email-fac-name"></span></span></div>
+          <div style="margin-top:12px">
+            <label class="cc-label">Recipient Emails</label>
+            <div style="display:flex;gap:8px;align-items:start">
+              <textarea class="cc-input" id="rpt-email-recipients" rows="3" style="font-size:12px;resize:vertical;flex:1" placeholder="Enter emails separated by comma, semicolon, or new line&#10;e.g. john@company.com, jane@company.com"></textarea>
+              <button class="btn btn-primary" onclick="rptSaveEmailConfig()" style="font-size:12px;padding:6px 14px;white-space:nowrap">Save Recipients</button>
+            </div>
+            <div id="rpt-email-chips" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px"></div>
+            <div id="rpt-email-msg" style="font-size:11px;margin-top:6px;display:none"></div>
+          </div>
         </div>
       </div>
 
@@ -2425,6 +2459,7 @@ function showView(name, sub) {
   if (name === 'replenish') loadReplenishView();
   if (name === 'replenSuggest') loadReplenSuggestView();
   if (name === 'calendar') loadPhysicalInvCalendar();
+  if (name === 'reports') rptInitReport();
   if (name === 'scheduler') initSchedulerForm();
   if (name === 'robots') { initRobotChart(); refreshOntologyStatus(); loadRobotKpisFromOntology(); }
   if (name === 'cycle') loadCycleCountView();
@@ -15056,6 +15091,161 @@ function admRevealPassword() {
   if (!el) return;
   el.textContent = admGetFacilityPassword(FACILITY_ID);
   setTimeout(() => { el.textContent = '••••••••'; }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REPORTS — Cycle Count Daily Report
+// ═══════════════════════════════════════════════════════════════════════════
+
+let RPT_DATA = [];
+
+function rptInitReport() {
+  const facLabel = document.getElementById('rpt-fac-label') || document.getElementById('rpt-email-fac-name');
+  if (facLabel) facLabel.textContent = (FACILITY_NAME || FACILITY_ID) + ' (' + FACILITY_ID + ')';
+  const facName2 = document.getElementById('rpt-email-fac-name');
+  if (facName2) facName2.textContent = (FACILITY_NAME || FACILITY_ID);
+  rptLoadEmailConfig();
+}
+
+async function rptGenerateReport() {
+  const tbody = document.getElementById('rpt-tbody');
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af"><span class="spinner"></span> Loading today\'s cycle count data…</td></tr>';
+  RPT_DATA = [];
+
+  if (!WISE_TOKEN) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:#ef4444">Please sign in to generate reports.</td></tr>';
+    return;
+  }
+
+  const nowLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
+  const todayStr = nowLA.getFullYear() + '-' + String(nowLA.getMonth()+1).padStart(2,'0') + '-' + String(nowLA.getDate()).padStart(2,'0');
+
+  const resp = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','Accept':'application/json'},
+    body: JSON.stringify({currentPage:1, pageSize:100, facilityId: FACILITY_ID, warehouseId: FACILITY_ID, withCountLines: true}),
+  });
+
+  let tickets = [];
+  if (resp && !resp._needsAuth) {
+    const d = resp.data || resp;
+    const all = d.list || d.records || [];
+    tickets = all.filter(t => {
+      const sd = t.scheduleDate ? ccalToLADateStr(t.scheduleDate) : (t.createdTime ? ccalToLADateStr(t.createdTime) : '');
+      return sd === todayStr;
+    });
+  }
+
+  // Fetch results for evidence
+  const tids = tickets.map(t => t.id).filter(Boolean);
+  const resultStats = tids.length > 0 ? await fetchCountResultsByTicketIds(tids) : {};
+
+  const custLookup = {};
+  (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => custLookup[c.id] = c.name);
+
+  RPT_DATA = tickets.map(t => {
+    const stats = resultStats[t.id] || {total:0};
+    const status = (t.status || '').toUpperCase();
+    let state = 'Open';
+    if (/CANCEL/.test(status)) state = 'Cancelled';
+    else if (/COMPLET|CLOSED|DONE/.test(status)) state = stats.total > 0 ? 'Completed' : 'Empty/Invalid';
+    else if (/COUNTING|IN_PROGRESS/.test(status)) state = 'In Progress';
+    else if (/TASK_CREATED/.test(status)) state = 'Task Created';
+    return {
+      id: t.id,
+      customer: custLookup[t.customerId] || t.customerId || '—',
+      type: t.type || '—',
+      method: t.countMethod || t.method || '—',
+      locs: (t.countLines || []).length,
+      status: t.status || '—',
+      state,
+      results: stats.total,
+      scheduleDate: t.scheduleDate || '',
+    };
+  });
+
+  // KPIs
+  const scheduled = RPT_DATA.length;
+  const completed = RPT_DATA.filter(r => r.state === 'Completed').length;
+  const open = RPT_DATA.filter(r => /Open|In Progress|Task Created/.test(r.state)).length;
+  const exceptions = RPT_DATA.filter(r => /Empty|Cancelled/.test(r.state)).length;
+  document.getElementById('rpt-kpi-sched').textContent = scheduled;
+  document.getElementById('rpt-kpi-done').textContent = completed;
+  document.getElementById('rpt-kpi-open').textContent = open;
+  document.getElementById('rpt-kpi-exc').textContent = exceptions;
+
+  if (RPT_DATA.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af">No cycle count tickets found for today at ' + esc(FACILITY_NAME || FACILITY_ID) + '.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = RPT_DATA.map(r => {
+    const stateCls = r.state === 'Completed' ? 'color:#059669;font-weight:600' : /Empty|Invalid/.test(r.state) ? 'color:#dc2626' : /Cancelled/.test(r.state) ? 'color:#9ca3af' : /In Progress/.test(r.state) ? 'color:#d97706' : 'color:#374151';
+    return '<tr><td style="font-family:monospace;font-size:11px;color:#753BBD">' + esc(r.id) + '</td><td>' + esc(r.customer) + '</td><td>' + esc(r.type) + '</td><td>' + esc(r.method) + '</td><td>' + r.locs + '</td><td style="' + stateCls + '">' + esc(r.state) + '</td><td>' + (r.results > 0 ? r.results + ' result(s)' : '—') + '</td><td style="font-size:11px">' + (r.scheduleDate ? new Date(r.scheduleDate).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'}) : '—') + '</td></tr>';
+  }).join('');
+
+  document.getElementById('rpt-table-title').textContent = RPT_DATA.length + ' Cycle Count Ticket(s) — ' + nowLA.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', year:'numeric'});
+  try { localStorage.setItem('adm_last_sync', new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'})); } catch(_) {}
+}
+
+function rptExportCSV() {
+  if (RPT_DATA.length === 0) { alert('Generate report first.'); return; }
+  const nowLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
+  const rows = [];
+  rows.push(['Cycle Count Daily Report']);
+  rows.push(['Facility', FACILITY_NAME || FACILITY_ID]);
+  rows.push(['Date', nowLA.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'})]);
+  rows.push(['Generated', nowLA.toLocaleString('en-US')]);
+  rows.push(['Total Scheduled', String(RPT_DATA.length)]);
+  rows.push([]);
+  rows.push(['Ticket ID','Customer','Type','Method','Locations','Status','State','Results','Schedule Time']);
+  RPT_DATA.forEach(r => {
+    rows.push([r.id, r.customer, r.type, r.method, String(r.locs), r.status, r.state, String(r.results), r.scheduleDate || '']);
+  });
+  const csv = rows.map(row => row.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\r\n');
+  const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'CycleCount_DailyReport_' + (FACILITY_ID) + '_' + nowLA.toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function rptLoadEmailConfig() {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('rpt_email_config_' + FACILITY_ID) || '{}');
+    const toggle = document.getElementById('rpt-email-toggle');
+    if (toggle && cfg.enabled) toggle.classList.add('on');
+    const ta = document.getElementById('rpt-email-recipients');
+    if (ta && cfg.emails) ta.value = cfg.emails.join('\n');
+    rptRenderEmailChips(cfg.emails || []);
+  } catch(_) {}
+}
+
+function rptSaveEmailConfig() {
+  const toggle = document.getElementById('rpt-email-toggle');
+  const enabled = toggle && toggle.classList.contains('on');
+  const raw = (document.getElementById('rpt-email-recipients') || {}).value || '';
+  const emails = raw.split(/[,;\n]+/).map(e => e.trim()).filter(Boolean);
+  const invalid = emails.filter(e => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+  const msg = document.getElementById('rpt-email-msg');
+  if (invalid.length > 0) {
+    if (msg) { msg.textContent = 'Invalid email(s): ' + invalid.join(', '); msg.style.color = '#ef4444'; msg.style.display = ''; }
+    return;
+  }
+  try {
+    localStorage.setItem('rpt_email_config_' + FACILITY_ID, JSON.stringify({enabled, emails, updatedAt: new Date().toISOString()}));
+  } catch(_) {}
+  rptRenderEmailChips(emails);
+  if (msg) { msg.textContent = 'Saved ' + emails.length + ' recipient(s). Daily delivery at 7:00 AM ' + (FACILITY_NAME || 'warehouse') + ' local time.'; msg.style.color = '#059669'; msg.style.display = ''; setTimeout(() => { msg.style.display = 'none'; }, 4000); }
+}
+
+function rptRenderEmailChips(emails) {
+  const container = document.getElementById('rpt-email-chips');
+  if (!container) return;
+  if (!emails || emails.length === 0) { container.innerHTML = '<span style="font-size:11px;color:#9ca3af">No recipients configured</span>'; return; }
+  container.innerHTML = emails.map(e => '<span style="display:inline-block;font-size:11px;padding:2px 8px;border-radius:12px;background:#EDE9FE;color:#5B21B6;margin:2px">' + esc(e) + '</span>').join('');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
