@@ -12810,8 +12810,11 @@ async function submitCycleCount() {
   const ok = results.filter(r => r.ok === true);
   const failed = results.filter(r => r.ok === false);
   const offline = results.filter(r => r.ok === null);
-  // Save into local task list — always, even if some calls failed
-  results.forEach(r => upsertSavedTask(r.payload, r.ticketId, {scheduleId, recurrence}));
+  // Save into local task list — only rows that actually have a ticket payload.
+  // Warning-only rows (for example prior-day open-ticket warnings) do not
+  // represent a schedulable task and used to throw here because payload was
+  // undefined, which surfaced to users as the generic "unexpected error" alert.
+  results.filter(r => r && r.payload).forEach(r => upsertSavedTask(r.payload, r.ticketId, {scheduleId, recurrence}));
 
   let msg = '';
   if (ok.length) {
@@ -14191,6 +14194,7 @@ function ccalSaveLocal() {
 function ccalToLADateStr(isoOrDate) {
   if (!isoOrDate) return '';
   const d = typeof isoOrDate === 'string' ? new Date(isoOrDate) : isoOrDate;
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-US', {timeZone:'America/Los_Angeles', year:'numeric', month:'2-digit', day:'2-digit'}).replace(/(\d+)\/(\d+)\/(\d+)/, '$3-$1-$2');
 }
 
