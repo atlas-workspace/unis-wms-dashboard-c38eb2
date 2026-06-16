@@ -337,6 +337,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 .task-cust-row .tc-progress .task-progress-bar{height:6px}
 .task-cust-row .tc-progress .task-progress-pct{font-size:11.5px}
 .task-cust-row .tc-progress .task-progress-pct input{width:50px;font-size:11px;padding:1px 4px}
+.task-lines-list{grid-column:1 / -1;display:flex;align-items:center;flex-wrap:wrap;margin-top:6px}
 
 /* Submit-count inline form */
 .cnt-submit-form{display:none;margin-top:10px;padding:10px 12px;background:#FCFAFF;border:1px solid #e5e7eb;border-radius:8px}
@@ -11491,8 +11492,8 @@ function renderTaskGroupCard(g, custLookup) {
   const recur = tasks[0].recurrence && tasks[0].recurrence !== 'NONE' ? tasks[0].recurrence : '';
   // Average progress for header (group only — solo uses per-task below)
   const avgPct = isGroup
-    ? Math.round(tasks.reduce((s,t) => s + (Number(t.progress)||0), 0) / tasks.length)
-    : Math.max(0, Math.min(100, Number(tasks[0].progress)||0));
+    ? Math.round(tasks.reduce((s,t) => s + effectiveTaskProgress(t), 0) / tasks.length)
+    : effectiveTaskProgress(tasks[0]);
   const complete = avgPct >= 100;
 
   // Status chip text — prefer live WMS status when available
@@ -11544,8 +11545,27 @@ function renderTaskGroupCard(g, custLookup) {
 }
 
 // One customer's row inside a grouped card.
+function effectiveTaskProgress(t) {
+  const status = String((t && t.wiseStatus) || '');
+  const stored = Math.max(0, Math.min(100, Number((t && t.progress) || 0)));
+  if (/COMPLET|FINISH|DONE|CLOSED/i.test(status)) return 100;
+  if (/CANCEL/i.test(status)) return stored;
+  return stored;
+}
+function renderTaskLineList(t) {
+  const lines = (t && t.countLines) || [];
+  if (!lines.length) return '';
+  const shown = lines.slice(0, 8).map((l, i) => {
+    const loc = l.locationName || l.name || l.locationId || ('Location ' + (i + 1));
+    const task = l.taskId || l.countTaskId || l.wiseTaskId || l.id || '';
+    return '<span class="tc-ticket" style="margin:3px 4px 0 0">' + esc(task ? (task + ' · ' + loc) : loc) + '</span>';
+  }).join('');
+  const more = lines.length > 8 ? '<span class="tc-sub" style="margin-left:4px">+' + (lines.length - 8) + ' more</span>' : '';
+  return '<div class="task-lines-list"><span class="tc-sub" style="font-weight:800;margin-right:4px">Tasks:</span>' + shown + more + '</div>';
+}
+
 function renderCustomerRow(t, custLookup) {
-  const pct = Math.max(0, Math.min(100, Number(t.progress)||0));
+  const pct = effectiveTaskProgress(t);
   const complete = pct >= 100;
   const editing = t.id === CC.editingTaskId;
   const customer = custLookup[t.customerId] || t.customerName || t.customerId || '—';
@@ -11574,6 +11594,7 @@ function renderCustomerRow(t, custLookup) {
       <button onclick="editTask('${escapeAttr(t.id)}')">Edit</button>
       <button class="del" onclick="deleteTask('${escapeAttr(t.id)}')">Del</button>
     </div>
+    ${renderTaskLineList(t)}
     <div class="tc-progress">
       <div class="task-progress-bar"><div class="task-progress-fill${complete?' complete':''}" style="width:${pct}%"></div></div>
       <div class="task-progress-pct${complete?' complete':''}">
@@ -11585,7 +11606,7 @@ function renderCustomerRow(t, custLookup) {
 
 // Single solo card — preserves the old single-task layout.
 function renderSoloTaskCard(t, custLookup) {
-  const pct = Math.max(0, Math.min(100, Number(t.progress)||0));
+  const pct = effectiveTaskProgress(t);
   const complete = pct >= 100;
   const editing = t.id === CC.editingTaskId;
   const release = t.scheduleDate ? new Date(t.scheduleDate).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}) : '—';
@@ -11618,6 +11639,7 @@ function renderSoloTaskCard(t, custLookup) {
         <button class="del" onclick="deleteTask('${escapeAttr(t.id)}')" title="Delete">Delete</button>
       </div>
     </div>
+    ${renderTaskLineList(t)}
     <div class="task-progress-row">
       <div class="task-progress-bar"><div class="task-progress-fill${complete?' complete':''}" style="width:${pct}%"></div></div>
       <div class="task-progress-pct${complete?' complete':''}">
@@ -12315,6 +12337,33 @@ async function loadRobotKpisFromOntology() {
   if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh KPIs'; }
 }
 
+function extractCycleProgressStats(payload) {
+  const stats = {total:0, counted:0};
+  const seen = new Set();
+  function num(obj, names) {
+    for (const n of names) if (obj && obj[n] != null && !isNaN(Number(obj[n]))) return Number(obj[n]);
+    return null;
+  }
+  function walk(x) {
+    if (!x || typeof x !== 'object') return;
+    if (seen.has(x)) return;
+    seen.add(x);
+    if (Array.isArray(x)) { x.forEach(walk); return; }
+    const total = num(x, ['totalLines','totalLine','totalTasks','totalTask','totalCount','total','taskTotal','lineTotal','countTaskTotal','countTaskQty']);
+    const counted = num(x, ['countedLines','countedLine','completedLines','completedLine','completedTasks','completedTask','closedTasks','closedTask','counted','completed','closed','done','finishCount','countedTaskQty']);
+    if (total != null || counted != null) {
+      stats.total += total || 0;
+      stats.counted += counted || 0;
+    }
+    Object.keys(x).forEach(k => {
+      const v = x[k];
+      if (v && typeof v === 'object') walk(v);
+    });
+  }
+  walk(payload && payload.data !== undefined ? payload.data : payload);
+  return stats;
+}
+
 // Pull the real count-progress AND live status for a task's ticket from Wise.
 async function refreshTaskProgressFromWise(taskId) {
   const t = CC.tasks.find(x => x.id === taskId);
@@ -12326,19 +12375,12 @@ async function refreshTaskProgressFromWise(taskId) {
     body: JSON.stringify({ticketIds:[t.ticketId]}),
   });
   if (resp && resp.success !== false) {
-    const payload = resp.data || resp;
-    let totalLines = 0, countedLines = 0;
-    if (Array.isArray(payload)) {
-      payload.forEach(s => {
-        totalLines += s.totalLines || s.total || 0;
-        countedLines += s.countedLines || s.counted || s.completed || 0;
-      });
-    } else if (payload && typeof payload === 'object') {
-      totalLines   = payload.totalLines || payload.total || (t.countLines || []).length;
-      countedLines = payload.countedLines || payload.counted || payload.completed || 0;
-    }
+    const stats = extractCycleProgressStats(resp);
+    let totalLines = stats.total;
+    let countedLines = stats.counted;
+    if (!totalLines && (t.countLines || []).length) totalLines = (t.countLines || []).length;
     if (totalLines > 0) {
-      t.progress = Math.min(100, Math.round((countedLines / totalLines) * 100));
+      t.progress = Math.max(0, Math.min(100, Math.round((countedLines / totalLines) * 100)));
       t.progressUpdatedAt = Date.now();
       t.wiseTotalLines = totalLines;
       t.wiseCountedLines = countedLines;
