@@ -2028,6 +2028,8 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
     <div class="modal">
       <div class="modal-hdr">
         <h2>Select Locations</h2>
+        <span style="font-size:11px;color:#6b7280;margin-left:12px" id="loc-facility-label"></span>
+        <div id="loc-filter-note" style="display:none;font-size:11px;color:#d97706;margin-left:12px"></div>
         <button class="modal-x" onclick="closeLocationModal()" aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
@@ -10732,8 +10734,9 @@ function buildLocSearchBody(page, pageSize) {
   const customerOrgId = document.getElementById('loc-customer').value || null;
   const body = { currentPage: page, pageSize: pageSize, facilityId: FACILITY_ID, warehouseId: FACILITY_ID };
   if (customerOrgId) body.customerIds = [customerOrgId];
-  const v = id => document.getElementById(id).value;
-  if (v('loc-name'))      body.name            = v('loc-name');
+  const v = id => (document.getElementById(id) || {}).value || '';
+  const locName = v('loc-name').trim();
+  if (locName) { body.names = [locName]; body.name = locName; }
   if (v('loc-type'))      body.type            = v('loc-type');
   if (v('loc-storage-zone')) {
     body.storageZone = v('loc-storage-zone');
@@ -10757,6 +10760,11 @@ async function searchLocations() {
   const myToken = CC.loadToken;
   const body = buildLocSearchBody(1, 500);   // page 1, big page
   const customerOrgId = body.customerIds ? body.customerIds[0] : null;
+  const hasNameFilter = !!(body.names && body.names.length > 0);
+
+  // Show facility context in modal
+  const facLabel = document.getElementById('loc-facility-label');
+  if (facLabel) facLabel.textContent = 'Searching in: ' + (FACILITY_NAME || FACILITY_ID) + ' (' + FACILITY_ID + ')';
 
   // Reset state — pick up page size from the dropdown (supports "ALL")
   CC.modalResults = [];
@@ -10787,9 +10795,36 @@ async function searchLocations() {
     total = payload.totalCount ?? payload.total ?? payload.count ?? list.length;
     firstRows = applyStorageZoneFilter(list.map(mapWiseLocation));
     live = true;
-  } else if (customerOrgId) {
-    // Wise unreachable — fall back to baked sample (real ORGAIN data) +
-    // synthetic universe so the picker stays usable offline.
+  }
+
+  // If exact name search with customer returned 0, retry without customerIds
+  // (customer filter may not apply to location-level data; location tags are separate)
+  if (live && firstRows.length === 0 && hasNameFilter && customerOrgId) {
+    const retryBody = { ...body };
+    delete retryBody.customerIds;
+    const retry = await safeFetch(API.locSearch, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(retryBody)
+    });
+    if (CC.loadToken !== myToken) return;
+    if (retry && retry.success !== false) {
+      const rp = retry.data || retry;
+      const rl = rp.list || rp.results || rp.items || [];
+      total = rp.totalCount ?? rp.total ?? rp.count ?? rl.length;
+      firstRows = applyStorageZoneFilter(rl.map(mapWiseLocation));
+      if (firstRows.length > 0) {
+        const noteEl = document.getElementById('loc-filter-note');
+        if (noteEl) { noteEl.textContent = 'Note: Customer filter did not apply to this location. Showing results for all customers at this facility.'; noteEl.style.display = ''; }
+      }
+    }
+  } else {
+    const noteEl = document.getElementById('loc-filter-note');
+    if (noteEl) noteEl.style.display = 'none';
+  }
+
+  if (!live && customerOrgId) {
+    // Wise unreachable — fall back to baked sample
     const synth = synthLocations(body);
     firstRows = synth.rows;
     total = synth.total;
