@@ -11698,23 +11698,39 @@ async function deleteTask(id) {
   const t = CC.tasks.find(x => x.id === id);
   if (!t) return;
   const hasWise = !!t.ticketId;
-  const promptMsg = hasWise
-    ? 'Cancel cycle count "' + (t.name||'') + '" in Wise (ticket ' + t.ticketId + ') and remove it from the dashboard?'
-    : 'Delete this cycle count? (It only exists locally — no Wise ticket to cancel.)';
-  if (!confirm(promptMsg)) return;
-  // Sync to Wise first if we have a server-side ticket
-  if (hasWise) {
-    const url = API.ccSchedule + '/' + encodeURIComponent(t.ticketId) + '/cancel';
-    const resp = await safeFetch(url, {method:'PUT'});
-    if (resp && resp.success === false) {
-      const msg = resp.msg || resp.message || ('HTTP ' + resp.code);
-      const proceed = confirm('Wise rejected the cancel:\n' + msg + '\n\nRemove from dashboard anyway?');
-      if (!proceed) return;
-    } else if (resp == null) {
-      const proceed = confirm('Could not reach Wise to cancel ticket ' + t.ticketId + '.\n\nRemove from dashboard anyway? (It will stay open in Wise.)');
-      if (!proceed) return;
-    }
+  if (!hasWise) {
+    if (!confirm('Delete this cycle count? (It only exists locally — no WMS ticket to cancel.)')) return;
+    CC.tasks = CC.tasks.filter(x => x.id !== id);
+    if (CC.editingTaskId === id) cancelEditTask();
+    persistSavedTasks(CC.tasks);
+    renderTasksPanel();
+    return;
   }
+  // WMS-linked record
+  if (!confirm('Cancel cycle count "' + (t.name||'') + '" in WMS (ticket ' + t.ticketId + ') and remove it from the dashboard?')) return;
+  const url = API.ccSchedule + '/' + encodeURIComponent(t.ticketId) + '/cancel';
+  const resp = await safeFetch(url, {method:'PUT'});
+  if (resp && resp.success === false) {
+    const msg = resp.msg || resp.message || '';
+    if (/unauthor|permission|forbidden/i.test(msg)) {
+      alert('You do not have permission to cancel this WMS count ticket (' + t.ticketId + '). Contact an authorized supervisor or administrator.');
+      return;
+    }
+    if (/cancel|not found|already/i.test(msg)) {
+      // Already cancelled or not found in WMS — refresh status locally
+      t.wiseStatus = 'CANCELLED';
+      persistSavedTasks(CC.tasks);
+      renderTasksPanel();
+      alert('This ticket appears to already be cancelled or removed in WMS. Status updated.');
+      return;
+    }
+    alert('WMS could not cancel this ticket: ' + msg + '\n\nThe record will remain visible until it can be cancelled.');
+    return;
+  } else if (resp == null) {
+    alert('Unable to reach WMS to cancel ticket ' + t.ticketId + '. The record will remain visible. Try again when WMS is available.');
+    return;
+  }
+  // Success — remove locally
   CC.tasks = CC.tasks.filter(x => x.id !== id);
   if (CC.editingTaskId === id) cancelEditTask();
   persistSavedTasks(CC.tasks);
