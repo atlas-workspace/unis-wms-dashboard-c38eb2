@@ -1084,12 +1084,14 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
             </div>
             <div class="cc-field">
               <label class="cc-label">Count Method</label>
-              <select class="cc-input" id="cc-method">
+              <select class="cc-input" id="cc-method" onchange="ccMethodChanged()">
                 <option value="PIECE">Piece Count</option>
                 <option value="CASE">Case Count</option>
                 <option value="PALLET">Pallet Count</option>
+                <option value="PALLET_QTY">Bulk / Pallet Qty Check</option>
                 <option value="WEIGHT">Weight Count</option>
               </select>
+              <div id="cc-method-help" style="display:none;font-size:11px;color:#6b7280;margin-top:4px;padding:6px 8px;background:#f9fafb;border-radius:4px;border:1px solid #e5e7eb"></div>
             </div>
             <div class="cc-field">
               <label class="cc-label">Ignore Collect Fields</label>
@@ -12437,6 +12439,34 @@ function toIsoSchedule(local) {
   return local.length === 16 ? local + ':00' : local;
 }
 
+function ccGetEffectiveMethod() {
+  const val = (document.getElementById('cc-method') || {}).value || 'PIECE';
+  if (val === 'PALLET_QTY') return 'PALLET';
+  return val;
+}
+
+function ccGetDockCheckMethod() {
+  const val = (document.getElementById('cc-method') || {}).value || '';
+  if (val === 'PALLET_QTY') return 'PALLET_QTY';
+  return undefined;
+}
+
+function ccIsBulkQtyMode() {
+  return (document.getElementById('cc-method') || {}).value === 'PALLET_QTY';
+}
+
+function ccMethodChanged() {
+  const help = document.getElementById('cc-method-help');
+  if (!help) return;
+  const val = (document.getElementById('cc-method') || {}).value;
+  if (val === 'PALLET_QTY') {
+    help.style.display = '';
+    help.innerHTML = '<strong>Bulk / Pallet Qty Check:</strong> Counters scan the location and confirm pallet/bulk quantity only. Individual ILP/license plate scanning is not required unless the quantity does not match — then piece-level exception count is triggered. Best for BY_LOCATION counts in bulk/pallet storage areas.';
+  } else {
+    help.style.display = 'none';
+  }
+}
+
 function ccIsScheduleDateToday(schedDateStr) {
   if (!schedDateStr) return false;
   const nowLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
@@ -12479,9 +12509,10 @@ async function submitCycleCount() {
     // Use DAILY_COUNT for scheduled dashboard counts to avoid CountCategory enum rejection.
     countCategory:        'DAILY_COUNT',
     cycleCountType:       document.getElementById('cc-type').value || 'BY_LOCATION',
-    countMethod:          document.getElementById('cc-method').value || 'PIECE',
-    method:               document.getElementById('cc-method').value || 'PIECE',
-    countMethodType:      document.getElementById('cc-method').value || 'PIECE',
+    countMethod:          ccGetEffectiveMethod(),
+    method:               ccGetEffectiveMethod(),
+    countMethodType:      ccGetEffectiveMethod(),
+    dockCheckMethod:      ccGetDockCheckMethod(),
     isManualCount:        document.getElementById('cc-manual').classList.contains('on'),
     isBlind:              document.getElementById('cc-blind').classList.contains('on'),
     blindCount:           document.getElementById('cc-blind').classList.contains('on'),  // legacy alias
