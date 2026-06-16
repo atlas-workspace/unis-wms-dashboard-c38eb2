@@ -543,7 +543,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
         Alerts <span class="sb-badge blue">3</span>
       </div>
-      <div class="sb-item" data-view="settings" onclick="showView('settings')">
+      <div class="sb-item" data-view="settings" onclick="showView('settings')" id="sb-admin-settings" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9c0-.3-.1-.6-.33-.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06c.22.23.52.33.82.33h.09a2 2 0 0 1 0-4"/></svg>
         Admin Settings
       </div>
@@ -1433,18 +1433,37 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 
           <!-- Security & Action Passwords -->
           <div class="card" style="margin-bottom:16px;padding:20px">
-            <div style="font-size:14px;font-weight:700;color:#1f2937;margin-bottom:4px">Security &amp; Action Password</div>
-            <div style="font-size:11px;color:#6b7280;margin-bottom:12px">This dashboard action password protects Location Tag edits, VLG Management edits, and Replenishment task creation. It is stored locally in your browser.</div>
-            <div class="set-row"><div><div class="lbl">Protected Modules</div></div><span style="font-size:12px;color:#374151">Location Tag · VLG Management · Replenishment Create</span></div>
-            <div class="set-row"><div><div class="lbl">Current Password</div></div><span style="font-size:12px;color:#6b7280">••••••••</span></div>
+            <div style="font-size:14px;font-weight:700;color:#1f2937;margin-bottom:4px">Security &amp; Action Password (Per Facility)</div>
+            <div style="font-size:11px;color:#6b7280;margin-bottom:12px">Action password is per-facility. It protects Location Tag edits, VLG Management edits, and Replenishment task creation. Stored locally in this browser. For security, user-entered passwords are not shown. Owner can reveal/reset the facility password.</div>
+            <div class="set-row"><div><div class="lbl">Current Facility</div></div><span style="font-size:12px;color:#753BBD;font-weight:600" id="adm-pw-facility-label">—</span></div>
+            <div class="set-row"><div><div class="lbl">Facility Password</div></div><span style="font-size:12px;color:#6b7280;cursor:pointer" id="adm-pw-reveal" onclick="admRevealPassword()" title="Click to reveal for 3 seconds">•••••••• (click to reveal)</span></div>
             <div style="margin-top:12px;padding:12px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb">
-              <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:8px">Change Action Password</div>
+              <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:8px">Change Facility Action Password</div>
               <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:end">
                 <div class="cc-field" style="margin:0"><label class="cc-label">Current Password</label><input type="password" class="cc-input" id="adm-pw-current" placeholder="Enter current"/></div>
                 <div class="cc-field" style="margin:0"><label class="cc-label">New Password</label><input type="password" class="cc-input" id="adm-pw-new" placeholder="Enter new"/></div>
                 <button class="btn btn-primary" onclick="admChangePassword()" style="font-size:12px;padding:6px 14px;height:36px">Update Password</button>
               </div>
               <div id="adm-pw-msg" style="font-size:11px;margin-top:6px;display:none"></div>
+            </div>
+          </div>
+
+          <!-- User Access -->
+          <div class="card" style="margin-bottom:16px;padding:20px">
+            <div style="font-size:14px;font-weight:700;color:#1f2937;margin-bottom:4px">User Access (Per Facility)</div>
+            <div style="font-size:11px;color:#6b7280;margin-bottom:12px">Grant individual users access to protected actions at the current facility. Owner (bescobar) always has access. This is a dashboard-local access policy stored in this browser.</div>
+            <div id="adm-user-access-list" style="margin-bottom:12px"></div>
+            <div style="padding:12px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb">
+              <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:8px">Add User Access</div>
+              <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:end">
+                <div class="cc-field" style="margin:0"><label class="cc-label">Username (IAM)</label><input class="cc-input" id="adm-add-username" placeholder="e.g. jsmith"/></div>
+                <div style="display:flex;gap:8px;align-items:center;font-size:11px;padding-bottom:4px">
+                  <label><input type="checkbox" id="adm-mod-ltag" checked style="accent-color:#753BBD"/> Location Tag</label>
+                  <label><input type="checkbox" id="adm-mod-vlg" checked style="accent-color:#753BBD"/> VLG</label>
+                  <label><input type="checkbox" id="adm-mod-replen" checked style="accent-color:#753BBD"/> Replen Create</label>
+                </div>
+                <button class="btn btn-primary" onclick="admAddUser()" style="font-size:12px;padding:6px 14px;height:36px">Add User</button>
+              </div>
             </div>
           </div>
 
@@ -2194,6 +2213,9 @@ updateTopbarDateRange();
 function showDash() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
+  // Show Admin Settings sidebar only for owner
+  const admSb = document.getElementById('sb-admin-settings');
+  if (admSb) admSb.style.display = admIsOwner() ? '' : 'none';
   initCharts();
   loadInsight();
   startSyncClock();
@@ -13244,13 +13266,62 @@ let LTAG_EDIT_LOCS = [];        // locations array for the edit view
 let LTAG_EDIT_SELECTED = new Set(); // checked location ids
 
 const LTAG_ADMIN_KEY_DEFAULT = 'Unis2026';
-function admGetActionPassword() {
-  try { return localStorage.getItem('adm_action_password') || LTAG_ADMIN_KEY_DEFAULT; } catch(_) { return LTAG_ADMIN_KEY_DEFAULT; }
+const ADM_OWNER_USERNAME = 'bescobar';
+
+function admGetCurrentUsername() {
+  const payload = decodeJwt(WISE_TOKEN);
+  if (payload && payload.data && payload.data.user_name) return payload.data.user_name;
+  if (payload && payload.sub) return payload.sub;
+  return '';
 }
+
+function admIsOwner() {
+  return admGetCurrentUsername() === ADM_OWNER_USERNAME;
+}
+
+function admGetFacilityPassword(facilityId) {
+  const fid = facilityId || FACILITY_ID;
+  try {
+    const perFac = JSON.parse(localStorage.getItem('adm_facility_passwords') || '{}');
+    return perFac[fid] || LTAG_ADMIN_KEY_DEFAULT;
+  } catch(_) { return LTAG_ADMIN_KEY_DEFAULT; }
+}
+
+function admSetFacilityPassword(facilityId, pw) {
+  try {
+    const perFac = JSON.parse(localStorage.getItem('adm_facility_passwords') || '{}');
+    perFac[facilityId] = pw;
+    localStorage.setItem('adm_facility_passwords', JSON.stringify(perFac));
+  } catch(_) {}
+}
+
+function admGetUserAccess() {
+  try { return JSON.parse(localStorage.getItem('adm_user_access') || '[]'); } catch(_) { return []; }
+}
+function admSetUserAccess(list) {
+  try { localStorage.setItem('adm_user_access', JSON.stringify(list)); } catch(_) {}
+}
+
+function admIsUserAllowed(module) {
+  if (admIsOwner()) return true;
+  const username = admGetCurrentUsername();
+  if (!username) return false;
+  const access = admGetUserAccess();
+  const entry = access.find(a => a.username === username && a.facility === FACILITY_ID && a.enabled);
+  if (!entry) return false;
+  if (!entry.modules || !entry.modules.includes(module)) return false;
+  return true;
+}
+
 function ltagRequirePassword() {
-  const input = prompt('This action requires authorization.\nEnter the dashboard action password:');
+  const module = 'LocationTag';
+  if (!admIsOwner() && !admIsUserAllowed(module)) {
+    alert('You do not hrd access for this action at ' + (FACILITY_NAME || FACILITY_ID) + '. Contact Brayan Escobar.');
+    return false;
+  }
+  const input = prompt('This action requires authorization.\nEnter the action password for ' + (FACILITY_NAME || FACILITY_ID) + ':');
   if (input === null) return false;
-  if (input !== admGetActionPassword()) { alert('Incorrect password. Changes are not allowed.'); return false; }
+  if (input !== admGetFacilityPassword(FACILITY_ID)) { alert('Incorrect password. Changes are not allowed.'); return false; }
   return true;
 }
 
@@ -14725,6 +14796,11 @@ function picalSaveEdit(localId) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function admInitSettings() {
+  if (!admIsOwner()) {
+    const view = document.getElementById('view-settings');
+    if (view) view.innerHTML = '<div style="text-align:center;padding:60px;color:#ef4444"><strong>Access Denied</strong><br><span style="font-size:13px;color:#6b7280">Admin Settings are only accessible to the dashboard owner. Contact Brayan Escobar.</span></div>';
+    return;
+  }
   // Populate facility dropdown
   const sel = document.getElementById('adm-default-facility');
   if (sel && sel.options.length <= 1) {
@@ -14750,6 +14826,11 @@ function admInitSettings() {
     const lastOk = localStorage.getItem('adm_last_sync');
     syncEl.textContent = lastOk || 'Not recorded';
   }
+  // Show current facility password status
+  const pwFacEl = document.getElementById('adm-pw-facility-label');
+  if (pwFacEl) pwFacEl.textContent = (FACILITY_NAME || FACILITY_ID) + ' (' + FACILITY_ID + ')';
+  // Render user access table
+  admRenderUserAccess();
 }
 
 function admGetPref(key) {
@@ -14768,12 +14849,12 @@ function admChangePassword() {
   const newPw = (document.getElementById('adm-pw-new') || {}).value || '';
   const msg = document.getElementById('adm-pw-msg');
   if (!current || !newPw) { admShowPwMsg('Please fill in both fields.', '#ef4444'); return; }
-  if (current !== admGetActionPassword()) { admShowPwMsg('Current password is incorrect.', '#ef4444'); return; }
+  if (current !== admGetFacilityPassword(FACILITY_ID)) { admShowPwMsg('Current password is incorrect for ' + (FACILITY_NAME || FACILITY_ID) + '.', '#ef4444'); return; }
   if (newPw.length < 4) { admShowPwMsg('New password must be at least 4 characters.', '#ef4444'); return; }
-  try { localStorage.setItem('adm_action_password', newPw); } catch(_) {}
+  admSetFacilityPassword(FACILITY_ID, newPw);
   document.getElementById('adm-pw-current').value = '';
   document.getElementById('adm-pw-new').value = '';
-  admShowPwMsg('Action password updated successfully.', '#059669');
+  admShowPwMsg('Action password updated for ' + (FACILITY_NAME || FACILITY_ID) + '.', '#059669');
 }
 
 function admShowPwMsg(text, color) {
@@ -14787,11 +14868,11 @@ function admShowPwMsg(text, color) {
 
 function admExportSettings() {
   const data = {};
-  const keys = ['adm_pref_defaultFacility', 'facility_id', 'physical_inv_cal_' + FACILITY_ID, 'count_calendar_' + FACILITY_ID];
+  const keys = ['adm_pref_defaultFacility', 'facility_id', 'physical_inv_cal_' + FACILITY_ID, 'count_calendar_' + FACILITY_ID, 'adm_user_access'];
   keys.forEach(k => { try { const v = localStorage.getItem(k); if (v) data[k] = v; } catch(_) {} });
   data._exportedAt = new Date().toISOString();
   data._facility = FACILITY_ID;
-  data._note = 'Action password is not included for security.';
+  data._note = 'Passwords are NOT included for security. User access policy is included.';
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -14822,11 +14903,66 @@ function admImportSettings(event) {
 }
 
 function admResetSettings() {
-  if (!confirm('Reset all dashboard settings to defaults? This will clear saved preferences, local calendar events, and cycle count schedules. Action password will revert to default. This cannot be undone.')) return;
-  const keysToRemove = ['adm_pref_defaultFacility', 'adm_action_password', 'facility_id', 'physical_inv_cal_' + FACILITY_ID, 'count_calendar_' + FACILITY_ID, 'adm_last_sync'];
+  if (!confirm('Reset all dashboard settings to defaults? This will clear saved preferences, local calendar events, user access, and facility passwords. This cannot be undone.')) return;
+  const keysToRemove = ['adm_pref_defaultFacility', 'adm_action_password', 'adm_facility_passwords', 'adm_user_access', 'facility_id', 'physical_inv_cal_' + FACILITY_ID, 'count_calendar_' + FACILITY_ID, 'adm_last_sync'];
   keysToRemove.forEach(k => { try { localStorage.removeItem(k); } catch(_) {} });
-  alert('Settings reset to defaults. Action password is now: Unis2026');
+  alert('Settings reset to defaults. All facility passwords reverted to: Unis2026');
   admInitSettings();
+}
+
+function admRenderUserAccess() {
+  const container = document.getElementById('adm-user-access-list');
+  if (!container) return;
+  const access = admGetUserAccess();
+  const facAccess = access.filter(a => a.facility === FACILITY_ID);
+  if (facAccess.length === 0) {
+    container.innerHTML = '<div style="color:#9ca3af;font-size:12px;padding:8px">No users configured for ' + esc(FACILITY_NAME || FACILITY_ID) + '. Only owner (bescobar) has access.</div>';
+    return;
+  }
+  container.innerHTML = '<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr style="background:#f9fafb"><th style="padding:4px 6px;text-align:left">Username</th><th style="padding:4px 6px;text-align:left">Modules</th><th style="padding:4px 6px;text-align:left">Status</th><th style="padding:4px 6px">Actions</th></tr></thead><tbody>' +
+    facAccess.map((a, i) => {
+      const idx = access.indexOf(a);
+      return '<tr style="border-top:1px solid #f3f4f6"><td style="padding:4px 6px">' + esc(a.username) + '</td><td style="padding:4px 6px;font-size:10px">' + esc((a.modules || []).join(', ')) + '</td><td style="padding:4px 6px"><span style="color:' + (a.enabled ? '#059669' : '#dc2626') + ';font-weight:600">' + (a.e? 'Enabled' : 'Disabled') + '</span></td><td style="padding:4px 6px;text-align:center"><span style="color:#753BBD;cursor:pointer;margin-right:6px" onclick="admToggleUser(' + idx + ')">' + (a.enabled ? 'Disable' : 'Enable') + '</span><span style="color:#dc2626;cursor:pointer" onclick="admRemoveUser(' + idx + ')">Remove</span></td></tr>';
+    }).join('') + '</tbody></table>';
+}
+
+function admAddUser() {
+  const username = (document.getElementById('adm-add-username') || {}).value.trim();
+  if (!username) { alert('Enter a username.'); return; }
+  const modules = [];
+  if (document.getElementById('adm-mod-ltag') && document.getElementById('adm-mod-ltag').checked) modules.push('LocationTag');
+  if (document.getElementById('adm-mod-vlg') && document.getElementById('adm-mod-vlg').checked) modules.push('VLG');
+  if (document.getElementById('adm-mod-replen') && document.getElementById('adm-mod-replen').checked) modules.push('ReplenCreate');
+  if (modules.length === 0) { alert('Select at least one module.'); return; }
+  const access = admGetUserAccess();
+  const existing = access.find(a => a.username === username && a.facility === FACILITY_ID);
+  if (existing) { existing.modules = modules; existing.enabled = true; }
+  else access.push({ username, facility: FACILITY_ID, modules, enabled: true });
+  admSetUserAccess(access);
+  document.getElementById('adm-add-username').value = '';
+  admRenderUserAccess();
+}
+
+function admToggleUser(idx) {
+  const access = admGetUserAccess();
+  if (access[idx]) access[idx].enabled = !access[idx].enabled;
+  admSetUserAccess(access);
+  admRenderUserAccess();
+}
+
+function admRemoveUser(idx) {
+  if (!confirm('Remove this user access?')) return;
+  const access = admGetUserAccess();
+  access.splice(idx, 1);
+  admSetUserAccess(access);
+  admRenderUserAccess();
+}
+
+function admRevealPassword() {
+  const el = document.getElementById('adm-pw-reveal');
+  if (!el) return;
+  el.textContent = admGetFacilityPassword(FACILITY_ID);
+  setTimeout(() => { el.textContent = '••••••••'; }, 3000);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
