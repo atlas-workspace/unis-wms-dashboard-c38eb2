@@ -14783,6 +14783,7 @@ function picalRender() {
     let actionsCell;
     if (e.source === 'local' && e._localId) {
       actionsCell = '<span style="color:#753BBD;cursor:pointer;font-size:11px;font-weight:600;margin-right:8px" onclick="picalEditLocal(\'' + escAttr(e._localId) + '\')">Edit</span>' +
+        '<span style="color:#2563eb;cursor:pointer;font-size:11px;font-weight:600;margin-right:8px" onclick="picalShowTicketSetup(\'' + escAttr(e._localId) + '\')">Ticket</span>' +
         '<span style="color:#dc2626;cursor:pointer;font-size:11px;font-weight:600" onclick="picalDeleteLocal(\'' + escAttr(e._localId) + '\')">Delete</span>';
     } else {
       actionsCell = '<span style="color:#9ca3af;font-size:11px">—</span>';
@@ -15196,8 +15197,219 @@ function picalPopulateTeamDropdown(sel, teams) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ADMIN SETTINGS — Dashboard preferences and security
+// CALENDAR PI — Ticket Setup with Teams, Templates, Attachments
 // ═══════════════════════════════════════════════════════════════════════════
+
+function picalShowTicketSetup(localId) {
+  picalLoadLocal();
+  const rec = PICAL_LOCAL.find(s => s.id === localId);
+  if (!rec) { alert('Record not found.'); return; }
+  const form = document.getElementById('pical-add-form');
+  const custLookup = {};
+  (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => custLookup[c.id] = c.name);
+  const custName = custLookup[rec.customerId] || rec.customerId || 'All / Facility-wide';
+  const facName = FACILITY_NAME || FACILITY_ID;
+  form.style.display = '';
+  form.innerHTML = '<div class="card" style="padding:16px;margin-bottom:16px;border-left:4px solid #753BBD">' +
+    '<div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:4px">Create Support Ticket for Physical Inventory</div>' +
+    '<div style="font-size:11px;color:#6b7280;margin-bottom:12px">Creates a ticket in UNIS Ticket System for this PI date. Team assignment and attachments are optional.</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:12px">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Title</label><input class="cc-input" id="pitk-title" value="Physical Inventory — ' + escAttr(custName) + ' — ' + escAttr(rec.date) + '"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Contact Email</label><input class="cc-input" id="pitk-email" value="' + escAttr(rec.internalEmail || '') + '" placeholder="contact@company.com"/></div>' +
+    '</div>' +
+    '<div class="cc-field" style="margin:0;margin-bottom:10px"><label class="cc-label">Message / Instructions</label>' +
+    '<div style="display:flex;gap:6px;margin-bottom:4px"><button class="btn btn-secondary" onclick="pitkGenerateTemplate(\'' + escAttr(localId) + '\')" style="font-size:11px;padding:4px 10px">Use Formal PI Email Template</button></div>' +
+    '<textarea class="cc-input" id="pitk-message" rows="8" style="font-size:12px;resize:vertical">' + esc(rec.notes || '') + '</textarea></div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Team (optional)</label><div style="display:flex;gap:4px"><select class="cc-input" id="pitk-team" style="flex:1"><option value="">— No team —</option></select><button class="btn btn-secondary" onclick="pitkLoadTeams()" style="font-size:11px;padding:4px 8px">Load Teams</button></div><input class="cc-input" id="pitk-team-manual" placeholder="Or enter Team ID manually" style="margin-top:4px;font-size:11px"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Attachments (optional)</label><input type="file" id="pitk-files" multiple style="font-size:11px"/><div style="font-size:10px;color:#6b7280;margin-top:2px">Select files to attach after ticket creation</div></div>' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;margin-top:12px">' +
+    '<button class="btn btn-primary" onclick="pitkCreateTicket(\'' + escAttr(localId) + '\')" style="font-size:12px;padding:6px 14px">Create Ticket</button>' +
+    '<button class="btn btn-secondary" onclick="document.getElementById(\'pical-add-form\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Cancel</button>' +
+    '</div>' +
+    '<div id="pitk-status" style="margin-top:8px;font-size:11px;display:none"></div>' +
+    '</div>';
+  form.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function pitkGenerateTemplate(localId) {
+  picalLoadLocal();
+  const rec = PICAL_LOCAL.find(s => s.id === localId) || {};
+  const custLookup = {};
+  (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => custLookup[c.id] = c.name);
+  const custName = custLookup[rec.customerId] || rec.customerId || 'All Customers';
+  const facName = FACILITY_NAME || FACILITY_ID;
+  const piDate = rec.date || 'TBD';
+  const emails = rec.internalEmail || '';
+  const quote = rec.quoteAmount ? '$' + rec.quoteAmount : 'TBD';
+  const notes = rec.notes || '';
+  const template =
+    'Subject: Physical Inventory Appointment Confirmation — ' + custName + ' — ' + piDate + '\n\n' +
+    'Dear Team,\n\n' +
+    'This confirms the scheduled Physical Inventory for the following:\n\n' +
+    '─────────────────────────────────────\n' +
+    'APPOINTMENT DETAILS\n' +
+    '─────────────────────────────────────\n' +
+    'Customer/Account: ' + custName + '\n' +
+    'Facility: ' + facName + ' (' + FACILITY_ID + ')\n' +
+    'PI Date: ' + piDate + '\n' +
+    'Confirmation Status: ' + (rec.confirmation || 'Pending') + '\n' +
+    'Quote Amount: ' + quote + '\n' +
+    (notes ? 'Scope/Notes: ' + notes + '\n' : '') +
+    'Internal Contact(s): ' + (emails || 'TBD') + '\n\n' +
+    '─────────────────────────────────────\n' +
+    'PREPARATION CHECKLIST\n' +
+    '─────────────────────────────────────\n' +
+    '☐ Confirm inventory freeze window with operations\n' +
+    '☐ Notify receiving/shipping of cutoff times\n' +
+    '☐ Ensure all pending putaways are completed\n' +
+    '☐ Print count sheets or configure RF devices\n' +
+    '☐ Assign count teams and zones\n' +
+    '☐ Stage equipment (scanners, clipboards, ladders)\n\n' +
+    '─────────────────────────────────────\n' +
+    'INVENTORY FREEZE / CUTOFF\n' +
+    '─────────────────────────────────────\n' +
+    'Freeze Start: [TBD — confirm with operations]\n' +
+    'Freeze End: [TBD — after count completion and reconciliation]\n' +
+    'No receiving/shipping during freeze window.\n\n' +
+    '─────────────────────────────────────\n' +
+    'NEXT STEPS\n' +
+    '─────────────────────────────────────\n' +
+    '1. Confirm PI date and team availability\n' +
+    '2. Complete preparation checklist\n' +
+    '3. Distribute count assignments\n' +
+    '4. Execute count and submit results\n' +
+    '5. Reconcile variances and close PI\n\n' +
+    'Please reply to confirm attendance or raise any concerns.\n\n' +
+    'Best regards,\n' +
+    'Warehouse Operations — ' + facName;
+  const ta = document.getElementById('pitk-message');
+  if (ta) ta.value = template;
+}
+
+async function pitkLoadTeams() {
+  const sel = document.getElementById('pitk-team');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Loading teams…</option>';
+  try {
+    const resp = await safeFetch(WMS_BASE.replace('unis.item.com','ticket.item.com') + '/v1/staff/teams/page', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({page: 1, size: 50, input: ''}),
+    });
+    if (resp && (resp.data || resp.list)) {
+      const d = resp.data || resp;
+      const teams = d.list || d.records || d.content || [];
+      sel.innerHTML = '<option value="">— No team —</option>';
+      teams.forEach(t => {
+        sel.innerHTML += '<option value="' + (t.id || '') + '">' + esc(t.name || t.teamName || t.id) + '</option>';
+      });
+      if (teams.length === 0) sel.innerHTML += '<option disabled>No teams found</option>';
+    } else {
+      sel.innerHTML = '<option value="">— No team (API unavailable) —</option>';
+      const status = document.getElementById('pitk-status');
+      if (status) { status.textContent = 'Could not load teams. You can enter a Team ID manually below.'; status.style.color = '#d97706'; status.style.display = ''; }
+    }
+  } catch(e) {
+    sel.innerHTML = '<option value="">— No team —</option>';
+  }
+}
+
+async function pitkCreateTicket(localId) {
+  picalLoadLocal();
+  const rec = PICAL_LOCAL.find(s => s.id === localId);
+  if (!rec) { alert('Record not found.'); return; }
+  const title = (document.getElementById('pitk-title') || {}).value || 'Physical Inventory';
+  const email = (document.getElementById('pitk-email') || {}).value || '';
+  const message = (document.getElementById('pitk-message') || {}).value || '';
+  const teamId = (document.getElementById('pitk-team') || {}).value || (document.getElementById('pitk-team-manual') || {}).value || '';
+  const status = document.getElementById('pitk-status');
+
+  if (!title.trim()) { alert('Title is required.'); return; }
+  if (status) { status.textContent = 'Creating ticket…'; status.style.color = '#6b7280'; status.style.display = ''; }
+
+  const payload = {
+    title: title,
+    message: message || title,
+    contactEmail: email || undefined,
+    priorityId: undefined,
+  };
+
+  const resp = await safeFetch('https://ticket.item.com/v1/iam/tickets', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  });
+
+  if (!resp || resp._needsAuth) {
+    if (status) { status.textContent = 'Could not create ticket. Authentication may be required for the Ticket System.'; status.style.color = '#ef4444'; status.style.display = ''; }
+    return;
+  }
+
+  const ticketData = resp.data || resp;
+  const ticketId = ticketData.id || ticketData.ticketId || ticketData.number || '';
+  const ticketNumber = ticketData.number || ticketData.ticketNumber || ticketId;
+
+  if (!ticketId) {
+    if (status) { status.textContent = 'Ticket creation was not confirmed. Response: ' + (resp.msg || resp.message || 'No ticket ID returned.'); status.style.color = '#ef4444'; status.style.display = ''; }
+    return;
+  }
+
+  // Save ticket link to local record
+  rec.ticketId = ticketId;
+  rec.ticketNumber = ticketNumber;
+  rec.teamId = teamId || undefined;
+
+  // Assign team if selected
+  if (teamId) {
+    const assignResp = await safeFetch('https://ticket.item.com/v1/iam/tickets/' + encodeURIComponent(ticketId), {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({teamId: teamId}),
+    });
+    if (!assignResp || assignResp._needsAuth || (assignResp.success === false)) {
+      rec.teamWarning = 'Team assignment failed — ticket created without team.';
+    } else {
+      rec.teamName = (document.getElementById('pitk-team') || {}).selectedOptions ? ((document.getElementById('pitk-team').selectedOptions[0] || {}).textContent || teamId) : teamId;
+    }
+  }
+
+  // Upload attachments
+  const fileInput = document.getElementById('pitk-files');
+  const files = fileInput ? fileInput.files : [];
+  rec.attachments = [];
+  if (files.length > 0) {
+    for (let i = 0; i < files.length; i++) {
+      const fd = new FormData();
+      fd.append('file', files[i]);
+      try {
+        const upResp = await fetch('https://ticket.item.com/v1/iam/tickets/' + encodeURIComponent(ticketId) + '/attachments', {
+          method: 'POST',
+          headers: WISE_TOKEN ? {'Authorization': 'Bearer ' + WISE_TOKEN} : {},
+          body: fd,
+        });
+        if (upResp.ok) {
+          rec.attachments.push({name: files[i].name, status: 'uploaded'});
+        } else {
+          rec.attachments.push({name: files[i].name, status: 'failed'});
+        }
+      } catch(e) {
+        rec.attachments.push({name: files[i].name, status: 'failed'});
+      }
+    }
+  }
+
+  picalSaveLocal();
+  const attachStatus = rec.attachments.length > 0 ? ' Attachments: ' + rec.attachments.filter(a => a.status === 'uploaded').length + ' uploaded, ' + rec.attachments.filter(a => a.status === 'failed').length + ' failed.' : '';
+  const teamStatus = rec.teamWarning ? ' ' + rec.teamWarning : (rec.teamName ? ' Team: ' + rec.teamName : '');
+  if (status) { status.textContent = 'Ticket created: ' + ticketNumber + '.' + teamStatus + attachStatus; status.style.color = '#059669'; status.style.display = ''; }
+
+  setTimeout(() => {
+    document.getElementById('pical-add-form').style.display = 'none';
+    picalRender();
+  }, 2000);
+}
 
 function admInitSettings() {
   if (!admIsOwner()) {
