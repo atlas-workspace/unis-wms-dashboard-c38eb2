@@ -14855,7 +14855,8 @@ function picalShowAddForm() {
     '<div class="cc-field" style="margin:0"><label class="cc-label">Contact Email</label><input class="cc-input" id="pical-add-contact-email" placeholder="contact@company.com"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Ticket Title</label><input class="cc-input" id="pical-add-ticket-title" placeholder="Physical Inventory Setup"/></div>' +
     '</div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Setup Message</label><textarea class="cc-input" id="pical-add-ticket-msg" rows="3" style="resize:vertical;font-size:12px" placeholder="Setup instructions or message for the ticket..."></textarea></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Setup Message</label><textarea class="cc-input" id="pical-add-ticket-msg" rows="8" style="resize:vertical;font-size:12px;line-height:1.5" placeholder="Setup instructions or message for the ticket..."></textarea></div>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin-top:6px"><button class="btn btn-secondary" type="button" onclick="picalGenerateTemplate(\'add\')" style="font-size:11px;padding:4px 10px">Use Formal PI Email Template</button><span style="font-size:10px;color:#9ca3af">Populates from current form values</span></div>' +
     '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6b7280;margin-top:8px;cursor:pointer"><input type="checkbox" id="pical-add-send-msg" checked style="accent-color:#753BBD"/> Include setup message when creating ticket</label>' +
     '</div></div>' +
     '<div style="margin-top:12px;display:flex;gap:8px">' +
@@ -14978,6 +14979,64 @@ function picalToggleTicketFields(prefix) {
     const intEmail = (document.getElementById('pical-add-email') || {}).value || '';
     if (emailEl && !emailEl.value && intEmail) emailEl.value = intEmail.split(/[,;]/)[0].trim();
   }
+}
+
+function picalGenerateTemplate(mode) {
+  const prefix = mode === 'edit' ? 'pical-edit-' : 'pical-add-';
+  const date = (document.getElementById(prefix + 'date') || {}).value || 'TBD';
+  const custEl = document.getElementById(prefix + 'customer');
+  const customer = custEl && custEl.value ? custEl.options[custEl.selectedIndex].textContent : 'All Customers / Facility-wide';
+  const confirmation = (document.getElementById(prefix + 'confirmation') || {}).value || 'Pending';
+  const emails = (document.getElementById(prefix + 'email') || {}).value || '';
+  const quote = (document.getElementById(prefix + 'quote') || {}).value || '';
+  const notes = (document.getElementById(prefix + 'notes') || {}).value || '';
+  const facility = (FACILITY_NAME || FACILITY_ID) + ' (' + FACILITY_ID + ')';
+  const formattedDate = date !== 'TBD' ? new Date(date + 'T12:00:00').toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'}) : 'TBD';
+
+  const template =
+'Subject: Physical Inventory Confirmation - ' + customer + ' - ' + formattedDate + '\n\n' +
+'Dear Team,\n\n' +
+'This email confirms the upcoming Physical Inventory scheduled as follows:\n\n' +
+'PHYSICAL INVENTORY DETAILS\n' +
+'-------------------------------------------\n' +
+'Date:           ' + formattedDate + '\n' +
+'Customer:       ' + customer + '\n' +
+'Facility:       ' + facility + '\n' +
+'Confirmation:   ' + confirmation + '\n' +
+(quote ? 'Quote Amount:   $' + quote + '\n' : '') +
+(emails ? 'Contacts:       ' + emails + '\n' : '') +
+(notes ? 'Notes:          ' + notes + '\n' : '') +
+'\n' +
+'SCOPE & INSTRUCTIONS\n' +
+'-------------------------------------------\n' +
+'- Count type: Wall-to-wall physical inventory' + (notes ? ' - ' + notes : '') + '\n' +
+'- All inventory in designated areas must be counted\n' +
+'- Discrepancies will be documented and reviewed post-count\n\n' +
+'PREPARATION CHECKLIST\n' +
+'-------------------------------------------\n' +
+'[ ] Confirm date and time with all participants\n' +
+'[ ] Notify warehouse operations of inventory freeze window\n' +
+'[ ] Ensure all inbound receiving is completed or staged before cutoff\n' +
+'[ ] Complete all open picks and putaways in count areas\n' +
+'[ ] Prepare count sheets / RF devices / scanning equipment\n' +
+'[ ] Assign count teams and zone responsibilities\n' +
+'[ ] Brief counters on count method and exception handling\n\n' +
+'INVENTORY FREEZE / CUTOFF\n' +
+'-------------------------------------------\n' +
+'- Freeze begins: [Confirm time - typically evening before count date]\n' +
+'- No movement in/out of count areas during freeze\n' +
+'- Freeze ends: Upon completion and sign-off of physical count\n\n' +
+'NEXT STEPS\n' +
+'-------------------------------------------\n' +
+'1. Reply to confirm your attendance and role\n' +
+'2. Report any scheduling conflicts immediately\n' +
+'3. Review assigned zones before count date\n' +
+'4. Contact the PI coordinator with questions\n\n' +
+'Best regards,\n' +
+'Warehouse Operations - ' + facility + '\n';
+
+  const ta = document.getElementById(prefix + 'ticket-msg');
+  if (ta) ta.value = template;
 }
 
 async function picalCreateTicket(rec, opts) {
