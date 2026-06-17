@@ -14937,6 +14937,9 @@ function picalEditLocal(localId) {
   const hasTicket = !!(rec.ticketId);
   const ticketInfo = hasTicket ? '<div style="margin-bottom:10px;padding:8px 12px;background:#ECFDF5;border-radius:6px;border:1px solid #A7F3D0;font-size:11px;color:#065f46"><strong>Linked Ticket:</strong> ' + esc(rec.ticketNumber || rec.ticketId) + (rec.teamName ? ' · Team: ' + esc(rec.teamName) : '') + (rec.attachments ? ' · ' + rec.attachments.uploaded + '/' + rec.attachments.total + ' file(s)' : '') + '</div>' : '';
   const ticketCheckLabel = hasTicket ? 'Ticket already linked — update team/attachments' : 'Create setup ticket in UNIS Ticket System';
+  // Auto-populate setup message: use saved ticketMsg, or generate template if ticket linked but no message saved
+  const savedMsg = rec.ticketMsg || '';
+  const editMsg = savedMsg || (hasTicket ? picalGenerateTemplateText(rec) : '');
   form.style.display = '';
   form.innerHTML = '<div class="card" style="padding:16px;margin-bottom:16px;border-left:4px solid #d97706"><div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:12px">Edit Physical Inventory Date</div>' +
     ticketInfo +
@@ -14958,7 +14961,7 @@ function picalEditLocal(localId) {
     '<div class="cc-field" style="margin:0"><label class="cc-label">Contact Email</label><input class="cc-input" id="pical-edit-contact-email" value="' + escAttr(rec.contactEmail || '') + '" placeholder="contact@company.com"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Ticket Title</label><input class="cc-input" id="pical-edit-ticket-title" value="' + escAttr(rec.ticketTitle || '') + '" placeholder="Physical Inventory Setup"/></div>' +
     '</div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Setup Message</label><textarea class="cc-input" id="pical-edit-ticket-msg" rows="3" style="resize:vertical;font-size:12px" placeholder="Setup instructions...">' + esc(rec.ticketMsg || '') + '</textarea></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Setup Message / Email Template</label><textarea class="cc-input" id="pical-edit-ticket-msg" rows="10" style="resize:vertical;font-size:12px" placeholder="Setup instructions...">' + esc(editMsg) + '</textarea></div>' +
     '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">' +
     '<button type="button" class="btn btn-secondary" onclick="picalGenerateTemplate(\'edit\')" style="font-size:11px;padding:4px 10px">Use Formal PI Email Template</button>' +
     '<button type="button" class="btn btn-secondary" onclick="picalLoadTeams(\'edit\')" style="font-size:11px;padding:4px 10px">Load Teams</button>' +
@@ -15139,6 +15142,28 @@ function picalGenerateTemplate(mode) {
 
   const ta = document.getElementById(prefix + 'ticket-msg');
   if (ta) ta.value = template;
+}
+
+function picalGenerateTemplateText(rec) {
+  const custLookup = {};
+  (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => custLookup[c.id] = c.name);
+  const customer = custLookup[rec.customerId] || rec.customerId || 'All Customers / Facility-wide';
+  const facility = (FACILITY_NAME || FACILITY_ID) + ' (' + FACILITY_ID + ')';
+  const date = rec.date || 'TBD';
+  const formattedDate = date !== 'TBD' ? new Date(date + 'T12:00:00').toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'}) : 'TBD';
+  const confirmation = rec.confirmation || 'Pending';
+  const emails = rec.internalEmail || '';
+  const quote = rec.quoteAmount || '';
+  const notes = rec.notes || '';
+  return 'Subject: Physical Inventory Confirmation - ' + customer + ' - ' + formattedDate + '\n\n' +
+    'Dear Team,\n\nThis email confirms the upcoming Physical Inventory scheduled as follows:\n\n' +
+    'PHYSICAL INVENTORY DETAILS\n-------------------------------------------\n' +
+    'Date:           ' + formattedDate + '\nCustomer:       ' + customer + '\nFacility:       ' + facility + '\nConfirmation:   ' + confirmation + '\n' +
+    (quote ? 'Quote Amount:   $' + quote + '\n' : '') + (emails ? 'Contacts:       ' + emails + '\n' : '') + (notes ? 'Notes:          ' + notes + '\n' : '') +
+    '\nSCOPE & INSTRUCTIONS\n-------------------------------------------\n- Count type: Wall-to-wall physical inventory\n- All inventory in designated areas must be counted\n- Discrepancies documented and reviewed post-count\n\n' +
+    'PREPARATION CHECKLIST\n-------------------------------------------\n[ ] Confirm date and time with all participants\n[ ] Notify warehouse operations of inventory freeze window\n[ ] Ensure all inbound receiving completed before cutoff\n[ ] Complete all open picks and putaways in count areas\n[ ] Prepare count sheets / RF devices / scanning equipment\n[ ] Assign count teams and zone responsibilities\n\n' +
+    'INVENTORY FREEZE / CUTOFF\n-------------------------------------------\n- Freeze begins: [Confirm time - typically evening before count date]\n- No movement in/out of count areas during freeze\n- Freeze ends: Upon completion and sign-off of physical count\n\n' +
+    'NEXT STEPS\n-------------------------------------------\n1. Reply to confirm attendance and role\n2. Report any scheduling conflicts immediately\n3. Review assigned zones before count date\n4. Contact PI coordinator with questions\n\nBest regards,\nWarehouse Operations - ' + facility + '\n';
 }
 
 async function picalCreateTicket(rec, opts) {
