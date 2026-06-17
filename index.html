@@ -14934,16 +14934,39 @@ function picalEditLocal(localId) {
   const form = document.getElementById('pical-add-form');
   const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
   const custOpts = customers.map(c => '<option value="' + c.id + '"' + (c.id === rec.customerId ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('');
+  const hasTicket = !!(rec.ticketId);
+  const ticketInfo = hasTicket ? '<div style="margin-bottom:10px;padding:8px 12px;background:#ECFDF5;border-radius:6px;border:1px solid #A7F3D0;font-size:11px;color:#065f46"><strong>Linked Ticket:</strong> ' + esc(rec.ticketNumber || rec.ticketId) + (rec.teamName ? ' · Team: ' + esc(rec.teamName) : '') + (rec.attachments ? ' · ' + rec.attachments.uploaded + '/' + rec.attachments.total + ' file(s)' : '') + '</div>' : '';
+  const ticketCheckLabel = hasTicket ? 'Ticket already linked — update team/attachments' : 'Create setup ticket in UNIS Ticket System';
   form.style.display = '';
   form.innerHTML = '<div class="card" style="padding:16px;margin-bottom:16px;border-left:4px solid #d97706"><div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:12px">Edit Physical Inventory Date</div>' +
+    ticketInfo +
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Date</label><input type="date" class="cc-input" id="pical-edit-date" value="' + (rec.date || '') + '"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Customer</label><select class="cc-input" id="pical-edit-customer"><option value="">All / Facility-wide</option>' + custOpts + '</select></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Confirmation</label><select class="cc-input" id="pical-edit-confirmation"><option value="Pending"' + (rec.confirmation === 'Pending' ? ' selected' : '') + '>Pending</option><option value="Confirmed"' + (rec.confirmation === 'Confirmed' ? ' selected' : '') + '>Confirmed</option><option value="Re-scheduled"' + (rec.confirmation === 'Re-scheduled' ? ' selected' : '') + '>Re-scheduled</option><option value="Canceled"' + (rec.confirmation === 'Canceled' ? ' selected' : '') + '>Canceled</option></select></div>' +
+    '<div class="cc-field"gin:0"><label class="cc-label">Confirmation</label><select class="cc-input" id="pical-edit-confirmation"><option value="Pending"' + (rec.confirmation === 'Pending' ? ' selected' : '') + '>Pending</option><option value="Confirmed"' + (rec.confirmation === 'Confirmed' ? ' selected' : '') + '>Confirmed</option><option value="Re-scheduled"' + (rec.confirmation === 'Re-scheduled' ? ' selected' : '') + '>Re-scheduled</option><option value="Canceled"' + (rec.confirmation === 'Canceled' ? ' selected' : '') + '>Canceled</option></select></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Internal Email(s)</label><input class="cc-input" id="pical-edit-email" value="' + escAttr(rec.internalEmail || '') + '" placeholder="email@company.com"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Quote Amount ($)</label><input type="number" class="cc-input" id="pical-edit-quote" value="' + escAttr(rec.quoteAmount || '') + '" min="0" step="0.01"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Notes</label><input class="cc-input" id="pical-edit-notes" value="' + escAttr(rec.notes || '') + '"/></div>' +
     '</div>' +
+    // Ticket Setup Section (same as create)
+    '<div style="margin-top:16px;padding:12px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb">' +
+    '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#374151;cursor:pointer;margin-bottom:8px"><input type="checkbox" id="pical-edit-create-ticket" onchange="picalToggleTicketFields(\'edit\')" ' + (hasTicket ? 'checked' : '') + ' style="accent-color:#753BBD"/> ' + esc(ticketCheckLabel) + '</label>' +
+    '<div id="pical-edit-ticket-fields" style="' + (hasTicket ? '' : 'display:none') + '">' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Department ID</label><input class="cc-input" id="pical-edit-dept" value="' + escAttr(rec.deptId || '') + '" placeholder="e.g. 1"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Topic ID</label><input class="cc-input" id="pical-edit-topic" value="' + escAttr(rec.topicId || '') + '" placeholder="e.g. 1"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Contact Email</label><input class="cc-input" id="pical-edit-contact-email" value="' + escAttr(rec.contactEmail || '') + '" placeholder="contact@company.com"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Ticket Title</label><input class="cc-input" id="pical-edit-ticket-title" value="' + escAttr(rec.ticketTitle || '') + '" placeholder="Physical Inventory Setup"/></div>' +
+    '</div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Setup Message</label><textarea class="cc-input" id="pical-edit-ticket-msg" rows="3" style="resize:vertical;font-size:12px" placeholder="Setup instructions...">' + esc(rec.ticketMsg || '') + '</textarea></div>' +
+    '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">' +
+    '<button type="button" class="btn btn-secondary" onclick="picalGenerateTemplate(\'edit\')" style="font-size:11px;padding:4px 10px">Use Formal PI Email Template</button>' +
+    '<button type="button" class="btn btn-secondary" onclick="picalLoadTeams(\'edit\')" style="font-size:11px;padding:4px 10px">Load Teams</button>' +
+    '</div>' +
+    '<div class=eld" style="margin:6px 0 0"><label class="cc-label">Team (optional)</label><select class="cc-input" id="pical-edit-team" style="font-size:12px"><option value="">No team / manual</option>' + (rec.teamId ? '<option value="' + escAttr(rec.teamId) + '" selected>' + esc(rec.teamName || 'Team ' + rec.teamId) + '</option>' : '') + '</select></div>' +
+    '<div class="cc-field" style="margin:6px 0 0"><label class="cc-label">Attachments (optional)</label><input type="file" id="pical-edit-files" multiple style="font-size:12px"/></div>' +
+    '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6b7280;margin-top:8px;cursor:pointer"><input type="checkbox" id="pical-edit-send-msg" checked style="accent-color:#753BBD"/> Include setup message</label>' +
+    '</div></div>' +
     '<div style="margin-top:12px;display:flex;gap:8px">' +
     '<button class="btn btn-primary" onclick="picalSaveEdit(\'' + escAttr(localId) + '\')" style="font-size:12px;padding:6px 14px">Save Changes</button>' +
     '<button class="btn btn-secondary" onclick="document.getElementById(\'pical-add-form\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Cancel</button>' +
@@ -14951,7 +14974,7 @@ function picalEditLocal(localId) {
   form.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
-function picalSaveEdit(localId) {
+async function picalSaveEdit(localId) {
   const date = (document.getElementById('pical-edit-date') || {}).value;
   const customerId = (document.getElementById('pical-edit-customer') || {}).value;
   const confirmation = (document.getElementById('pical-edit-confirmation') || {}).value || 'Pending';
@@ -14968,7 +14991,71 @@ function picalSaveEdit(localId) {
   rec.internalEmail = internalEmail;
   rec.quoteAmount = quoteAmount;
   rec.notes = notes;
+
+  // Ticket setup fields — save locally regardless
+  const createTicket = (document.getElementById('pical-edit-create-ticket') || {}).checked;
+  if (createTicket) {
+    rec.deptId = (document.getElementById('pical-edit-dept') || {}).value || '';
+    rec.topicId = (document.getElementById('pical-edit-topic') || {}).value || '';
+    rec.contactEmail = (document.getElementById('pical-edit-contact-email') || {}).value || '';
+    rec.ticketTitle = (document.getElementById('pical-edit-ticket-title') || {}).value || '';
+    rec.ticketMsg = (document.getElementById('pical-edit-ticket-msg') || {}).value || '';
+    const teamSel = document.getElementById('pical-edit-team');
+    const newTeamId = teamSel ? teamSel.value : '';
+    const newTeamName = teamSel && teamSel.selectedIndex > 0 ? teamSel.options[teamSel.selectedIndex].text : '';
+    rec.teamId = newTeamId || rec.teamId || '';
+    rec.teamName = newTeamName || rec.teamName || '';
+  }
   picalSaveLocal();
+
+  // If no ticket yet and create checked, create one
+  if (createTicket && !rec.ticketId) {
+    const dept = rec.deptId; const topic = rec.topicId;
+    const contactEmail = rec.contactEmail; const title = rec.ticketTitle;
+    const msg = rec.ticketMsg;
+    if (!dept || !topic || !contactEmail || !title || !msg) {
+      alert('Fill all required ticket fields (Department, Topic, Contact Email, Title, Message) to create a ticket.');
+      document.getElementById('pical-add-form').style.display = 'none';
+      picalRender();
+      return;
+    }
+    const filesInput = document.getElementById('pical-edit-files');
+    const files = filesInput ? Array.from(filesInput.files) : [];
+    await picalCreateTicket(rec, {dept, topic, contactEmail, title, msg, teamId: rec.teamId, teamName: rec.teamName, files});
+  } else if (rec.ticketId) {
+    // Ticket exists — update team if changed, upload new files
+    const teamSel = document.getElementById('pical-edit-team');
+    const newTeamId = teamSel ? teamSel.value : '';
+    if (newTeamId && newTeamId !== rec.teamId) {
+      try {
+        await safeFetch(TICKET_API + '/' + encodeURIComponent(rec.ticketId), {
+          method: 'PUT', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({teamId: parseInt(newTeamId, 10)}),
+        });
+        rec.teamId = newTeamId;
+        rec.teamName = teamSel.options[teamSel.selectedIndex].text;
+        rec.teamAssigned = true;
+      } catch(_) { rec.teamWarning = 'Team update failed'; }
+    }
+    const filesInput = document.getElementById('pical-edit-files');
+    const files = filesInput ? Array.from(filesInput.files) : [];
+    if (files.length > 0) {
+      let uploaded = (rec.attachments && rec.attachments.uploaded) || 0, failed = 0;
+      for (const file of files) {
+        try {
+          const fd = new FormData(); fd.append('file', file);
+          const upResp = await safeFetch(TICKET_API + '/' + encodeURIComponent(rec.ticketId) + '/attachments', {method:'POST', body: fd});
+          if (upResp && upResp.success !== false) uploaded++; else failed++;
+        } catch(_) { failed++; }
+      }
+      rec.attachments = {uploaded, failed, total: uploaded + failed};
+    }
+    picalLoadLocal();
+    const r2 = PICAL_LOCAL.find(s => s.id === localId);
+    if (r2) { Object.assign(r2, rec); }
+    picalSaveLocal();
+  }
+
   document.getElementById('pical-add-form').style.display = 'none';
   picalRender();
 }
