@@ -15077,9 +15077,10 @@ async function picalCreateTicket(rec, opts) {
       body: JSON.stringify(payload),
     });
 
-    if (resp && (resp.id || resp.ticketId || (resp.data && (resp.data.id || resp.data.ticketId)))) {
-      const tid = resp.id || resp.ticketId || (resp.data && (resp.data.id || resp.data.ticketId)) || '';
-      const tnum = resp.number || resp.ticketNumber || (resp.data && (resp.data.number || resp.data.ticketNumber)) || tid;
+    if (resp && (resp.success === true || String(resp.code) === '200' || resp.id || resp.ticketId || (resp.data && (resp.data.id || resp.data.ticketId)))) {
+      const rd = resp.data || resp;
+      const tid = rd.id || rd.ticketId || resp.id || resp.ticketId || '';
+      const tnum = rd.number || rd.ticketNumber || resp.number || resp.ticketNumber || tid;
       picalLoadLocal();
       const local = PICAL_LOCAL.find(s => s.id === rec.id);
       if (local) {
@@ -15142,12 +15143,12 @@ async function picalCreateTicket(rec, opts) {
         alert('Setup ticket created successfully. Ticket: ' + (tnum || tid));
       }
     } else {
-      const msg = (resp && (resp.msg || resp.message)) || 'Ticket service did not confirm creation.';
+      const msg = (resp && (resp.msg || resp.message || (resp.data && resp.data.msg))) || 'Ticket service did not confirm creation.';
       picalLoadLocal();
       const local = PICAL_LOCAL.find(s => s.id === rec.id);
       if (local) { local.ticketStatus = 'Failed: ' + msg; picalSaveLocal(); }
       picalRender();
-      alert('Could not create ticket: ' + msg + '\n\nThe physical inventory date was saved locally. You can retry ticket creation later.');
+      alert('Could not create ticket: ' + msg);
     }
   } catch(e) {
     picalLoadLocal();
@@ -15172,18 +15173,21 @@ async function picalLoadTeams(prefix) {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({page: 1, size: 100}),
     });
-    if (resp && (resp.data || resp.list || resp.records)) {
+    if (resp && !resp._needsAuth && (resp.data || resp.list || resp.records || (resp.success && resp.data))) {
       const d = resp.data || resp;
       const list = d.list || d.records || d.content || (Array.isArray(d) ? d : []);
-      PICAL_TEAMS_CACHE = list;
-      picalPopulateTeamDropdown(sel, list);
-    } else {
-      sel.innerHTML = '<option value="">Could not load teams</option>';
-      const msg = (resp && (resp.msg || resp.message)) || '';
-      if (msg) sel.insertAdjacentHTML('afterend', '<div style="font-size:10px;color:#d97706;margin-top:4px">' + esc(msg) + ' — enter Team ID manually below if needed.</div>');
+      if (list.length > 0) {
+        PICAL_TEAMS_CACHE = list;
+        picalPopulateTeamDropdown(sel, list);
+        return;
+      }
     }
+    // API returned empty or error
+    sel.innerHTML = '<option value="">— No team (list unavailable) —</option>';
+    sel.insertAdjacentHTML('afterend', '<div style="font-size:10px;color:#d97706;margin-top:4px">Team list is not available from this dashboard session. Enter the Team ID manually below if needed.</div>');
   } catch(_) {
-    sel.innerHTML = '<option value="">Teams unavailable</option>';
+    sel.innerHTML = '<option value="">— No team (unavailable) —</option>';
+    sel.insertAdjacentHTML('afterend', '<div style="font-size:10px;color:#d97706;margin-top:4px">Team list is not available. Enter Team ID manually below.</div>');
   }
 }
 
