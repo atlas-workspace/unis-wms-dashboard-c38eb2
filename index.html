@@ -14855,9 +14855,14 @@ function picalShowAddForm() {
     '<div class="cc-field" style="margin:0"><label class="cc-label">Contact Email</label><input class="cc-input" id="pical-add-contact-email" placeholder="contact@company.com"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Ticket Title</label><input class="cc-input" id="pical-add-ticket-title" placeholder="Physical Inventory Setup"/></div>' +
     '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px;align-items:end">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Team</label><select class="cc-input" id="pical-add-team"><option value="">No team (assign later)</option></select></div>' +
+    '<button class="btn btn-secondary" type="button" onclick="picalLoadTeams(\'add\')" style="font-size:11px;padding:5px 10px;height:36px">Load Teams</button>' +
+    '</div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Setup Message</label><textarea class="cc-input" id="pical-add-ticket-msg" rows="8" style="resize:vertical;font-size:12px;line-height:1.5" placeholder="Setup instructions or message for the ticket..."></textarea></div>' +
     '<div style="display:flex;align-items:center;gap:8px;margin-top:6px"><button class="btn btn-secondary" type="button" onclick="picalGenerateTemplate(\'add\')" style="font-size:11px;padding:4px 10px">Use Formal PI Email Template</button><span style="font-size:10px;color:#9ca3af">Populates from current form values</span></div>' +
     '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6b7280;margin-top:8px;cursor:pointer"><input type="checkbox" id="pical-add-send-msg" checked style="accent-color:#753BBD"/> Include setup message when creating ticket</label>' +
+    '<div class="cc-field" style="margin:10px 0 0"><label class="cc-label">Attachments</label><input type="file" id="pical-add-files" multiple style="font-size:12px"/><div style="font-size:10px;color:#9ca3af;margin-top:4px">Files will be uploaded to the ticket after creation. Supported formats depend on the ticket system.</div></div>' +
     '</div></div>' +
     '<div style="margin-top:12px;display:flex;gap:8px">' +
     '<button class="btn btn-primary" onclick="picalSaveNew()" style="font-size:12px;padding:6px 14px">Save Physical Inventory Date</button>' +
@@ -14892,10 +14897,15 @@ function picalSaveNew() {
     if (!title) { alert('Ticket title is required.'); return; }
     if (!msg) { alert('Setup message is required for the ticket.'); return; }
     // Save locally first, then attempt ticket creation
+    const teamSel = document.getElementById('pical-add-team');
+    const teamId = teamSel ? teamSel.value : '';
+    const teamName = teamSel && teamSel.selectedIndex > 0 ? teamSel.options[teamSel.selectedIndex].textContent : '';
+    const filesInput = document.getElementById('pical-add-files');
+    const files = filesInput && filesInput.files ? Array.from(filesInput.files) : [];
     picalLoadLocal();
     PICAL_LOCAL.push(rec);
     picalSaveLocal();
-    picalCreateTicket(rec, {dept, topic, contactEmail, title, msg});
+    picalCreateTicket(rec, {dept, topic, contactEmail, title, msg, teamId, teamName, files});
     document.getElementById('pical-add-form').style.display = 'none';
     picalRender();
     return;
@@ -14964,6 +14974,10 @@ function picalSaveEdit(localId) {
 
 const TICKET_BASE = 'https://unisticket.item.com';
 const TICKET_API = 'https://unisticket.item.com/v1/iam/tickets';
+const TICKET_TEAMS_API = 'https://unisticket.item.com/v1/staff/teams/page';
+const TICKET_ATTACHMENTS_API = 'https://unisticket.item.com/v1/open/attachments';
+
+let PICAL_TEAMS_CACHE = null;
 
 function picalToggleTicketFields(prefix) {
   const checked = (document.getElementById('pical-' + prefix + '-create-ticket') || {}).checked;
@@ -15071,10 +15085,61 @@ async function picalCreateTicket(rec, opts) {
         local.ticketId = tid;
         local.ticketNumber = tnum;
         local.ticketStatus = 'Created';
+        if (opts.teamId) local.teamId = opts.teamId;
+        if (opts.teamName) local.teamName = opts.teamName;
         picalSaveLocal();
       }
+
+      // Assign team if selected
+      if (opts.teamId && tid) {
+        try {
+          const assignResp = await safeFetch(TICKET_API + '/' + encodeURIComponent(tid), {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({teamId: parseInt(opts.teamId, 10) || opts.teamId}),
+          });
+          if (assignResp && (assignResp.success === false || assignResp.code)) {
+            const local2 = PICAL_LOCAL.find(s => s.id === rec.id);
+            if (local2) { local2.teamAssignStatus = 'Warning: team assignment may not have applied'; picalSaveLocal(); }
+          }
+        } catch(_) {}
+      }
+
+      // Upload attachments if any
+      if (opts.files && opts.files.length > 0 && tid) {
+        const attachNames = [];
+        let attachFailed = 0;
+        for (const file of opts.files) {
+          try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const uploadResp = await fetch(TICKET_ATTACHMENTS_API + '?entityType=TICKET&entityId=' + encodeURIComponent(tid), {
+              method: 'POST',
+              headers: WISE_TOKEN ? {'Authorization': 'Bearer ' + WISE_TOKEN} : {},
+              body: formData,
+            });
+            if (uploadResp.ok) { attachNames.push(file.name); }
+            else { attachFailed++; }
+          } catch(_) { attachFailed++; }
+        }
+        picalLoadLocal();
+        const local3 = PICAL_LOCAL.find(s => s.id === rec.id);
+        if (local3) {
+          local3.attachments = attachNames;
+          local3.attachmentsFailed = attachFailed;
+          picalSaveLocal();
+        }
+        if (attachFailed > 0) {
+          alert('Ticket created (ID: ' + (tnum || tid) + ') but ' + attachFailed + ' file(s) could not be uploaded. You can retry from the ticket portal.');
+        }
+      }
+
       picalRender();
-      alert('Setup ticket created successfully. Ticket: ' + (tnum || tid));
+      if (!opts.files || opts.files.length === 0 || !opts.files.some(() => true)) {
+        alert('Setup ticket created successfully. Ticket: ' + (tnum || tid));
+      } else if (!(opts.files && opts.files.length > 0)) {
+        alert('Setup ticket created successfully. Ticket: ' + (tnum || tid));
+      }
     } else {
       const msg = (resp && (resp.msg || resp.message)) || 'Ticket service did not confirm creation.';
       picalLoadLocal();
@@ -15090,6 +15155,44 @@ async function picalCreateTicket(rec, opts) {
     picalRender();
     alert('Unable to reach the ticket service. The physical inventory date was saved locally. You can retry ticket creation later.');
   }
+}
+
+async function picalLoadTeams(prefix) {
+  const sel = document.getElementById('pical-' + prefix + '-team');
+  if (!sel) return;
+  if (PICAL_TEAMS_CACHE) {
+    picalPopulateTeamDropdown(sel, PICAL_TEAMS_CACHE);
+    return;
+  }
+  sel.innerHTML = '<option value="">Loading teams...</option>';
+  try {
+    const resp = await safeFetch(TICKET_TEAMS_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({page: 1, size: 100}),
+    });
+    if (resp && (resp.data || resp.list || resp.records)) {
+      const d = resp.data || resp;
+      const list = d.list || d.records || d.content || (Array.isArray(d) ? d : []);
+      PICAL_TEAMS_CACHE = list;
+      picalPopulateTeamDropdown(sel, list);
+    } else {
+      sel.innerHTML = '<option value="">Could not load teams</option>';
+      const msg = (resp && (resp.msg || resp.message)) || '';
+      if (msg) sel.insertAdjacentHTML('afterend', '<div style="font-size:10px;color:#d97706;margin-top:4px">' + esc(msg) + ' — enter Team ID manually below if needed.</div>');
+    }
+  } catch(_) {
+    sel.innerHTML = '<option value="">Teams unavailable</option>';
+  }
+}
+
+function picalPopulateTeamDropdown(sel, teams) {
+  sel.innerHTML = '<option value="">No team (assign later)</option>';
+  teams.forEach(t => {
+    const name = t.name || t.teamName || ('Team ' + (t.id || t.teamId));
+    const id = t.id || t.teamId || '';
+    sel.innerHTML += '<option value="' + escAttr(String(id)) + '">' + esc(name) + '</option>';
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
