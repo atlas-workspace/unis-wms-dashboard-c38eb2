@@ -14735,8 +14735,10 @@ function picalRender() {
       confirmation: s.confirmation || 'Pending',
       internalEmail: s.internalEmail || '',
       quoteAmount: s.quoteAmount || '',
-      ticketId: '',
-      state: 'Local only — not created in WMS',
+      ticketId: s.ticketId || '',
+      ticketNumber: s.ticketNumber || '',
+      ticketStatus: s.ticketStatus || '',
+      state: s.ticketId ? 'Ticket Created' : 'Local only — not created in WMS',
       dateSource: 'local',
       notes: s.notes || '',
       source: 'local',
@@ -14834,7 +14836,7 @@ function picalShowAddForm() {
   const custOpts = customers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('');
   form.style.display = '';
   form.innerHTML = '<div class="card" style="padding:16px;margin-bottom:16px;border-left:4px solid #dc2626"><div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:12px">Add Physical Inventory Date</div>' +
-    '<div style="font-size:11px;color:#6b7280;margin-bottom:10px">This saves a planned physical inventory date locally in your browser. It will be linked to WMS when a matching ticket is created.</div>' +
+    '<div style="font-size:11px;color:#6b7280;margin-bottom:10px">This saves a planned physical inventory date. Optionally create a setup ticket in UNIS Ticket System.</div>' +
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Date</label><input type="date" class="cc-input" id="pical-add-date" value="' + todayStr + '"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Customer</label><select class="cc-input" id="pical-add-customer"><option value="">All / Facility-wide</option>' + custOpts + '</select></div>' +
@@ -14843,6 +14845,19 @@ function picalShowAddForm() {
     '<div class="cc-field" style="margin:0"><label class="cc-label">Quote Amount ($)</label><input type="number" class="cc-input" id="pical-add-quote" placeholder="0.00" min="0" step="0.01"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Notes</label><input class="cc-input" id="pical-add-notes" placeholder="Description or reference"/></div>' +
     '</div>' +
+    // Ticket Setup Section
+    '<div style="margin-top:16px;padding:12px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb">' +
+    '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#374151;cursor:pointer;margin-bottom:8px"><input type="checkbox" id="pical-add-create-ticket" onchange="picalToggleTicketFields(\'add\')" style="accent-color:#753BBD"/> Create setup ticket in UNIS Ticket System</label>' +
+    '<div id="pical-add-ticket-fields" style="display:none">' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Department ID</label><input class="cc-input" id="pical-add-dept" placeholder="e.g. 1"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Topic ID</label><input class="cc-input" id="pical-add-topic" placeholder="e.g. 1"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Contact Email</label><input class="cc-input" id="pical-add-contact-email" placeholder="contact@company.com"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Ticket Title</label><input class="cc-input" id="pical-add-ticket-title" placeholder="Physical Inventory Setup"/></div>' +
+    '</div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Setup Message</label><textarea class="cc-input" id="pical-add-ticket-msg" rows="3" style="resize:vertical;font-size:12px" placeholder="Setup instructions or message for the ticket..."></textarea></div>' +
+    '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6b7280;margin-top:8px;cursor:pointer"><input type="checkbox" id="pical-add-send-msg" checked style="accent-color:#753BBD"/> Include setup message when creating ticket</label>' +
+    '</div></div>' +
     '<div style="margin-top:12px;display:flex;gap:8px">' +
     '<button class="btn btn-primary" onclick="picalSaveNew()" style="font-size:12px;padding:6px 14px">Save Physical Inventory Date</button>' +
     '<button class="btn btn-secondary" onclick="document.getElementById(\'pical-add-form\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Cancel</button>' +
@@ -14857,9 +14872,36 @@ function picalSaveNew() {
   const quoteAmount = (document.getElementById('pical-add-quote') || {}).value || '';
   const notes = (document.getElementById('pical-add-notes') || {}).value || '';
   if (!date) { alert('Date is required.'); return; }
-  picalLoadLocal();
+
+  const createTicket = (document.getElementById('pical-add-create-ticket') || {}).checked;
+  let ticketId = null, ticketNumber = null, ticketError = '';
+
   const id = 'pi_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-  PICAL_LOCAL.push({ id, date, customerId, confirmation, internalEmail, quoteAmount, notes, createdAt: new Date().toISOString() });
+  const rec = { id, date, customerId, confirmation, internalEmail, quoteAmount, notes, createdAt: new Date().toISOString() };
+
+  if (createTicket) {
+    const dept = (document.getElementById('pical-add-dept') || {}).value || '';
+    const topic = (document.getElementById('pical-add-topic') || {}).value || '';
+    const contactEmail = (document.getElementById('pical-add-contact-email') || {}).value || '';
+    const title = (document.getElementById('pical-add-ticket-title') || {}).value || '';
+    const msg = (document.getElementById('pical-add-ticket-msg') || {}).value || '';
+    if (!dept) { alert('Department ID is required to create a ticket.'); return; }
+    if (!topic) { alert('Topic ID is required to create a ticket.'); return; }
+    if (!contactEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) { alert('A valid contact email is required for the ticket.'); return; }
+    if (!title) { alert('Ticket title is required.'); return; }
+    if (!msg) { alert('Setup message is required for the ticket.'); return; }
+    // Save locally first, then attempt ticket creation
+    picalLoadLocal();
+    PICAL_LOCAL.push(rec);
+    picalSaveLocal();
+    picalCreateTicket(rec, {dept, topic, contactEmail, title, msg});
+    document.getElementById('pical-add-form').style.display = 'none';
+    picalRender();
+    return;
+  }
+
+  picalLoadLocal();
+  PICAL_LOCAL.push(rec);
   picalSaveLocal();
   document.getElementById('pical-add-form').style.display = 'none';
   picalRender();
@@ -14917,6 +14959,78 @@ function picalSaveEdit(localId) {
   picalSaveLocal();
   document.getElementById('pical-add-form').style.display = 'none';
   picalRender();
+}
+
+const TICKET_BASE = 'https://unisticket.item.com';
+const TICKET_API = 'https://unisticket.item.com/v1/iam/tickets';
+
+function picalToggleTicketFields(prefix) {
+  const checked = (document.getElementById('pical-' + prefix + '-create-ticket') || {}).checked;
+  const fields = document.getElementById('pical-' + prefix + '-ticket-fields');
+  if (fields) fields.style.display = checked ? '' : 'none';
+  if (checked && prefix === 'add') {
+    const custSel = document.getElementById('pical-add-customer');
+    const custName = custSel && custSel.selectedIndex > 0 ? custSel.options[custSel.selectedIndex].text : (FACILITY_NAME || 'Facility');
+    const dateVal = (document.getElementById('pical-add-date') || {}).value || '';
+    const titleEl = document.getElementById('pical-add-ticket-title');
+    if (titleEl && !titleEl.value) titleEl.value = 'Physical Inventory Setup - ' + custName + ' - ' + dateVal;
+    const emailEl = document.getElementById('pical-add-contact-email');
+    const intEmail = (document.getElementById('pical-add-email') || {}).value || '';
+    if (emailEl && !emailEl.value && intEmail) emailEl.value = intEmail.split(/[,;]/)[0].trim();
+  }
+}
+
+async function picalCreateTicket(rec, opts) {
+  const custLookup = {};
+  (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => custLookup[c.id] = c.name);
+  const customerName = custLookup[rec.customerId] || rec.customerId || 'Facility-wide';
+  const dueDate = rec.date ? rec.date.replace(/-/g, '/').replace(/(\d{4})\/(\d{2})\/(\d{2})/, '$2/$3/$1') + ' 08:00:00' : undefined;
+
+  const payload = {
+    departmentId: parseInt(opts.dept, 10) || 1,
+    topicId: parseInt(opts.topic, 10) || 1,
+    customerName: customerName,
+    customerEmail: opts.contactEmail,
+    title: opts.title,
+    message: opts.msg,
+    dueDate: dueDate,
+  };
+
+  try {
+    const resp = await safeFetch(TICKET_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+
+    if (resp && (resp.id || resp.ticketId || (resp.data && (resp.data.id || resp.data.ticketId)))) {
+      const tid = resp.id || resp.ticketId || (resp.data && (resp.data.id || resp.data.ticketId)) || '';
+      const tnum = resp.number || resp.ticketNumber || (resp.data && (resp.data.number || resp.data.ticketNumber)) || tid;
+      picalLoadLocal();
+      const local = PICAL_LOCAL.find(s => s.id === rec.id);
+      if (local) {
+        local.ticketId = tid;
+        local.ticketNumber = tnum;
+        local.ticketStatus = 'Created';
+        picalSaveLocal();
+      }
+      picalRender();
+      alert('Setup ticket created successfully. Ticket: ' + (tnum || tid));
+    } else {
+      const msg = (resp && (resp.msg || resp.message)) || 'Ticket service did not confirm creation.';
+      picalLoadLocal();
+      const local = PICAL_LOCAL.find(s => s.id === rec.id);
+      if (local) { local.ticketStatus = 'Failed: ' + msg; picalSaveLocal(); }
+      picalRender();
+      alert('Could not create ticket: ' + msg + '\n\nThe physical inventory date was saved locally. You can retry ticket creation later.');
+    }
+  } catch(e) {
+    picalLoadLocal();
+    const local = PICAL_LOCAL.find(s => s.id === rec.id);
+    if (local) { local.ticketStatus = 'Failed: network error'; picalSaveLocal(); }
+    picalRender();
+    alert('Unable to reach the ticket service. The physical inventory date was saved locally. You can retry ticket creation later.');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
