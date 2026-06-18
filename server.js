@@ -75,26 +75,32 @@ async function handleApi(req, res, url) {
       const out2 = await upstreamJson('POST', 'atlas.item.com', '/api/auth/refresh', raw);
       return send(res, out2.status, out2.json || out2.raw || {success:false,msg:'Refresh failed'});
     }
-    // Ticket API proxy — CORS blocks direct browser calls to unisticket.item.com
-    if (url.pathname.startsWith('/api/proxy/ticket/')) {
+    // Ticket API proxy — routed under /api/proxy/auth/ prefix so Coolify nginx forwards them
+    if (url.pathname.startsWith('/api/proxy/auth/ticket/')) {
       const raw = await readBody(req);
-      const ticketPath = url.pathname.replace('/api/proxy/ticket', '');
+      const ticketPath = url.pathname.replace('/api/proxy/auth/ticket', '');
       const authHeader = req.headers['authorization'] || '';
+      console.log('[ticket-proxy] IAM →', req.method, '/v1/iam' + ticketPath);
       const out = await upstreamJsonWithAuth(req.method, 'unisticket.item.com', '/v1/iam' + ticketPath, raw, authHeader);
+      console.log('[ticket-proxy] response:', out.status, (out.json && out.json.msg) || '');
       return send(res, out.status, out.json || out.raw || {success:false,msg:'No response from ticket service'});
     }
-    if (url.pathname.startsWith('/api/proxy/ticket-staff/')) {
+    if (url.pathname.startsWith('/api/proxy/auth/ticket-staff/')) {
       const raw = await readBody(req);
-      const staffPath = url.pathname.replace('/api/proxy/ticket-staff', '');
+      const staffPath = url.pathname.replace('/api/proxy/auth/ticket-staff', '');
       const authHeader = req.headers['authorization'] || '';
+      console.log('[ticket-proxy] Staff →', req.method, '/v1/staff' + staffPath);
       const out = await upstreamJsonWithAuth(req.method, 'unisticket.item.com', '/v1/staff' + staffPath, raw, authHeader);
+      console.log('[ticket-proxy] response:', out.status);
       return send(res, out.status, out.json || out.raw || {success:false,msg:'No response from ticket service'});
     }
-    if (url.pathname.startsWith('/api/proxy/ticket-open/')) {
+    if (url.pathname.startsWith('/api/proxy/auth/ticket-open/')) {
       const raw = await readBody(req);
-      const openPath = url.pathname.replace('/api/proxy/ticket-open', '');
+      const openPath = url.pathname.replace('/api/proxy/auth/ticket-open', '');
       const authHeader = req.headers['authorization'] || '';
+      console.log('[ticket-proxy] Open →', req.method, '/v1/open' + openPath);
       const out = await upstreamJsonWithAuth(req.method, 'unisticket.item.com', '/v1/open' + openPath, raw, authHeader);
+      console.log('[ticket-proxy] response:', out.status);
       return send(res, out.status, out.json || out.raw || {success:false,msg:'No response from ticket service'});
     }
     return send(res, 404, {success:false,msg:'Unknown API route'});
