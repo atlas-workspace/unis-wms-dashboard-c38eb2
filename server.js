@@ -113,17 +113,27 @@ function upstreamJsonWithAuth(method, host, pathname, body, authHeader) {
     const payload = body == null || body === '' ? null : (typeof body === 'string' ? body : JSON.stringify(body));
     const hdrs = { 'Accept':'application/json' };
     if (payload) { hdrs['Content-Type'] = 'application/json'; hdrs['Content-Length'] = Buffer.byteLength(payload); }
-    if (authHeader) hdrs['Authorization'] = authHeader;
+    if (authHeader) {
+      hdrs['Authorization'] = authHeader;
+    } else {
+      console.warn('[ticket-proxy] WARNING: No Authorization header provided for', method, pathname);
+    }
     const req = https.request({ method, host, path: pathname, headers: hdrs }, r => {
       let raw='';
       r.on('data', c => raw += c);
       r.on('end', () => {
         let parsed = null;
         try { parsed = raw ? JSON.parse(raw) : null; } catch(_) {}
+        if (r.statusCode >= 400) {
+          console.error('[ticket-proxy] Upstream error:', method, pathname, 'status:', r.statusCode, 'msg:', parsed && (parsed.msg || parsed.message) || raw.slice(0, 200));
+        }
         resolve({ status: r.statusCode || 502, headers: r.headers, raw, json: parsed });
       });
     });
-    req.on('error', e => resolve({ status:502, json:{success:false,msg:e.message}, raw:'' }));
+    req.on('error', e => {
+      console.error('[ticket-proxy] Network error:', method, pathname, e.message);
+      resolve({ status:502, json:{success:false, msg:'Ticket service unreachable. Please try again.'}, raw:'' });
+    });
     if (payload) req.write(payload);
     req.end();
   });

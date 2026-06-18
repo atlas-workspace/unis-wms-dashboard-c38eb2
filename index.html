@@ -15384,19 +15384,36 @@ async function picalCreateTicket(rec, opts) {
         alert('Setup ticket created successfully. Ticket: ' + (tnum || tid));
       }
     } else {
-      const msg = (resp && (resp.msg || resp.message || (resp.data && resp.data.msg))) || 'Ticket service did not confirm creation.';
+      const respCode = resp ? (resp.code || resp.status || '') : '';
+      const respMsg = resp ? (resp.msg || resp.message || (resp.data && (resp.data.msg || resp.data.message)) || resp.error_description || '') : '';
+      const isAuth = resp && (resp._needsAuth || /unauthor|forbidden|token|permission/i.test(respMsg) || String(respCode) === '401' || String(respCode) === '403');
+      const isMissing = /required|missing|invalid|blank|null/i.test(respMsg);
+      let userMsg;
+      if (!resp) {
+        userMsg = 'The ticket service could not be reached. Please check your connection and try again.';
+      } else if (isAuth) {
+        userMsg = 'Your ticket access could not be verified. Please sign in again or contact an administrator to confirm ticket permissions.';
+      } else if (isMissing) {
+        userMsg = 'Ticket creation was rejected — a required field may be missing or invalid: ' + (respMsg || 'Check department, topic, contact email, and title.');
+      } else if (respMsg) {
+        userMsg = 'Ticket creation failed: ' + respMsg;
+      } else {
+        userMsg = 'Ticket service did not confirm creation. Please verify all required fields (Department, Topic, Contact Email, Title, Message) are filled correctly and try again.';
+      }
+      console.warn('Ticket creation failed:', {code: respCode, msg: respMsg, resp});
       picalLoadLocal();
       const local = PICAL_LOCAL.find(s => s.id === rec.id);
-      if (local) { local.ticketStatus = 'Failed: ' + msg; picalSaveLocal(); }
+      if (local) { local.ticketStatus = 'Failed: ' + (respMsg || 'not confirmed'); picalSaveLocal(); }
       picalRender();
-      alert('Could not create ticket: ' + msg);
+      alert(userMsg);
     }
   } catch(e) {
+    console.warn('Ticket creation network error:', e.message);
     picalLoadLocal();
     const local = PICAL_LOCAL.find(s => s.id === rec.id);
     if (local) { local.ticketStatus = 'Failed: network error'; picalSaveLocal(); }
     picalRender();
-    alert('Unable to reach the ticket service. The physical inventory date was saved locally. You can retry ticket creation later.');
+    alert('Unable to reach the ticket service. Your appointment data has been saved locally. Please check your network connection and try again, or contact an administrator if the issue persists.');
   }
 }
 
@@ -15423,12 +15440,15 @@ async function picalLoadTeams(prefix) {
         return;
       }
     }
-    // API returned empty or error
+    const isAuth = resp && (resp._needsAuth || /unauthor|forbidden|token|permission|401|403/i.test(resp.msg || resp.message || String(resp.code || '')));
     sel.innerHTML = '<option value="">— No team (list unavailable) —</option>';
-    sel.insertAdjacentHTML('afterend', '<div style="font-size:10px;color:#d97706;margin-top:4px">Team list is not available from this dashboard session. Enter the Team ID manually below if needed.</div>');
+    const hint = isAuth
+      ? 'Team list requires ticket admin permissions not available in this session. You can enter a Team ID manually or continue without team assignment.'
+      : 'Team list could not be loaded. You can retry, enter a Team ID manually, or continue without team assignment.';
+    sel.insertAdjacentHTML('afterend', '<div style="font-size:10px;color:#d97706;margin-top:4px">' + hint + '</div>');
   } catch(_) {
     sel.innerHTML = '<option value="">— No team (unavailable) —</option>';
-    sel.insertAdjacentHTML('afterend', '<div style="font-size:10px;color:#d97706;margin-top:4px">Team list is not available. Enter Team ID manually below.</div>');
+    sel.insertAdjacentHTML('afterend', '<div style="font-size:10px;color:#d97706;margin-top:4px">Team list could not be loaded. Enter Team ID manually below or continue without team.</div>');
   }
 }
 
