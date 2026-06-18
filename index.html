@@ -902,7 +902,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           </div>
           <div style="overflow-x:auto">
             <table class="tbl" style="margin:0;font-size:12px">
-              <thead><tr><th>Date</th><th>Customer</th><th>Confirmation</th><th>Internal Email</th><th>Quote Amount</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Date</th><th>Customer</th><th>Confirmation</th><th>Quote Amount</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead>
               <tbody id="pical-tbody"><tr><td colspan="8" style="text-align:center;padding:32px;color:#9ca3af">Click Refresh to load physical inventory dates.</td></tr></tbody>
             </table>
           </div>
@@ -14792,7 +14792,6 @@ function picalRender() {
       '<td style="font-size:12px;white-space:nowrap">' + esc(dateFmt) + dateNote + '</td>' +
       '<td style="font-size:12px">' + esc(String(e.customer).slice(0, 22)) + sourceTag + '</td>' +
       '<td style="font-size:11px;' + confCls + '">' + esc(confStatus) + '</td>' +
-      '<td style="font-size:11px">' + (e.internalEmail ? esc(e.internalEmail) : '<span style="color:#9ca3af">—</span>') + '</td>' +
       '<td style="font-size:11px">' + (e.quoteAmount ? '$' + esc(e.quoteAmount) : '<span style="color:#9ca3af">—</span>') + '</td>' +
       '<td style="font-size:11px;' + stateCls + '">' + esc(e.state) + '</td>' +
       '<td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(e.notes || '—') + '</td>' +
@@ -14842,9 +14841,17 @@ function picalShowAddForm() {
     '<div class="cc-field" style="margin:0"><label class="cc-label">Date</label><input type="date" class="cc-input" id="pical-add-date" value="' + todayStr + '"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Customer</label><select class="cc-input" id="pical-add-customer"><option value="">All / Facility-wide</option>' + custOpts + '</select></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Confirmation</label><select class="cc-input" id="pical-add-confirmation"><option value="Confirmed">Confirmed</option><option value="Pending" selected>Pending</option><option value="Canceled">Canceled</option><option value="Re-scheduled">Re-scheduled</option></select></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Internal Email(s)</label><input class="cc-input" id="pical-add-email" placeholder="email@company.com, email2@co.com"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Quote Amount ($)</label><input type="number" class="cc-input" id="pical-add-quote" placeholder="0.00" min="0" step="0.01"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Notes</label><input class="cc-input" id="pical-add-notes" placeholder="Description or reference"/></div>' +
+    '</div>' +
+    // Freeze/Cutoff Fields
+    '<div style="margin-top:12px;padding:10px 12px;background:#FEF9C3;border-radius:6px;border:1px solid #FDE68A">' +
+    '<div style="font-size:12px;font-weight:600;color:#92400E;margin-bottom:8px">Inventory Freeze / Cutoff</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Freeze Begins</label><input class="cc-input" id="pical-add-freeze-start" placeholder="Confirm time - typically evening before count date"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Freeze Ends</label><input class="cc-input" id="pical-add-freeze-end" value="Upon completion and sign-off of physical count"/></div>' +
+    '</div>' +
+    '<div class="cc-field" style="margin:6px 0 0"><label class="cc-label">Freeze / Cutoff Instructions</label><input class="cc-input" id="pical-add-freeze-instructions" value="No movement in/out of count areas during freeze"/></div>' +
     '</div>' +
     // Ticket Setup Section
     '<div style="margin-top:16px;padding:12px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb">' +
@@ -14853,7 +14860,7 @@ function picalShowAddForm() {
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px">' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Department ID</label><input class="cc-input" id="pical-add-dept" placeholder="e.g. 1"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Topic ID</label><input class="cc-input" id="pical-add-topic" placeholder="e.g. 1"/></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Contact Email</label><input class="cc-input" id="pical-add-contact-email" placeholder="contact@company.com"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Contact Email(s)</label><input class="cc-input" id="pical-add-contact-email" placeholder="email@co.com, email2@co.com"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Ticket Title</label><input class="cc-input" id="pical-add-ticket-title" placeholder="Physical Inventory Setup"/></div>' +
     '</div>' +
     '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px;align-items:end">' +
@@ -14863,7 +14870,7 @@ function picalShowAddForm() {
     '<div class="cc-field" style="margin:0"><label class="cc-label">Setup Message</label><textarea class="cc-input" id="pical-add-ticket-msg" rows="8" style="resize:vertical;font-size:12px;line-height:1.5" placeholder="Setup instructions or message for the ticket..."></textarea></div>' +
     '<div style="display:flex;align-items:center;gap:8px;margin-top:6px"><button class="btn btn-secondary" type="button" onclick="picalGenerateTemplate(\'add\')" style="font-size:11px;padding:4px 10px">Use Formal PI Email Template</button><span style="font-size:10px;color:#9ca3af">Populates from current form values</span></div>' +
     '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6b7280;margin-top:8px;cursor:pointer"><input type="checkbox" id="pical-add-send-msg" checked style="accent-color:#753BBD"/> Include setup message when creating ticket</label>' +
-    '<div class="cc-field" style="margin:10px 0 0"><label class="cc-label">Attachments</label><input type="file" id="pical-add-files" multiple style="font-size:12px"/><div style="font-size:10px;color:#9ca3af;margin-top:4px">Files will be uploaded to the ticket after creation. Supported formats depend on the ticket system.</div></div>' +
+    '<div class="cc-field" style="margin:10px 0 0"><label class="cc-label">Attachments</label><input type="file" id="pical-add-files" multiple style="font-size:12px"/><div style="font-size:10px;color:#9ca3af;margin-top:4px">Files will be uploaded to the ticket after creation.</div></div>' +
     '</div></div>' +
     '<div style="margin-top:12px;display:flex;gap:8px">' +
     '<button class="btn btn-primary" onclick="picalSaveNew()" style="font-size:12px;padding:6px 14px">Save Physical Inventory Date</button>' +
@@ -14875,38 +14882,40 @@ function picalSaveNew() {
   const date = (document.getElementById('pical-add-date') || {}).value;
   const customerId = (document.getElementById('pical-add-customer') || {}).value;
   const confirmation = (document.getElementById('pical-add-confirmation') || {}).value || 'Pending';
-  const internalEmail = (document.getElementById('pical-add-email') || {}).value || '';
   const quoteAmount = (document.getElementById('pical-add-quote') || {}).value || '';
   const notes = (document.getElementById('pical-add-notes') || {}).value || '';
+  const freezeStart = (document.getElementById('pical-add-freeze-start') || {}).value || '';
+  const freezeEnd = (document.getElementById('pical-add-freeze-end') || {}).value || '';
+  const freezeInstructions = (document.getElementById('pical-add-freeze-instructions') || {}).value || '';
   if (!date) { alert('Date is required.'); return; }
 
   const createTicket = (document.getElementById('pical-add-create-ticket') || {}).checked;
-  let ticketId = null, ticketNumber = null, ticketError = '';
 
   const id = 'pi_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-  const rec = { id, date, customerId, confirmation, internalEmail, quoteAmount, notes, createdAt: new Date().toISOString() };
+  const rec = { id, date, customerId, confirmation, quoteAmount, notes, freezeStart, freezeEnd, freezeInstructions, createdAt: new Date().toISOString() };
 
   if (createTicket) {
     const dept = (document.getElementById('pical-add-dept') || {}).value || '';
     const topic = (document.getElementById('pical-add-topic') || {}).value || '';
-    const contactEmail = (document.getElementById('pical-add-contact-email') || {}).value || '';
+    const contactEmailRaw = (document.getElementById('pical-add-contact-email') || {}).value || '';
+    const contactEmails = contactEmailRaw.split(/[,;\s]+/).map(e => e.trim()).filter(Boolean);
     const title = (document.getElementById('pical-add-ticket-title') || {}).value || '';
     const msg = (document.getElementById('pical-add-ticket-msg') || {}).value || '';
     if (!dept) { alert('Department ID is required to create a ticket.'); return; }
     if (!topic) { alert('Topic ID is required to create a ticket.'); return; }
-    if (!contactEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) { alert('A valid contact email is required for the ticket.'); return; }
+    if (contactEmails.length === 0 || !(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmails[0]))) { alert('At least one valid contact email is required for the ticket.'); return; }
     if (!title) { alert('Ticket title is required.'); return; }
     if (!msg) { alert('Setup message is required for the ticket.'); return; }
-    // Save locally first, then attempt ticket creation
     const teamSel = document.getElementById('pical-add-team');
     const teamId = teamSel ? teamSel.value : '';
     const teamName = teamSel && teamSel.selectedIndex > 0 ? teamSel.options[teamSel.selectedIndex].textContent : '';
     const filesInput = document.getElementById('pical-add-files');
     const files = filesInput && filesInput.files ? Array.from(filesInput.files) : [];
     picalLoadLocal();
+    rec.contactEmails = contactEmails;
     PICAL_LOCAL.push(rec);
     picalSaveLocal();
-    picalCreateTicket(rec, {dept, topic, contactEmail, title, msg, teamId, teamName, files});
+    picalCreateTicket(rec, {dept, topic, contactEmail: contactEmails[0], contactEmails, title, msg, teamId, teamName, files});
     document.getElementById('pical-add-form').style.display = 'none';
     picalRender();
     return;
@@ -14947,7 +14956,6 @@ function picalEditLocal(localId) {
     '<div class="cc-field" style="margin:0"><label class="cc-label">Date</label><input type="date" class="cc-input" id="pical-edit-date" value="' + (rec.date || '') + '"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Customer</label><select class="cc-input" id="pical-edit-customer"><option value="">All / Facility-wide</option>' + custOpts + '</select></div>' +
     '<div class="cc-field"gin:0"><label class="cc-label">Confirmation</label><select class="cc-input" id="pical-edit-confirmation"><option value="Pending"' + (rec.confirmation === 'Pending' ? ' selected' : '') + '>Pending</option><option value="Confirmed"' + (rec.confirmation === 'Confirmed' ? ' selected' : '') + '>Confirmed</option><option value="Re-scheduled"' + (rec.confirmation === 'Re-scheduled' ? ' selected' : '') + '>Re-scheduled</option><option value="Canceled"' + (rec.confirmation === 'Canceled' ? ' selected' : '') + '>Canceled</option></select></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Internal Email(s)</label><input class="cc-input" id="pical-edit-email" value="' + escAttr(rec.internalEmail || '') + '" placeholder="email@company.com"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Quote Amount ($)</label><input type="number" class="cc-input" id="pical-edit-quote" value="' + escAttr(rec.quoteAmount || '') + '" min="0" step="0.01"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Notes</label><input class="cc-input" id="pical-edit-notes" value="' + escAttr(rec.notes || '') + '"/></div>' +
     '</div>' +
@@ -15092,9 +15100,12 @@ function picalGenerateTemplate(mode) {
   const custEl = document.getElementById(prefix + 'customer');
   const customer = custEl && custEl.value ? custEl.options[custEl.selectedIndex].textContent : 'All Customers / Facility-wide';
   const confirmation = (document.getElementById(prefix + 'confirmation') || {}).value || 'Pending';
-  const emails = (document.getElementById(prefix + 'email') || {}).value || '';
+  const contactEmails = (document.getElementById(prefix + 'contact-email') || {}).value || '';
   const quote = (document.getElementById(prefix + 'quote') || {}).value || '';
   const notes = (document.getElementById(prefix + 'notes') || {}).value || '';
+  const freezeStart = (document.getElementById(prefix + 'freeze-start') || {}).value || '[Confirm time - typically evening before count date]';
+  const freezeEnd = (document.getElementById(prefix + 'freeze-end') || {}).value || 'Upon completion and sign-off of physical count';
+  const freezeInstructions = (document.getElementById(prefix + 'freeze-instructions') || {}).value || 'No movement in/out of count areas during freeze';
   const facility = (FACILITY_NAME || FACILITY_ID) + ' (' + FACILITY_ID + ')';
   const formattedDate = date !== 'TBD' ? new Date(date + 'T12:00:00').toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'}) : 'TBD';
 
@@ -15109,7 +15120,7 @@ function picalGenerateTemplate(mode) {
 'Facility:       ' + facility + '\n' +
 'Confirmation:   ' + confirmation + '\n' +
 (quote ? 'Quote Amount:   $' + quote + '\n' : '') +
-(emails ? 'Contacts:       ' + emails + '\n' : '') +
+(contactEmails ? 'Contacts:       ' + contactEmails + '\n' : '') +
 (notes ? 'Notes:          ' + notes + '\n' : '') +
 '\n' +
 'SCOPE & INSTRUCTIONS\n' +
@@ -15128,9 +15139,9 @@ function picalGenerateTemplate(mode) {
 '[ ] Brief counters on count method and exception handling\n\n' +
 'INVENTORY FREEZE / CUTOFF\n' +
 '-------------------------------------------\n' +
-'- Freeze begins: [Confirm time - typically evening before count date]\n' +
-'- No movement in/out of count areas during freeze\n' +
-'- Freeze ends: Upon completion and sign-off of physical count\n\n' +
+'- Freeze begins: ' + freezeStart + '\n' +
+'- ' + freezeInstructions + '\n' +
+'- Freeze ends: ' + freezeEnd + '\n\n' +
 'NEXT STEPS\n' +
 '-------------------------------------------\n' +
 '1. Reply to confirm your attendance and role\n' +
