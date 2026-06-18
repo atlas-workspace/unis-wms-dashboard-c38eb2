@@ -14858,8 +14858,8 @@ function picalShowAddForm() {
     '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#374151;cursor:pointer;margin-bottom:8px"><input type="checkbox" id="pical-add-create-ticket" onchange="picalToggleTicketFields(\'add\')" style="accent-color:#753BBD"/> Create setup ticket in UNIS Ticket System</label>' +
     '<div id="pical-add-ticket-fields" style="display:none">' +
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px">' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Department ID</label><input class="cc-input" id="pical-add-dept" placeholder="e.g. 1"/></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Topic ID</label><input class="cc-input" id="pical-add-topic" placeholder="e.g. 1"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Department</label><select class="cc-input" id="pical-add-dept" onchange="ticketOnDeptChange(\x27pical-add-dept\x27,\x27pical-add-topic\x27)"><option value="">Loading…</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Topic</label><select class="cc-input" id="pical-add-topic"><option value="">Select department first</option></select></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Contact Email(s)</label><input class="cc-input" id="pical-add-contact-email" placeholder="email@co.com, email2@co.com"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Ticket Title</label><input class="cc-input" id="pical-add-ticket-title" placeholder="Physical Inventory Setup"/></div>' +
     '</div>' +
@@ -14971,8 +14971,8 @@ function picalEditLocal(localId) {
     '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#374151;cursor:pointer;margin-bottom:8px"><input type="checkbox" id="pical-edit-create-ticket" onchange="picalToggleTicketFields(\'edit\')" ' + (hasTicket ? 'checked' : '') + ' style="accent-color:#753BBD"/> ' + esc(ticketCheckLabel) + '</label>' +
     '<div id="pical-edit-ticket-fields" style="' + (hasTicket ? '' : 'display:none') + '">' +
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px">' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Department ID</label><input class="cc-input" id="pical-edit-dept" value="' + escAttr(rec.deptId || '') + '" placeholder="e.g. 1"/></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Topic ID</label><input class="cc-input" id="pical-edit-topic" value="' + escAttr(rec.topicId || '') + '" placeholder="e.g. 1"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Department</label><select class="cc-input" id="pical-edit-dept" onchange="ticketOnDeptChange(\x27pical-edit-dept\x27,\x27pical-edit-topic\x27)"><option value="">Loading…</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Topic</label><select class="cc-input" id="pical-edit-topic"><option value="">Select department first</option></select></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Contact Email</label><input class="cc-input" id="pical-edit-contact-email" value="' + escAttr(rec.contactEmail || '') + '" placeholder="contact@company.com"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Ticket Title</label><input class="cc-input" id="pical-edit-ticket-title" value="' + escAttr(rec.ticketTitle || '') + '" placeholder="Physical Inventory Setup"/></div>' +
     '</div>' +
@@ -15081,7 +15081,105 @@ async function picalSaveEdit(localId) {
 const TICKET_BASE = '/api/proxy/auth/ticket';
 const TICKET_API = '/api/proxy/auth/ticket/tickets';
 const TICKET_TEAMS_API = '/api/proxy/auth/ticket-staff/teams/page';
-const TICKET_ATTACHMENTS_API = '/api/proxy/ticket-open/attachments';
+const TICKET_ATTACHMENTS_API = '/api/proxy/auth/ticket-open/attachments';
+const TICKET_DEPTS_API = '/api/proxy/auth/ticket-open/departments/page';
+const TICKET_TOPICS_API = '/api/proxy/auth/ticket-open/topics/page';
+
+const TICKET_DEPT_FALLBACK = [
+  {id:'324119200704569344', name:'UNIS Fulfillment'},
+  {id:'9', name:'UNIS Fulfillment Data Entry'},
+  {id:'13', name:'UNIS Transportation'},
+  {id:'350570456977444864', name:'UNIS Transportation Terminal Support'},
+  {id:'4', name:'CSR Ticket Support'},
+  {id:'316285263552864256', name:'Ticket Support'},
+];
+const TICKET_TOPIC_FALLBACK = [
+  {id:'351666257576935424', name:'UF:Inventory Accuracy & Stock Inquiries', departmentId:'324119200704569344'},
+  {id:'315682256835801088', name:'UF General Inquiry', departmentId:'324119200704569344'},
+  {id:'351664324296392704', name:'UF:Delivery Appointment Request', departmentId:'324119200704569344'},
+  {id:'351664628341489664', name:'UF:Pickup Appointment Request', departmentId:'324119200704569344'},
+  {id:'351664855693737984', name:'UF:Inventory Adjustment', departmentId:'324119200704569344'},
+  {id:'351665070093975552', name:'UF:Order Fulfillment & Processing', departmentId:'324119200704569344'},
+  {id:'351665492019986432', name:'UF:Shipment Tracking & Visibility', departmentId:'324119200704569344'},
+  {id:'351665669262884864', name:'UF Freight Claims and OSD', departmentId:'324119200704569344'},
+  {id:'351666037472444416', name:'UF:Returns Management', departmentId:'324119200704569344'},
+  {id:'351666480298672128', name:'UF:Customer Onboarding & Account Setup', departmentId:'324119200704569344'},
+  {id:'351666634904911872', name:'UF:Carrier Management & Coordination', departmentId:'324119200704569344'},
+  {id:'36', name:'UF DE: Live Request', departmentId:'9'},
+  {id:'37', name:'UF DE: Work Record', departmentId:'9'},
+  {id:'1', name:'General Inquiry', departmentId:''},
+];
+const TICKET_DEFAULT_DEPT = '324119200704569344';
+const TICKET_DEFAULT_TOPIC = '351666257576935424';
+
+let TICKET_DEPTS_CACHE = null;
+let TICKET_TOPICS_CACHE = null;
+
+async function ticketLoadDepts() {
+  if (TICKET_DEPTS_CACHE) return TICKET_DEPTS_CACHE;
+  try {
+    const resp = await safeFetch(TICKET_DEPTS_API, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({page:1, size:200, input:{}}),
+    });
+    if (resp && (resp.data || resp.list || resp.records)) {
+      const d = resp.data || resp;
+      const list = d.list || d.records || d.content || (Array.isArray(d) ? d : []);
+      if (list.length > 0) { TICKET_DEPTS_CACHE = list; return list; }
+    }
+  } catch(_) {}
+  return TICKET_DEPT_FALLBACK;
+}
+
+async function ticketLoadTopics() {
+  if (TICKET_TOPICS_CACHE) return TICKET_TOPICS_CACHE;
+  try {
+    const resp = await safeFetch(TICKET_TOPICS_API, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({page:1, size:500, input:{}}),
+    });
+    if (resp && (resp.data || resp.list || resp.records)) {
+      const d = resp.data || resp;
+      const list = d.list || d.records || d.content || (Array.isArray(d) ? d : []);
+      if (list.length > 0) { TICKET_TOPICS_CACHE = list; return list; }
+    }
+  } catch(_) {}
+  return TICKET_TOPIC_FALLBACK;
+}
+
+function ticketPopulateDeptSelect(selId, selectedVal) {
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  const depts = TICKET_DEPTS_CACHE || TICKET_DEPT_FALLBACK;
+  sel.innerHTML = '<option value="">— Select Department —</option>';
+  depts.forEach(d => {
+    const id = d.id || d.departmentId || '';
+    const name = d.name || d.departmentName || ('Dept ' + id);
+    sel.innerHTML += '<option value="' + escAttr(String(id)) + '"' + (String(id) === String(selectedVal) ? ' selected' : '') + '>' + esc(name) + '</option>';
+  });
+}
+
+function ticketPopulateTopicSelect(selId, deptId, selectedVal) {
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  const topics = TICKET_TOPICS_CACHE || TICKET_TOPIC_FALLBACK;
+  const filtered = deptId ? topics.filter(t => String(t.departmentId) === String(deptId)) : topics;
+  sel.innerHTML = '<option value="">— Select Topic —</option>';
+  if (filtered.length === 0) {
+    sel.innerHTML += '<option disabled>No topics for this department</option>';
+    return;
+  }
+  filtered.forEach(t => {
+    const id = t.id || t.topicId || '';
+    const name = t.name || t.topicName || ('Topic ' + id);
+    sel.innerHTML += '<option value="' + escAttr(String(id)) + '"' + (String(id) === String(selectedVal) ? ' selected' : '') + '>' + esc(name) + '</option>';
+  });
+}
+
+function ticketOnDeptChange(deptSelId, topicSelId) {
+  const deptId = (document.getElementById(deptSelId) || {}).value || '';
+  ticketPopulateTopicSelect(topicSelId, deptId, '');
+}
 
 let PICAL_TEAMS_CACHE = null;
 
@@ -15089,15 +15187,27 @@ function picalToggleTicketFields(prefix) {
   const checked = (document.getElementById('pical-' + prefix + '-create-ticket') || {}).checked;
   const fields = document.getElementById('pical-' + prefix + '-ticket-fields');
   if (fields) fields.style.display = checked ? '' : 'none';
-  if (checked && prefix === 'add') {
-    const custSel = document.getElementById('pical-add-customer');
-    const custName = custSel && custSel.selectedIndex > 0 ? custSel.options[custSel.selectedIndex].text : (FACILITY_NAME || 'Facility');
-    const dateVal = (document.getElementById('pical-add-date') || {}).value || '';
-    const titleEl = document.getElementById('pical-add-ticket-title');
-    if (titleEl && !titleEl.value) titleEl.value = 'Physical Inventory Setup - ' + custName + ' - ' + dateVal;
-    const emailEl = document.getElementById('pical-add-contact-email');
-    const intEmail = (document.getElementById('pical-add-email') || {}).value || '';
-    if (emailEl && !emailEl.value && intEmail) emailEl.value = intEmail.split(/[,;]/)[0].trim();
+  if (checked) {
+    // Load dept/topic dropdowns
+    ticketLoadDepts().then(depts => {
+      const savedDept = prefix === 'edit' ? ((document.getElementById('pical-edit-dept') || {}).dataset.saved || '') : '';
+      ticketPopulateDeptSelect('pical-' + prefix + '-dept', savedDept || TICKET_DEFAULT_DEPT);
+      const deptVal = (document.getElementById('pical-' + prefix + '-dept') || {}).value || '';
+      ticketLoadTopics().then(() => {
+        const savedTopic = prefix === 'edit' ? ((document.getElementById('pical-edit-topic') || {}).dataset.saved || '') : '';
+        ticketPopulateTopicSelect('pical-' + prefix + '-topic', deptVal, savedTopic || TICKET_DEFAULT_TOPIC);
+      });
+    });
+    if (prefix === 'add') {
+      const custSel = document.getElementById('pical-add-customer');
+      const custName = custSel && custSel.selectedIndex > 0 ? custSel.options[custSel.selectedIndex].text : (FACILITY_NAME || 'Facility');
+      const dateVal = (document.getElementById('pical-add-date') || {}).value || '';
+      const titleEl = document.getElementById('pical-add-ticket-title');
+      if (titleEl && !titleEl.value) titleEl.value = 'Physical Inventory Setup - ' + custName + ' - ' + dateVal;
+      const emailEl = document.getElementById('pical-add-contact-email');
+      const intEmail = (document.getElementById('pical-add-email') || {}).value || '';
+      if (emailEl && !emailEl.value && intEmail) emailEl.value = intEmail.split(/[,;]/)[0].trim();
+    }
   }
 }
 
