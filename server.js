@@ -111,13 +111,15 @@ async function handleApi(req, res, url) {
 function upstreamJsonWithAuth(method, host, pathname, body, authHeader) {
   return new Promise((resolve) => {
     const payload = body == null || body === '' ? null : (typeof body === 'string' ? body : JSON.stringify(body));
-    const hdrs = { 'Accept':'application/json' };
+    const hdrs = { 'Accept':'application/json', 'User-Agent':'UNIS-WMS-Dashboard/1.0', 'X-Tenant-Id':'LT' };
     if (payload) { hdrs['Content-Type'] = 'application/json'; hdrs['Content-Length'] = Buffer.byteLength(payload); }
     if (authHeader) {
       hdrs['Authorization'] = authHeader;
     } else {
       console.warn('[ticket-proxy] WARNING: No Authorization header provided for', method, pathname);
     }
+    if (process.env.TICKET_API_KEY) hdrs['x-api-key'] = process.env.TICKET_API_KEY;
+    console.log('[ticket-proxy] upstream:', method, host, pathname, 'auth:', !!authHeader, 'apiKey:', !!process.env.TICKET_API_KEY);
     const req = https.request({ method, host, path: pathname, headers: hdrs }, r => {
       let raw='';
       r.on('data', c => raw += c);

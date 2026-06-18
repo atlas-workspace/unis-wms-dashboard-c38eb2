@@ -14872,6 +14872,7 @@ function picalShowAddForm() {
     '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6b7280;margin-top:8px;cursor:pointer"><input type="checkbox" id="pical-add-send-msg" checked style="accent-color:#753BBD"/> Include setup message when creating ticket</label>' +
     '<div class="cc-field" style="margin:10px 0 0"><label class="cc-label">Attachments</label><input type="file" id="pical-add-files" multiple style="font-size:12px"/><div style="font-size:10px;color:#9ca3af;margin-top:4px">Files will be uploaded to the ticket after creation.</div></div>' +
     '</div></div>' +
+    '<div id="pical-ticket-diag" style="display:none;margin-top:12px;padding:10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;max-height:200px;overflow-y:auto"></div>' +
     '<div style="margin-top:12px;display:flex;gap:8px">' +
     '<button class="btn btn-primary" onclick="picalSaveNew()" style="font-size:12px;padding:6px 14px">Save Physical Inventory Date</button>' +
     '<button class="btn btn-secondary" onclick="document.getElementById(\'pical-add-form\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Cancel</button>' +
@@ -15295,20 +15296,41 @@ function picalGenerateTemplateText(rec) {
 }
 
 async function picalCreateTicket(rec, opts) {
+  const diag = [];
   const custLookup = {};
   (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => custLookup[c.id] = c.name);
   const customerName = custLookup[rec.customerId] || rec.customerId || 'Facility-wide';
-  const dueDate = rec.date ? rec.date.replace(/-/g, '/').replace(/(\d{4})\/(\d{2})\/(\d{2})/, '$2/$3/$1') + ' 08:00:00' : undefined;
+  let dueDate = undefined;
+  if (rec.date) {
+    const parts = rec.date.split('-');
+    if (parts.length === 3) dueDate = parts[1] + '/' + parts[2] + '/' + parts[0] + ' 08:00:00';
+  }
+
+  const missing = [];
+  if (!opts.dept) missing.push('Department');
+  if (!opts.topic) missing.push('Topic');
+  if (!opts.contactEmail) missing.push('Contact Email');
+  if (!opts.title) missing.push('Title');
+  if (!opts.msg) missing.push('Setup Message');
+  if (missing.length > 0) {
+    diag.push({step:'Validate Fields', status:'error', msg:'Missing: ' + missing.join(', ')});
+    picalShowTicketDiag(diag);
+    return;
+  }
+  diag.push({step:'Validate Fields', status:'success', msg:'All required fields present. DueDate: ' + (dueDate||'none')});
 
   const payload = {
-    departmentId: parseInt(opts.dept, 10) || 1,
-    topicId: parseInt(opts.topic, 10) || 1,
+    departmentId: String(opts.dept),
+    topicId: String(opts.topic),
+    priorityId: 1,
     customerName: customerName,
-    customerEmail: opts.contactEmail,
+    customerEmail: opts.contactEmail.split(/[,;]/)[0].trim(),
     title: opts.title,
-    message: opts.msg,
+    message: { content: opts.msg },
     dueDate: dueDate,
+    formEntries: [],
   };
+  diag.push({step:'Build Payload', status:'success', msg:'Keys: ' + Object.keys(payload).join(', ') + '. message.content: ' + (opts.msg||'').length + ' chars'});
 
   try {
     const resp = await safeFetch(TICKET_API, {
@@ -15317,104 +15339,71 @@ async function picalCreateTicket(rec, opts) {
       body: JSON.stringify(payload),
     });
 
+    const respCode = resp ? (resp.code || resp.status || '') : 'null';
+    const respMsg = resp ? (resp.msg || resp.message || (resp.data && (resp.data.msg || resp.data.message)) || '') : 'No response';
+
     if (resp && (resp.success === true || String(resp.code) === '200' || String(resp.code) === '0' || resp.id || resp.ticketId || (resp.data && (resp.data.id || resp.data.ticketId || resp.data.no || resp.data.ticketNo)))) {
       const rd = resp.data || resp;
       const tid = rd.id || rd.ticketId || rd.no || rd.ticketNo || resp.id || resp.ticketId || '';
       const tnum = rd.number || rd.ticketNumber || rd.no || rd.ticketNo || resp.number || resp.ticketNumber || tid;
-      console.log('Ticket created successfully:', {tid, tnum, resp});
+      diag.push({step:'Create Ticket', status:'success', msg:'Ticket: ' + (tnum||tid) + '. Code: ' + respCode});
+      console.log('Ticket created:', {tid, tnum, code: respCode});
+
       picalLoadLocal();
       const local = PICAL_LOCAL.find(s => s.id === rec.id);
-      if (local) {
-        local.ticketId = tid;
-        local.ticketNumber = tnum;
-        local.ticketStatus = 'Created';
-        if (opts.teamId) local.teamId = opts.teamId;
-        if (opts.teamName) local.teamName = opts.teamName;
-        picalSaveLocal();
-      }
+      if (local) { local.ticketId = tid; local.ticketNumber = tnum; local.ticketStatus = 'Created'; if (opts.teamId) local.teamId = opts.teamId; if (opts.teamName) local.teamName = opts.teamName; picalSaveLocal(); }
 
-      // Assign team if selected
       if (opts.teamId && tid) {
         try {
-          const assignResp = await safeFetch(TICKET_API + '/' + encodeURIComponent(tid), {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({teamId: parseInt(opts.teamId, 10) || opts.teamId}),
-          });
-          if (assignResp && (assignResp.success === false || assignResp.code)) {
-            const local2 = PICAL_LOCAL.find(s => s.id === rec.id);
-            if (local2) { local2.teamAssignStatus = 'Warning: team assignment may not have applied'; picalSaveLocal(); }
-          }
-        } catch(_) {}
+          const ar = await safeFetch(TICKET_API + '/' + encodeURIComponent(tid), {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({teamId:opts.teamId})});
+          diag.push({step:'Assign Team', status: (ar && ar.success !== false) ? 'success' : 'warning', msg: (ar && ar.success !== false) ? 'Team assigned' : 'Team may not have applied: ' + ((ar&&(ar.msg||ar.message))||'')});
+        } catch(te) { diag.push({step:'Assign Team', status:'warning', msg:'Network error'}); }
       }
 
-      // Upload attachments if any
       if (opts.files && opts.files.length > 0 && tid) {
-        const attachNames = [];
-        let attachFailed = 0;
+        let ok=0, fail=0;
         for (const file of opts.files) {
           try {
-            const formData = new FormData();
-            formData.append('file', file);
-            const uploadResp = await fetch(TICKET_ATTACHMENTS_API + '?entityType=TICKET&entityId=' + encodeURIComponent(tid), {
-              method: 'POST',
-              headers: WISE_TOKEN ? {'Authorization': 'Bearer ' + WISE_TOKEN} : {},
-              body: formData,
-            });
-            if (uploadResp.ok) { attachNames.push(file.name); }
-            else { attachFailed++; }
-          } catch(_) { attachFailed++; }
+            const fd = new FormData(); fd.append('file', file);
+            const ur = await fetch(TICKET_ATTACHMENTS_API + '?entityType=TICKET&entityId=' + encodeURIComponent(tid), {method:'POST', headers: WISE_TOKEN ? {'Authorization':'Bearer '+WISE_TOKEN} : {}, body:fd});
+            if (ur.ok) ok++; else fail++;
+          } catch(_) { fail++; }
         }
-        picalLoadLocal();
-        const local3 = PICAL_LOCAL.find(s => s.id === rec.id);
-        if (local3) {
-          local3.attachments = attachNames;
-          local3.attachmentsFailed = attachFailed;
-          picalSaveLocal();
-        }
-        if (attachFailed > 0) {
-          alert('Ticket created (ID: ' + (tnum || tid) + ') but ' + attachFailed + ' file(s) could not be uploaded. You can retry from the ticket portal.');
-        }
+        diag.push({step:'Upload Attachments', status: fail > 0 ? 'warning' : 'success', msg: ok + ' uploaded, ' + fail + ' failed'});
+        picalLoadLocal(); const l3 = PICAL_LOCAL.find(s=>s.id===rec.id); if(l3){l3.attachments={uploaded:ok,total:ok+fail};picalSaveLocal();}
       }
 
       picalRender();
-      if (!opts.files || opts.files.length === 0 || !opts.files.some(() => true)) {
-        alert('Setup ticket created successfully. Ticket: ' + (tnum || tid));
-      } else if (!(opts.files && opts.files.length > 0)) {
-        alert('Setup ticket created successfully. Ticket: ' + (tnum || tid));
-      }
+      picalShowTicketDiag(diag);
     } else {
-      const respCode = resp ? (resp.code || resp.status || '') : '';
-      const respMsg = resp ? (resp.msg || resp.message || (resp.data && (resp.data.msg || resp.data.message)) || resp.error_description || '') : '';
-      const isAuth = resp && (resp._needsAuth || /unauthor|forbidden|token|permission/i.test(respMsg) || String(respCode) === '401' || String(respCode) === '403');
-      const isMissing = /required|missing|invalid|blank|null/i.test(respMsg);
-      let userMsg;
-      if (!resp) {
-        userMsg = 'The ticket service could not be reached. Please check your connection and try again.';
-      } else if (isAuth) {
-        userMsg = 'Your ticket access could not be verified. Please sign in again or contact an administrator to confirm ticket permissions.';
-      } else if (isMissing) {
-        userMsg = 'Ticket creation was rejected — a required field may be missing or invalid: ' + (respMsg || 'Check department, topic, contact email, and title.');
-      } else if (respMsg) {
-        userMsg = 'Ticket creation failed: ' + respMsg;
-      } else {
-        userMsg = 'Ticket service did not confirm creation. Please verify all required fields (Department, Topic, Contact Email, Title, Message) are filled correctly and try again.';
-      }
-      console.warn('Ticket creation failed:', {code: respCode, msg: respMsg, resp});
-      picalLoadLocal();
-      const local = PICAL_LOCAL.find(s => s.id === rec.id);
-      if (local) { local.ticketStatus = 'Failed: ' + (respMsg || 'not confirmed'); picalSaveLocal(); }
+      diag.push({step:'Create Ticket', status:'error', msg:'Rejected. Code: ' + respCode + '. Message: ' + (respMsg || 'No details returned')});
+      console.warn('Ticket creation failed:', {respCode, respMsg, resp});
+      picalLoadLocal(); const local = PICAL_LOCAL.find(s=>s.id===rec.id); if(local){local.ticketStatus='Failed: '+respMsg;picalSaveLocal();}
       picalRender();
-      alert(userMsg);
+      picalShowTicketDiag(diag);
     }
   } catch(e) {
-    console.warn('Ticket creation network error:', e.message);
-    picalLoadLocal();
-    const local = PICAL_LOCAL.find(s => s.id === rec.id);
-    if (local) { local.ticketStatus = 'Failed: network error'; picalSaveLocal(); }
+    diag.push({step:'Create Ticket', status:'error', msg:'Network error: ' + (e.message||'unknown')});
+    console.error('Ticket exception:', e);
+    picalLoadLocal(); const local = PICAL_LOCAL.find(s=>s.id===rec.id); if(local){local.ticketStatus='Failed: network';picalSaveLocal();}
     picalRender();
-    alert('Unable to reach the ticket service. Your appointment data has been saved locally. Please check your network connection and try again, or contact an administrator if the issue persists.');
+    picalShowTicketDiag(diag);
   }
+}
+
+function picalShowTicketDiag(diag) {
+  const container = document.getElementById('pical-ticket-diag');
+  if (!container) { console.log('TICKET DIAG:', JSON.stringify(diag)); return; }
+  container.style.display = '';
+  let html = '<div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">Ticket Operation Log</div>';
+  html += '<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr style="background:#f9fafb"><th style="padding:4px 6px;text-align:left">Step</th><th style="padding:4px 6px;text-align:left">Status</th><th style="padding:4px 6px;text-align:left">Details</th></tr></thead><tbody>';
+  diag.forEach(d => {
+    const color = d.status==='success'?'#059669':d.status==='warning'?'#d97706':'#dc2626';
+    html += '<tr style="border-top:1px solid #f3f4f6"><td style="padding:3px 6px">' + esc(d.step) + '</td><td style="padding:3px 6px;color:'+color+';font-weight:600">' + esc(d.status) + '</td><td style="padding:3px 6px;font-size:10px;word-break:break-all">' + esc(d.msg) + '</td></tr>';
+  });
+  html += '</tbody></table><button onclick="navigator.clipboard.writeText(JSON.stringify(window._piDiag)).then(()=>alert(\'Copied\'))" class="btn btn-secondary" style="font-size:10px;padding:3px 8px;margin-top:6px">Copy Diagnostics</button>';
+  container.innerHTML = html;
+  window._piDiag = diag;
 }
 
 async function picalLoadTeams(prefix) {
