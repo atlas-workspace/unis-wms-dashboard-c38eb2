@@ -14894,28 +14894,35 @@ function picalSaveNew() {
   const id = 'pi_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
   const rec = { id, date, customerId, confirmation, quoteAmount, notes, freezeStart, freezeEnd, freezeInstructions, createdAt: new Date().toISOString() };
 
+  // Always persist setup message and ticket fields regardless of ticket creation
+  const ticketMsg = (document.getElementById('pical-add-ticket-msg') || {}).value || '';
+  const deptId = (document.getElementById('pical-add-dept') || {}).value || '';
+  const topicId = (document.getElementById('pical-add-topic') || {}).value || '';
+  const contactEmailRaw = (document.getElementById('pical-add-contact-email') || {}).value || '';
+  const ticketTitle = (document.getElementById('pical-add-ticket-title') || {}).value || '';
+  const teamSel = document.getElementById('pical-add-team');
+  rec.ticketMsg = ticketMsg;
+  rec.deptId = deptId;
+  rec.topicId = topicId;
+  rec.contactEmails = contactEmailRaw.split(/[,;\s]+/).map(e => e.trim()).filter(Boolean);
+  rec.ticketTitle = ticketTitle;
+  rec.teamId = teamSel ? teamSel.value : '';
+  rec.teamName = teamSel && teamSel.selectedIndex > 0 ? teamSel.options[teamSel.selectedIndex].textContent : '';
+
   if (createTicket) {
-    const dept = (document.getElementById('pical-add-dept') || {}).value || '';
-    const topic = (document.getElementById('pical-add-topic') || {}).value || '';
-    const contactEmailRaw = (document.getElementById('pical-add-contact-email') || {}).value || '';
-    const contactEmails = contactEmailRaw.split(/[,;\s]+/).map(e => e.trim()).filter(Boolean);
-    const title = (document.getElementById('pical-add-ticket-title') || {}).value || '';
-    const msg = (document.getElementById('pical-add-ticket-msg') || {}).value || '';
-    if (!dept) { alert('Department ID is required to create a ticket.'); return; }
-    if (!topic) { alert('Topic ID is required to create a ticket.'); return; }
+    const contactEmails = rec.contactEmails;
+    const msg = ticketMsg;
+    if (!deptId) { alert('Department ID is required to create a ticket.'); return; }
+    if (!topicId) { alert('Topic ID is required to create a ticket.'); return; }
     if (contactEmails.length === 0 || !(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmails[0]))) { alert('At least one valid contact email is required for the ticket.'); return; }
-    if (!title) { alert('Ticket title is required.'); return; }
+    if (!ticketTitle) { alert('Ticket title is required.'); return; }
     if (!msg) { alert('Setup message is required for the ticket.'); return; }
-    const teamSel = document.getElementById('pical-add-team');
-    const teamId = teamSel ? teamSel.value : '';
-    const teamName = teamSel && teamSel.selectedIndex > 0 ? teamSel.options[teamSel.selectedIndex].textContent : '';
     const filesInput = document.getElementById('pical-add-files');
     const files = filesInput && filesInput.files ? Array.from(filesInput.files) : [];
     picalLoadLocal();
-    rec.contactEmails = contactEmails;
     PICAL_LOCAL.push(rec);
     picalSaveLocal();
-    picalCreateTicket(rec, {dept, topic, contactEmail: contactEmails[0], contactEmails, title, msg, teamId, teamName, files});
+    picalCreateTicket(rec, {dept: deptId, topic: topicId, contactEmail: contactEmails[0], contactEmails, title: ticketTitle, msg, teamId: rec.teamId, teamName: rec.teamName, files});
     document.getElementById('pical-add-form').style.display = 'none';
     picalRender();
     return;
