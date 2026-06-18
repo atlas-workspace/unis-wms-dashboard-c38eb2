@@ -15071,10 +15071,10 @@ async function picalSaveEdit(localId) {
   picalRender();
 }
 
-const TICKET_BASE = 'https://unisticket.item.com';
-const TICKET_API = 'https://unisticket.item.com/v1/iam/tickets';
-const TICKET_TEAMS_API = 'https://unisticket.item.com/v1/staff/teams/page';
-const TICKET_ATTACHMENTS_API = 'https://unisticket.item.com/v1/open/attachments';
+const TICKET_BASE = '/api/proxy/ticket';
+const TICKET_API = '/api/proxy/ticket/tickets';
+const TICKET_TEAMS_API = '/api/proxy/ticket-staff/teams/page';
+const TICKET_ATTACHMENTS_API = '/api/proxy/ticket-open/attachments';
 
 let PICAL_TEAMS_CACHE = null;
 
@@ -15200,10 +15200,11 @@ async function picalCreateTicket(rec, opts) {
       body: JSON.stringify(payload),
     });
 
-    if (resp && (resp.success === true || String(resp.code) === '200' || resp.id || resp.ticketId || (resp.data && (resp.data.id || resp.data.ticketId)))) {
+    if (resp && (resp.success === true || String(resp.code) === '200' || String(resp.code) === '0' || resp.id || resp.ticketId || (resp.data && (resp.data.id || resp.data.ticketId || resp.data.no || resp.data.ticketNo)))) {
       const rd = resp.data || resp;
-      const tid = rd.id || rd.ticketId || resp.id || resp.ticketId || '';
-      const tnum = rd.number || rd.ticketNumber || resp.number || resp.ticketNumber || tid;
+      const tid = rd.id || rd.ticketId || rd.no || rd.ticketNo || resp.id || resp.ticketId || '';
+      const tnum = rd.number || rd.ticketNumber || rd.no || rd.ticketNo || resp.number || resp.ticketNumber || tid;
+      console.log('Ticket created successfully:', {tid, tnum, resp});
       picalLoadLocal();
       const local = PICAL_LOCAL.find(s => s.id === rec.id);
       if (local) {
