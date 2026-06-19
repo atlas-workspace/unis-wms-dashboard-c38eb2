@@ -534,6 +534,10 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
         Location Tag
       </div>
+      <div class="sb-item" data-view="locTagReq" onclick="showView('locTagReq')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        Tag Requests
+      </div>
 
       <div class="sb-sect" style="margin-top:6px">Analytics</div>
       <div class="sb-item" data-view="reports" onclick="showView('reports')">
@@ -1975,6 +1979,44 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
         </div>
       </div>
 
+      <!-- ════ VIEW: LOCATION TAG REQUESTS ════ -->
+      <div class="view" id="view-locTagReq">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:38px;height:38px;border-radius:8px;background:#EDE9FE;display:flex;align-items:center;justify-content:center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B21B6" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+            </div>
+            <div>
+              <div style="font-size:15px;font-weight:700;color:#1f2937">Location Tag Update Requests</div>
+              <div style="font-size:12px;color:#6b7280">Submit location changes for manager approval before WMS update</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="ltrShowNewForm()" style="font-size:12px;padding:6px 14px">+ New Request</button>
+          </div>
+        </div>
+        <div id="ltr-form" style="display:none"></div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:12px 16px;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:13px;font-weight:600;color:#374151" id="ltr-list-title">Requests</span>
+            <select class="cc-input" id="ltr-filter" style="font-size:11px;padding:4px 8px;width:160px" onchange="ltrRenderList()">
+              <option value="">All statuses</option>
+              <option value="PENDING_APPROVAL">Pending Approval</option>
+              <option value="APPROVED_APPLYING">Approved</option>
+              <option value="APPLIED">Applied</option>
+              <option value="REJECTED">Rejected</option>
+              <option value="APPROVED_BUT_FAILED">Failed</option>
+            </select>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="tbl" style="margin:0;font-size:12px">
+              <thead><tr><th>Location</th><th>Tag</th><th>Changes</th><th>Status</th><th>Requester</th><th>Date</th><th>Actions</th></tr></thead>
+              <tbody id="ltr-tbody"><tr><td colspan="7" style="text-align:center;padding:32px;color:#9ca3af">No requests yet. Click "+ New Request" to submit a location update.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- ════ VIEW: LOCATION TAG ════ -->
       <div class="view" id="view-locationTag">
         <!-- List subview -->
@@ -2460,7 +2502,8 @@ const VIEW_META = {
   replenish: {t:'Replenish', s:'Replenishment tasks to restock pick locations from reserve'},
   replenSuggest: {t:'Replenishment Suggestions', s:'Next-day pick-face replenishment suggestions based on order demand and shipping rules'},
   vlg: {t:'VLG Management', s:'Virtual Location Groups — manage grouping of locations by customer and type'},
-  locationTag: {t:'Location Tag', s:'Location tags and tagged location counts'}
+  locationTag: {t:'Location Tag', s:'Location tags and tagged location counts'},
+  locTagReq: {t:'Tag Update Requests', s:'Submit and manage location tag update requests with manager approval'},
 };
 
 const INV_SUB_TITLES = {
@@ -2508,6 +2551,7 @@ function showView(name, sub) {
   if (name === 'countCalendar') loadCountCalendarView();
   if (name === 'vlg') loadVlgData();
   if (name === 'locationTag') loadLocationTagData();
+  if (name === 'locTagReq') ltrInit();
   if (name === 'settings') admInitSettings();
 
   // scroll to top of main
@@ -16061,6 +16105,207 @@ function rptRenderEmailChips(emails) {
   if (!container) return;
   if (!emails || emails.length === 0) { container.innerHTML = '<span style="font-size:11px;color:#9ca3af">No recipients configured</span>'; return; }
   container.innerHTML = emails.map(e => '<span style="display:inline-block;font-size:11px;padding:2px 8px;border-radius:12px;background:#EDE9FE;color:#5B21B6;margin:2px">' + esc(e) + '</span>').join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LOCATION TAG UPDATE REQUESTS — Submit changes for manager approval
+// ═══════════════════════════════════════════════════════════════════════════
+
+const LTR_FIELDS = ['id','name','akaName','floor','parentId','type','maxSize','length','width','height','linearUnit','status','supportPickType','category','sequence','capacityType','capacity','customerIds','tagName','aisle','bay','section','level','slot','disallowToMixItemOnSameLocation'];
+const LTR_ENUMS = {
+  type: ['ZONE','LOCATION','STAGING','DOCK','STATION','AUTOMATED_LOCATION'],
+  linearUnit: ['CM','INCH','M'],
+  status: ['USABLE','DISABLED','DELETE','MERGED','MIXTURE'],
+  supportPickType: ['BULK_PICK','PALLET_PICK','PIECE_PICK','CASE_PICK','NONE'],
+  category: ['YARD','WAREHOUSE','DOCK'],
+  capacityType: ['Pallet','Volume','Small Bin','Large Bin'],
+  disallowToMixItemOnSameLocation: ['TRUE','FALSE'],
+};
+
+function ltrGetKey() { return 'ltr_requests_' + FACILITY_ID; }
+function ltrLoad() { try { return JSON.parse(localStorage.getItem(ltrGetKey()) || '[]'); } catch(_) { return []; } }
+function ltrSave(list) { try { localStorage.setItem(ltrGetKey(), JSON.stringify(list)); } catch(_) {} }
+
+function ltrInit() { ltrRenderList(); }
+
+function ltrRenderList() {
+  const list = ltrLoad();
+  const filter = (document.getElementById('ltr-filter') || {}).value || '';
+  const filtered = filter ? list.filter(r => r.status === filter) : list;
+  const tbody = document.getElementById('ltr-tbody');
+  const title = document.getElementById('ltr-list-title');
+  if (title) title.textContent = filtered.length + ' request(s)' + (filter ? ' (' + filter.replace(/_/g,' ').toLowerCase() + ')' : '');
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><t"7" style="text-align:center;padding:32px;color:#9ca3af">No requests' + (filter ? ' with this status' : ' yet') + '.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map((r, idx) => {
+    const realIdx = list.indexOf(r);
+    const statusCls = r.status === 'APPLIED' ? 'color:#059669' : r.status === 'REJECTED' ? 'color:#9ca3af' : /FAIL/.test(r.status) ? 'color:#dc2626' : r.status === 'PENDING_APPROVAL' ? 'color:#d97706' : 'color:#374151';
+    const changes = Object.keys(r.changes || {}).length;
+    const actions = r.status === 'PENDING_APPROVAL' && admIsOwner() ?
+      '<span style="color:#059669;cursor:pointer;font-size:11px;font-weight:600;margin-right:6px" onclick="ltrApprove('+realIdx+')">Approve</span><span style="color:#dc2626;cursor:pointer;font-size:11px;font-weight:600" onclick="ltrReject('+realIdx+')">Reject</span>' :
+      '<span style="color:#753BBD;cursor:pointer;font-size:11px;font-weight:600" onclick="ltrViewDetail('+realIdx+')">View</span>';
+    return '<tr><td style="font-family:monospace;font-size:11px">' + esc(r.locationName || r.locationId || '—') + '</td>' +
+      '<td style="font-size:11px">' + esc(r.changes && r.changes.tagName ? r.changes.tagName : '—') + '</td>' +
+      '<td style="font-size:11px">' + changes + ' field(s)</td>' +
+      '<td style="font-size:11px;' + statusCls + ';font-weight:600">' + esc(r.status.replace(/_/g,' ')) + '</td>' +
+      '<td style="font-size:11px">' + esc(r.requester || '—') + '</td>' +
+      '<td style="font-size:11px">' + (r.requestedAt ? new Date(r.requestedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—') + '</td>' +
+      '<td style="white-space:nowrap">' + actions + '</td></tr>';
+  }).join('');
+}
+
+function ltrShowNewForm() {
+  const form = document.getElementById('ltr-form');
+  form.style.display = '';
+  form.innerHTML = '<div class="card" style="padding:16px;margin-bottom:16px;border-left:4px solid #5B21B6">' +
+    '<div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:4px">New Location Update Request</div>' +
+    '<div style="font-size:11px;color:#6b7280;margin-bottom:12px">Search a location by ID or name, then fill in requested changes. Submitted requests require manager approval before updating WMS.</div>' +
+    '<div style="display:flex;gap:8px;margin-bottom:12px;align-items:end">' +
+    '<div class="cc-field" style="margin:0;flex:1"><label class="cc-label">Location ID or Name</label><input class="cc-input" id="ltr-search" placeholder="e.g. 07.017 or location ID"/></div>' +
+    '<button class="btn btn-secondary" onclick="ltrSearchLocation()" style="font-size:11px;padding:5px 12px;height:36px">Load from WMS</button></div>' +
+    '<div id="ltr-current" style="display:none;margin-bottom:12px;padding:8px;background:#f9fafb;border-radius:6px;border:1px solid #e5e7eb;font-size:11px"></div>' +
+    '<div style="margin-bottom:10px"><label class="cc-label">Paste template row (tab or comma separated)</label><textarea class="cc-input" id="ltr-paste" rows="2" style="font-size:11px;resize:vertical" placeholder="Paste Excel/CSV row matching: ' + LTR_FIELDS.slice(0,8).join(', ') + '…" oninput="ltrParsePaste()"></textarea></div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px" id="ltr-fields">' +
+    LTR_FIELDS.map(f => {
+      const isEnum = LTR_ENUMS[f];
+      if (isEnum) return '<div class="cc-field" style="margin:0"><label class="cc-label">' + esc(f) + '</label><select class="cc-input" id="ltr-f-' + f + '" style="font-size:11px"><option value="">—</option>' + isEnum.map(v => '<option value="' + v + '">' + v + '</option>').join('') + '</select></div>';
+      return '<div class="cc-field" style="margin:0"><label class="cc-label">' + esc(f) + '</label><input class="cc-input" id="ltr-f-' + f + '" style="font-size:11px" placeholder="' + f + '"/></div>';
+    }).join('') +
+    '</div>' +
+    '<div style="margin-top:12px;display:flex;gap:8px">' +
+    '<button class="btn btn-primary" onclick="ltrSubmitRequest()" style="font-size:12px;padding:6px 14px">Submit for Approval</button>' +
+    '<button class="btn btn-secondary" onclick="document.getElementById(\'ltr-form\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Cancel</button></div>' +
+    '<div id="ltr-msg" style="margin-top:8px;font-size:11px;display:none"></div></div>';
+  form.scrollIntoView({behavior:'smooth'});
+}
+
+async function ltrSearchLocation() {
+  const q = (document.getElementById('ltr-search') || {}).value.trim();
+  if (!q) { alert('Enter a location ID or name.'); return; }
+  const body = {currentPage:1, pageSize:5, facilityId: FACILITY_ID, warehouseId: FACILITY_ID};
+  if (/^\d+$/.test(q)) body.id = q; else body.names = [q];
+  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/wms-location/search-by-paging', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  const el = document.getElementById('ltr-current');
+  if (!resp || resp._needsAuth) { el.style.display=''; el.innerHTML='<span style="color:#ef4444">Authentication required.</span>'; return; }
+  const d = resp.data || resp;
+  const list = d.list || d.records || [];
+  if (list.length === 0) { el.style.display=''; el.innerHTML='<span style="color:#d97706">No location found for "' + esc(q) + '" at ' + esc(FACILITY_NAME||FACILITY_ID) + '.</span>'; return; }
+  const loc = list[0];
+  el.style.display = '';
+  el.innerHTML = '<strong>Current WMS values:</strong> ' + ['name:'+loc.name, 'type:'+loc.type, 'status:'+loc.status, 'supportPickType:'+loc.supportPickType, 'aisle:'+loc.aisle, 'bay:'+(loc.bay||loc.section)].map(s=>esc(s)).join(' · ');
+  // Pre-fill ID and name
+  const idEl = document.getElementById('ltr-f-id'); if (idEl) idEl.value = loc.id || '';
+  const nmEl = document.getElementById('ltr-f-name'); if (nmEl) nmEl.value = loc.name || '';
+  window._ltrCurrentLoc = loc;
+}
+
+function ltrParsePaste() {
+  const raw = (document.getElementById('ltr-paste') || {}).value || '';
+  if (!raw.trim()) return;
+  const sep = raw.includes('\t') ? '\t' : ',';
+  const vals = raw.split(sep).map(v => v.trim().replace(/^"|"$/g,''));
+  LTR_FIELDS.forEach((f, i) => {
+    const el = document.getElementById('ltr-f-' + f);
+    if (el && vals[i] !== undefined && vals[i] !== '') el.value = vals[i];
+  });
+}
+
+function ltrSubmitRequest() {
+  const idVal = (document.getElementById('ltr-f-id') || {}).value.trim();
+  const nameVal = (document.getElementById('ltr-f-name') || {}).value.trim();
+  if (!idVal && !nameVal) { alert('Location ID or Name is required.'); return; }
+  const changes = {};
+  LTR_FIELDS.forEach(f => {
+    const el = document.getElementById('ltr-f-' + f);
+    if (!el) return;
+    const v = el.value.trim();
+    if (v && f !== 'id' && f !== 'name') changes[f] = v;
+  });
+  if (Object.keys(changes).length === 0) { alert('No changes specified. Fill in at least one field to change.'); return; }
+  const list = ltrLoad();
+  list.push({
+    id: 'ltr_' + Date.now(),
+    locationId: idVal,
+    locationName: nameVal || idVal,
+    facilityId: FACILITY_ID,
+    changes,
+    status: 'PENDING_APPROVAL',
+    requester: admGetCurrentUsername() || '—',
+    requestedAt: new Date().toISOString(),
+    currentValues: window._ltrCurrentLoc || null,
+  });
+  ltrSave(list);
+  document.getElementById('ltr-form').style.display = 'none';
+  ltrRenderList();
+}
+
+function ltrViewDetail(idx) {
+  const list = ltrLoad();
+  const r = list[idx];
+  if (!r) return;
+  const changes = r.changes || {};
+  const current = r.currentValues || {};
+  let diff = Object.keys(changes).map(k => '<tr><td style="padding:3px 6px">' + esc(k) + '</td><td style="padding:3px 6px;color:#9ca3af">' + esc(String(current[k]||'—')) + '</td><td style="padding:3px 6px;color:#059669;font-weight:600">' + esc(changes[k]) + '</td></tr>').join('');
+  const form = document.getElementById('ltr-form');
+  form.style.display = '';
+  form.innerHTML = '<div class="card" style="padding:16px;margin-bottom:16px;border-left:4px solid #6b7280">' +
+    '<div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:8px">Request Detail — ' + esc(r.locationName||r.locationId) + '</div>' +
+    '<div style="font-size:11px;color:#6b7280;margin-bottom:4px">Status: <strong>' + esc(r.status.replace(/_/g,' ')) + '</strong> · Requester: ' + esc(r.requester) + ' · ' + (r.requestedAt ? new Date(r.requestedAt).toLocaleString() : '') + '</div>' +
+    (r.appliedAt ? '<div style="font-size:11px;color:#059669;margin-bottom:4px">Applied: ' + new Date(r.appliedAt).toLocaleString() + '</div>' : '') +
+    (r.rejectedAt ? '<div style="font-size:11px;color:#dc2626;margin-bottom:4px">Rejected: ' + new Date(r.rejectedAt).toLocaleString() + '</div>' : '') +
+    (r.errorMsg ? '<div style="font-size:11px;color:#dc2626;margin-bottom:4px">Error: ' + esc(r.errorMsg) + '</div>' : '') +
+    '<table style="width:100%;font-size:11px;border-collapse:collapse;margin-top:8px"><thead><tr style="background:#f9fafb"><th style="padding:4px 6px;text-align:left">Field</th><th style="padding:4px 6px;text-align:left">Current</th><th style="padding:4px 6px;text-align:left">Requested</th></tr></thead><tbody>' + diff + '</tbody></table>' +
+    '<div style="margin-top:10px"><button class="btn btn-secondary" onclick="document.getElementById(\'ltr-form\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Close</button></div></div>';
+}
+
+async function ltrApprove(idx) {
+  if (!admIsOwner()) { alert('Only the dashboard owner can approve requests.'); return; }
+  if (!confirm('Approve this location update and apply to WMS?')) return;
+  const list = ltrLoad();
+  const r = list[idx];
+  if (!r) return;
+  r.status = 'APPROVED_APPLYING';
+  r.approvedAt = new Date().toISOString();
+  r.approvedBy = admGetCurrentUsername();
+  ltrSave(list);
+  ltrRenderList();
+
+  // Build WMS update payload
+  const payload = {id: r.locationId};
+  const changes = r.changes || {};
+  Object.keys(changes).forEach(k => {
+    if (k === 'tagName') return; // handled separately
+    if (k === 'disallowToMixItemOnSameLocation') { payload[k] = changes[k] === 'TRUE'; return; }
+    if (['maxSize','length','width','height','sequence','capacity'].includes(k)) { payload[k] = Number(changes[k]) || 0; return; }
+    payload[k] = changes[k];
+  });
+
+  const resp = await safeFetch(WMS_BASE + '/api/wms/wms-location', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  const list2 = ltrLoad();
+  const r2 = list2[idx];
+  if (resp && resp.success !== false && (String(resp.code||'') === '0' || String(resp.code||'') === '200' || resp.data || !resp.msg)) {
+    r2.status = 'APPLIED';
+    r2.appliedAt = new Date().toISOString();
+  } else {
+    r2.status = 'APPROVED_BUT_FAILED';
+    r2.errorMsg = (resp && (resp.msg || resp.message)) || 'WMS did not confirm the update.';
+  }
+  ltrSave(list2);
+  ltrRenderList();
+  alert(r2.status === 'APPLIED' ? 'Location updated successfully in WMS.' : 'Update failed: ' + (r2.errorMsg || 'Unknown error'));
+}
+
+function ltrReject(idx) {
+  if (!admIsOwner()) { alert('Only the dashboard owner can reject requests.'); return; }
+  if (!confirm('Reject this request? No WMS changes will be made.')) return;
+  const list = ltrLoad();
+  list[idx].status = 'REJECTED';
+  list[idx].rejectedAt = new Date().toISOString();
+  list[idx].rejectedBy = admGetCurrentUsername();
+  ltrSave(list);
+  ltrRenderList();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
