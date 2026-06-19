@@ -15402,11 +15402,17 @@ async function picalCreateTicket(rec, opts) {
       picalRender();
       picalShowTicketDiag(diag);
     } else {
-      diag.push({step:'Create Ticket', status:'error', msg:'Rejected. Code: ' + respCode + '. Message: ' + (respMsg || 'No details returned')});
-      console.warn('Ticket creation failed:', {respCode, respMsg, resp});
-      picalLoadLocal(); const local = PICAL_LOCAL.find(s=>s.id===rec.id); if(local){local.ticketStatus='Failed: '+(respMsg||'Code '+respCode); local.ticketDiag=diag; picalSaveLocal();}
+      const respMsg = (resp && (resp.msg || resp.message || (resp.data && resp.data.msg))) || 'Ticket service did not confirm creation.';
+      const isConfig = resp && resp._configError;
+      diag.push({step:'Create Ticket', status:'error', msg:'Rejected. ' + respMsg});
+      console.warn('Ticket creation failed:', resp);
+      picalLoadLocal(); const local = PICAL_LOCAL.find(s=>s.id===rec.id); if(local){local.ticketStatus='Failed: '+respMsg; local.ticketDiag=diag; picalSaveLocal();}
       picalRender();
-      picalShowTicketDiag(diag);
+      if (isConfig) {
+        picalShowTicketDiag(diag, 'Ticket integration is not properly configured on the server. Contact an administrator to update Ticket API configuration (TICKET_API_HOST and TICKET_API_KEY).');
+      } else {
+        picalShowTicketDiag(diag);
+      }
     }
   } catch(e) {
     diag.push({step:'Create Ticket', status:'error', msg:'Network error: ' + (e.message||'unknown')});

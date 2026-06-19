@@ -5,6 +5,21 @@ const path = require('path');
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
 
+// Ticket API configuration — MUST point to the Ticket API server, NOT the UI host.
+// unisticket.item.com is the UI/frontend and returns nginx 405 for API paths.
+// The correct API host should be set via TICKET_API_HOST env var.
+const TICKET_API_HOST = process.env.TICKET_API_HOST || 'ticket-api.item.com';
+const TICKET_API_KEY = process.env.TICKET_API_KEY || '';
+const TICKET_TENANT_ID = process.env.TICKET_TENANT_ID || 'LT';
+
+if (TICKET_API_HOST === 'unisticket.item.com') {
+  console.warn('[ticket-proxy] WARNING: TICKET_API_HOST is set to unisticket.item.com (the UI host). Ticket API calls will fail with 405. Set TICKET_API_HOST to the correct Ticket API server.');
+}
+if (!TICKET_API_KEY) {
+  console.warn('[ticket-proxy] WARNING: TICKET_API_KEY is not configured. Ticket API calls will likely fail with 401/403. Set TICKET_API_KEY env var.');
+}
+console.log('[ticket-proxy] Config: host=' + TICKET_API_HOST + ' apiKey=' + (TICKET_API_KEY ? 'configured' : 'MISSING') + ' tenant=' + TICKET_TENANT_ID);
+
 function send(res, code, body, headers={}) {
   const isBuf = Buffer.isBuffer(body);
   res.writeHead(code, Object.assign({
@@ -80,34 +95,80 @@ async function handleApi(req, res, url) {
       const raw = await readBody(req);
       const ticketPath = url.pathname.replace('/api/proxy/auth/ticket', '');
       const authHeader = req.headers['authorization'] || '';
-      console.log('[ticket-proxy] IAM →', req.method, '/v1/iam' + ticketPath);
-      const out = await upstreamJsonWithAuth(req.method, 'unisticket.item.com', '/v1/iam' + ticketPath, raw, authHeader);
-      console.log('[ticket-proxy] response:', out.status, (out.json && out.json.msg) || '');
-      return send(res, out.status, out.json || out.raw || {success:false,msg:'No response from ticket service'});
+      console.log('[ticket-proxy] IAM →', req.method, '/v1/iam' + ticketPath, 'host=' + TICKET_API_HOST, 'auth=' + !!authHeader, 'apiKey=' + !!TICKET_API_KEY);
+      if (!TICKET_API_KEY) return send(res, 503, {success:false, msg:'Ticket service is not configured. Server missing TICKET_API_KEY.', _configError:true});
+      const out = await ticketUpstream(req.method, '/v1/iam' + ticketPath, raw, authHeader);
+      console.log('[ticket-proxy] response:', out.status, (out.json && (out.json.msg || out.json.message)) || '');
+      if (out.status === 405 || (out.raw && out.raw.includes('405 Not Allowed'))) {
+        return send(res, 502, {success:false, msg:'Ticket service returned 405. The configured host (' + TICKET_API_HOST + ') may be incorrect. Contact administrator.', _configError:true, _host:TICKET_API_HOST});
+      }
+      return send(res, out.status, out.json || {success:false, msg: out.raw ? 'Unexpected response from ticket service' : 'No response from ticket service'});
     }
     if (url.pathname.startsWith('/api/proxy/auth/ticket-staff/')) {
       const raw = await readBody(req);
       const staffPath = url.pathname.replace('/api/proxy/auth/ticket-staff', '');
       const authHeader = req.headers['authorization'] || '';
-      console.log('[ticket-proxy] Staff →', req.method, '/v1/staff' + staffPath);
-      const out = await upstreamJsonWithAuth(req.method, 'unisticket.item.com', '/v1/staff' + staffPath, raw, authHeader);
+      console.log('[ticket-proxy] Staff →', req.method, '/v1/staff' + staffPath, 'host=' + TICKET_API_HOST);
+      if (!TICKET_API_KEY) return send(res, 503, {success:false, msg:'Ticket service is not configured. Server missing TICKET_API_KEY.', _configError:true});
+      const out = await ticketUpstream(req.method, '/v1/staff' + staffPath, raw, authHeader);
       console.log('[ticket-proxy] response:', out.status);
-      return send(res, out.status, out.json || out.raw || {success:false,msg:'No response from ticket service'});
+      if (out.status === 405 || (out.raw && out.raw.includes('405 Not Allowed'))) {
+        return send(res, 502, {success:false, msg:'Ticket service returned 405. Host may be incorrect.', _configError:true});
+      }
+      return send(res, out.status, out.json || {success:false, msg:'No response from ticket service'});
     }
     if (url.pathname.startsWith('/api/proxy/auth/ticket-open/')) {
       const raw = await readBody(req);
       const openPath = url.pathname.replace('/api/proxy/auth/ticket-open', '');
       const authHeader = req.headers['authorization'] || '';
-      console.log('[ticket-proxy] Open →', req.method, '/v1/open' + openPath);
-      const out = await upstreamJsonWithAuth(req.method, 'unisticket.item.com', '/v1/open' + openPath, raw, authHeader);
+      console.log('[ticket-proxy] Open →', req.method, '/v1/open' + openPath, 'host=' + TICKET_API_HOST);
+      if (!TICKET_API_KEY) return send(res, 503, {success:false, msg:'Ticket service is not configured. Server missing TICKET_API_KEY.', _configError:true});
+      const out = await ticketUpstream(req.method, '/v1/open' + openPath, raw, authHeader);
       console.log('[ticket-proxy] response:', out.status);
-      return send(res, out.status, out.json || out.raw || {success:false,msg:'No response from ticket service'});
+      if (out.status === 405 || (out.raw && out.raw.includes('405 Not Allowed'))) {
+        return send(res, 502, {success:false, msg:'Ticket service returned 405. Host may be incorrect.', _configError:true});
+      }
+      return send(res, out.status, out.json || {success:false, msg:'No response from ticket service'});
+    }
+    // Ticket health/diagnostic endpoint (non-mutating)
+    if (url.pathname === '/api/proxy/auth/ticket-health') {
+      return send(res, 200, {
+        configured: !!TICKET_API_KEY,
+        host: TICKET_API_HOST,
+        hostIsUI: TICKET_API_HOST === 'unisticket.item.com',
+        apiKeyPresent: !!TICKET_API_KEY,
+        tenant: TICKET_TENANT_ID,
+        status: (!TICKET_API_KEY || TICKET_API_HOST === 'unisticket.item.com') ? 'NOT_READY' : 'CONFIGURED',
+      });
     }
     return send(res, 404, {success:false,msg:'Unknown API route'});
   } catch (e) {
     return send(res, 500, {success:false,msg:e.message});
   }
 }
+function ticketUpstream(method, pathname, body, authHeader) {
+  return new Promise((resolve) => {
+    const payload = body == null || body === '' ? null : (typeof body === 'string' ? body : JSON.stringify(body));
+    const hdrs = { 'Accept':'application/json', 'Content-Type':'application/json', 'X-Tenant-Id': TICKET_TENANT_ID, 'User-Agent':'UNIS-WMS-Dashboard/1.0' };
+    if (payload) { hdrs['Content-Length'] = Buffer.byteLength(payload); }
+    if (authHeader) hdrs['Authorization'] = authHeader;
+    if (TICKET_API_KEY) hdrs['x-api-key'] = TICKET_API_KEY;
+    const req = https.request({ method, host: TICKET_API_HOST, path: pathname, headers: hdrs }, r => {
+      let raw='';
+      r.on('data', c => raw += c);
+      r.on('end', () => {
+        let parsed = null;
+        try { parsed = raw ? JSON.parse(raw) : null; } catch(_) {}
+        resolve({ status: r.statusCode || 502, headers: r.headers, raw, json: parsed });
+      });
+    });
+    req.on('error', e => resolve({ status:502, json:{success:false,msg:e.message}, raw:'' }));
+    req.setTimeout(15000, () => { req.destroy(); resolve({ status:504, json:{success:false,msg:'Ticket service timeout'}, raw:'' }); });
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
 function upstreamJsonWithAuth(method, host, pathname, body, authHeader) {
   return new Promise((resolve) => {
     const payload = body == null || body === '' ? null : (typeof body === 'string' ? body : JSON.stringify(body));
