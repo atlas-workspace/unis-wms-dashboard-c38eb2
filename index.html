@@ -16820,5 +16820,153 @@ function replPageNext() {
   document.getElementById('login-screen').style.display = 'flex';
 })();
 </script>
+
+<!-- AI Assistant Widget -->
+<div id="ai-assist-btn" onclick="aiToggle()" style="position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;background:#753BBD;box-shadow:0 4px 16px rgba(117,59,189,.35);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:9998;transition:transform .2s" onmouseenter="this.style.transform='scale(1.08)'" onmouseleave="this.style.transform='scale(1)'">
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+</div>
+<div id="ai-assist-panel" style="display:none;position:fixed;bottom:90px;right:24px;width:380px;max-height:520px;border-radius:16px;background:white;box-shadow:0 12px 48px rgba(0,0,0,.15);z-index:9999;display:none;flex-direction:column;overflow:hidden;border:1px solid #e5e7eb">
+  <div style="padding:14px 18px;background:#753BBD;color:white;display:flex;align-items:center;justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:8px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span style="font-weight:700;font-size:14px">AI Assistant</span></div>
+    <div style="display:flex;gap:8px">
+      <span onclick="aiClear()" style="cursor:pointer;font-size:11px;opacity:.8" title="Clear chat">Clear</span>
+      <span onclick="aiToggle()" style="cursor:pointer;font-size:16px;line-height:1" title="Close">×</span>
+    </div>
+  </div>
+  <div id="ai-messages" style="flex:1;overflow-y:auto;padding:14px;min-height:280px;max-height:360px"></div>
+  <div style="padding:10px 14px;border-top:1px solid #f3f4f6">
+    <div id="ai-suggestions" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:6px">
+      <input id="ai-input" class="cc-input" placeholder="Ask about this dashboard…" style="flex:1;font-size:13px;padding:8px 12px" onkeyup="if(event.key==='Enter')aiSend()"/>
+      <button onclick="aiSend()" class="btn btn-primary" style="padding:8px 14px;font-size:12px">Send</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let AI_OPEN = false;
+let AI_HISTORY = [];
+
+function aiToggle() {
+  AI_OPEN = !AI_OPEN;
+  const panel = document.getElementById('ai-assist-panel');
+  panel.style.display = AI_OPEN ? 'flex' : 'none';
+  if (AI_OPEN && AI_HISTORY.length === 0) aiShowWelcome();
+}
+
+function aiShowWelcome() {
+  aiAddMsg('assistant', 'Hello! I\'m your WMS Dashboard Assistant. I can help with questions about physical inventory, cycle counts, customers, facilities, and dashboard features. What can I help you with?');
+  aiShowSuggestions();
+}
+
+function aiShowSuggestions() {
+  const suggestions = [
+    'What PIs are scheduled this month?',
+    'Why did my PI ticket fail?',
+    'Which customer is selected?',
+    'How do I add a PI date?',
+  ];
+  const el = document.getElementById('ai-suggestions');
+  if (!el) return;
+  el.innerHTML = suggestions.map(s => '<span onclick="aiAsk(\'' + s.replace(/'/g,"\\'") + '\')" style="font-size:10px;padding:3px 8px;border-radius:12px;background:#F3EEFF;color:#5B21B6;cursor:pointer;white-space:nowrap">' + s + '</span>').join('');
+}
+
+function aiAddMsg(role, text) {
+  AI_HISTORY.push({role, text, ts: Date.now()});
+  aiRenderMessages();
+  try { localStorage.setItem('ai_chat_' + FACILITY_ID, JSON.stringify(AI_HISTORY.slice(-50))); } catch(_) {}
+}
+
+function aiRenderMessages() {
+  const el = document.getElementById('ai-messages');
+  if (!el) return;
+  el.innerHTML = AI_HISTORY.map(m => {
+    const isUser = m.role === 'user';
+    return '<div style="margin-bottom:10px;display:flex;justify-content:' + (isUser ? 'flex-end' : 'flex-start') + '">' +
+      '<div style="max-width:85%;padding:8px 12px;border-radius:12px;font-size:12px;line-height:1.5;' +
+      (isUser ? 'background:#753BBD;color:white' : 'background:#f3f4f6;color:#1f2937') + '">' +
+      esc(m.text) + '</div></div>';
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function aiAsk(q) {
+  document.getElementById('ai-input').value = q;
+  aiSend();
+}
+
+function aiSend() {
+  const input = document.getElementById('ai-input');
+  const q = (input.value || '').trim();
+  if (!q) return;
+  input.value = '';
+  aiAddMsg('user', q);
+  document.getElementById('ai-suggestions').innerHTML = '';
+  aiProcess(q);
+}
+
+function aiProcess(q) {
+  const lower = q.toLowerCase();
+  const ctx = aiGetContext();
+  let answer = '';
+
+  if (/schedul|pi.*month|physical.*month|inventory.*date/i.test(lower)) {
+    const piCount = (window.PICAL_LOCAL || []).filter(s => s.date && s.date.startsWith(ctx.monthPrefix)).length;
+    answer = 'For ' + ctx.facilityName + ' in ' + ctx.monthLabel + ': ' + (piCount > 0 ? piCount + ' physical inventory date(s) saved locally.' : 'No physical inventory dates found locally.') + ' Go to Calendar PI and click Refresh to see WMS-linked records.';
+  } else if (/ticket.*fail|why.*fail|ticket.*error|diagnostic/i.test(lower)) {
+    const failed = (window.PICAL_LOCAL || []).filter(s => s.ticketStatus && /fail/i.test(s.ticketStatus));
+    if (failed.length > 0) {
+      const last = failed[failed.length - 1];
+      answer = 'Last ticket failure: ' + (last.ticketStatus || 'unknown') + '. Open the Edit form for that PI date to see full diagnostics. Common causes: missing department/topic selection, contact email blank, or ticket service configuration issue.';
+    } else {
+      answer = 'No failed ticket records found in your local Calendar PI data. If you just attempted creation, open the Edit form to see the diagnostics panel with step-by-step results.';
+    }
+  } else if (/customer.*select|which customer/i.test(lower)) {
+    const sel = document.getElementById('cc-customer');
+    const val = sel ? sel.options[sel.selectedIndex] : null;
+    answer = val && val.value ? 'Currently selected customer: ' + val.textContent + ' (ID: ' + val.value + ') at ' + ctx.facilityName + '.' : 'No customer is currently selected. Choose one from the Customer dropdown in the Cycle Count scheduler.';
+  } else if (/how.*add.*pi|how.*physical.*inventory|add.*date/i.test(lower)) {
+    answer = 'To add a Physical Inventory date: 1) Click "Calendar PI" in the sidebar. 2) Click "+ Add Physical Inventory Date". 3) Fill in the date, customer, confirmation status, emails, quote amount, and notes. 4) Click Save. You can then create a UNIS ticket from the Edit form.';
+  } else if (/facility|warehouse|which.*warehouse/i.test(lower)) {
+    answer = 'Current facility: ' + ctx.facilityName + ' (' + ctx.facilityId + '). You can switch warehouses using the facility selector in the top bar. There are ' + FACILITIES.length + ' warehouses available.';
+  } else if (/customer.*cotton|cotton.*customer/i.test(lower)) {
+    const cottonCusts = FACILITY_CUSTOMERS['LT_F34'] || [];
+    answer = cottonCusts.length > 0 ? 'Cotton (LT_F34) has ' + cottonCusts.length + ' customers loaded: ' + cottonCusts.slice(0,5).map(c=>c.name).join(', ') + (cottonCusts.length > 5 ? '...' : '') + '.' : 'Cotton customers are loaded from WMS when you select Cotton as the active facility. Switch to Cotton in the facility selector to load them.';
+  } else if (/cycle count|count today/i.test(lower)) {
+    answer = 'Cycle Count tasks can only be created for today\'s date (America/Los_Angeles). Go to the Scheduler tab under Cycle Count, select a customer, add locations, and click Schedule. The system enforces one ticket + one task per customer per day.';
+  } else if (/replen|replenishment/i.test(lower)) {
+    answer = 'Replenishment Suggestions are under the Replenishment sidebar group → Suggestions. Select a customer, click Refresh, and review shortage items. You can create tasks in Suggest+Confirm mode (requires action password).';
+  } else if (/password|unis2026/i.test(lower)) {
+    answer = 'The action password protects Location Tag, VLG, and Replenishment task creation. It\'s set per facility. The default is Unis2026. Admin can change it in Admin Settings (owner only).';
+  } else {
+    answer = 'I can help with: Physical Inventory calendar, PI ticket status, cycle count scheduling, replenishment suggestions, customer/facility selection, and dashboard navigation. Try asking a specific question about what you see on the dashboard.';
+  }
+
+  setTimeout(() => aiAddMsg('assistant', answer), 300);
+}
+
+function aiGetContext() {
+  const now = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
+  return {
+    facilityId: FACILITY_ID,
+    facilityName: FACILITY_NAME || FACILITY_ID,
+    monthPrefix: now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0'),
+    monthLabel: now.toLocaleDateString('en-US', {month:'long', year:'numeric'}),
+  };
+}
+
+function aiClear() {
+  AI_HISTORY = [];
+  try { localStorage.removeItem('ai_chat_' + FACILITY_ID); } catch(_) {}
+  aiRenderMessages();
+  aiShowWelcome();
+}
+
+// Restore chat on load
+try {
+  const saved = localStorage.getItem('ai_chat_' + (typeof FACILITY_ID !== 'undefined' ? FACILITY_ID : 'LT_F1'));
+  if (saved) AI_HISTORY = JSON.parse(saved);
+} catch(_) {}
+</script>
 </body>
 </html>
