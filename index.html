@@ -2390,15 +2390,56 @@ function switchFacility(newId) {
 // using FACILITY_CUSTOMERS[FACILITY_ID].
 function refreshFacilityCustomers() {
   const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
-  const opts = customers.map(c => ({
-    id: c.id,
-    name: c.name + (c.count ? '  (' + c.count.toLocaleString() + ' locs)' : '')
-  }));
-  fillSelect(document.getElementById('cc-customer'), opts);
-  fillSelect(document.getElementById('loc-customer'), opts);
+  if (customers.length > 0) {
+    const opts = customers.map(c => ({id: c.id, name: c.name + (c.count ? '  (' + c.count.toLocaleString() + ' locs)' : '')}));
+    fillSelect(document.getElementById('cc-customer'), opts);
+    fillSelect(document.getElementById('loc-customer'), opts);
+    const cust = document.getElementById('cc-customer');
+    if (cust) cust.value = '';
+    syncAddLineEnabled();
+    return;
+  }
+  // No static customers for this facility — fetch from WMS API
+  fetchFacilityCustomersFromAPI();
+}
+
+async function fetchFacilityCustomersFromAPI() {
   const cust = document.getElementById('cc-customer');
+  const locCust = document.getElementById('loc-customer');
+  if (cust) cust.innerHTML = '<option value="">Loading customers…</option>';
+
+  const resp = await safeFetch(WMS_BASE + '/api/mdm/customer/search-by-paging', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({currentPage:1, pageSize:200}),
+  });
+
+  let list = [];
+  if (resp && !resp._needsAuth && resp.success !== false) {
+    const d = resp.data || resp;
+    list = (d.list || d.records || []).map(c => ({
+      id: c.id || c.orgId || c.customerId,
+      name: c.name || c.customerName || c.orgName || c.id,
+      count: 0,
+    }));
+  }
+
+  if (list.length === 0 && resp) {
+    console.warn('[customers] API returned 0 customers for facility', FACILITY_ID, 'status:', resp.code || resp.status || 'ok');
+  }
+
+  // Cache for this session
+  if (list.length > 0) FACILITY_CUSTOMERS[FACILITY_ID] = list;
+
+  const opts = list.map(c => ({id: c.id, name: c.name}));
+  fillSelect(cust, opts);
+  fillSelect(locCust, opts);
   if (cust) cust.value = '';
   syncAddLineEnabled();
+
+  if (list.length === 0) {
+    if (cust) cust.innerHTML = '<option value="">No customers found for this facility</option>';
+  }
 }
 
 // ═══ VIEW ROUTING ═══
