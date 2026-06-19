@@ -14782,8 +14782,15 @@ function picalRender() {
     const sourceTag = e.source === 'local' ? ' <span style="font-size:9px;background:#DBEAFE;color:#1e40af;padding:1px 4px;border-radius:3px">Local</span>' : '';
     let actionsCell;
     if (e.source === 'local' && e._localId) {
-      actionsCell = '<span style="color:#753BBD;cursor:pointer;font-size:11px;font-weight:600;margin-right:8px" onclick="picalEditLocal(\'' + escAttr(e._localId) + '\')">Edit</span>' +
-        '<span style="color:#2563eb;cursor:pointer;font-size:11px;font-weight:600;margin-right:8px" onclick="picalShowTicketSetup(\'' + escAttr(e._localId) + '\')">Ticket</span>' +
+      // Ticket status inline
+      let ticketBadge = '';
+      if (e.ticketId || e.ticketNumber) {
+        ticketBadge = '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:#ECFDF5;color:#059669;font-weight:600;margin-right:6px">Ticket: ' + esc(e.ticketNumber || e.ticketId) + '</span>';
+      } else if (e.ticketStatus && /fail/i.test(e.ticketStatus)) {
+        ticketBadge = '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:#FEF2F2;color:#dc2626;margin-right:6px" title="' + escAttr(e.ticketStatus) + '">Ticket failed</span>';
+      }
+      actionsCell = ticketBadge +
+        '<span style="color:#753BBD;cursor:pointer;font-size:11px;font-weight:600;margin-right:8px" onclick="picalEditLocal(\'' + escAttr(e._localId) + '\')">Edit</span>' +
         '<span style="color:#dc2626;cursor:pointer;font-size:11px;font-weight:600" onclick="picalDeleteLocal(\'' + escAttr(e._localId) + '\')">Delete</span>';
     } else {
       actionsCell = '<span style="color:#9ca3af;font-size:11px">—</span>';
