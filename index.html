@@ -16158,86 +16158,124 @@ function ltrRenderList() {
 
 function ltrShowNewForm() {
   const form = document.getElementById('ltr-form');
+  const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
+  const custOpts = customers.map(c => '<option value="' + escAttr(c.id) + '">' + esc(c.name) + '</option>').join('');
   form.style.display = '';
   form.innerHTML = '<div class="card" style="padding:16px;margin-bottom:16px;border-left:4px solid #5B21B6">' +
     '<div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:4px">New Location Update Request</div>' +
-    '<div style="font-size:11px;color:#6b7280;margin-bottom:12px">Search a location by ID or name, then fill in requested changes. Submitted requests require manager approval before updating WMS.</div>' +
+    '<div style="font-size:11px;color:#6b7280;margin-bottom:12px">Search a live WMS location, review current values, then select requested changes from dropdowns. Requires manager approval before updating WMS.</div>' +
+    '<div style="font-size:10px;color:#9ca3af;margin-bottom:8px">Facility: ' + esc(FACILITY_NAME||FACILITY_ID) + ' (' + FACILITY_ID + ')</div>' +
+    // Location search
     '<div style="display:flex;gap:8px;margin-bottom:12px;align-items:end">' +
-    '<div class="cc-field" style="margin:0;flex:1"><label class="cc-label">Location ID or Name</label><input class="cc-input" id="ltr-search" placeholder="e.g. 07.017 or location ID"/></div>' +
-    '<button class="btn btn-secondary" onclick="ltrSearchLocation()" style="font-size:11px;padding:5px 12px;height:36px">Load from WMS</button></div>' +
-    '<div id="ltr-current" style="display:none;margin-bottom:12px;padding:8px;background:#f9fafb;border-radius:6px;border:1px solid #e5e7eb;font-size:11px"></div>' +
-    '<div style="margin-bottom:10px"><label class="cc-label">Paste template row (tab or comma separated)</label><textarea class="cc-input" id="ltr-paste" rows="2" style="font-size:11px;resize:vertical" placeholder="Paste Excel/CSV row matching: ' + LTR_FIELDS.slice(0,8).join(', ') + '…" oninput="ltrParsePaste()"></textarea></div>' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px" id="ltr-fields">' +
-    LTR_FIELDS.map(f => {
-      const isEnum = LTR_ENUMS[f];
-      if (isEnum) return '<div class="cc-field" style="margin:0"><label class="cc-label">' + esc(f) + '</label><select class="cc-input" id="ltr-f-' + f + '" style="font-size:11px"><option value="">—</option>' + isEnum.map(v => '<option value="' + v + '">' + v + '</option>').join('') + '</select></div>';
-      return '<div class="cc-field" style="margin:0"><label class="cc-label">' + esc(f) + '</label><input class="cc-input" id="ltr-f-' + f + '" style="font-size:11px" placeholder="' + f + '"/></div>';
-    }).join('') +
+    '<div class="cc-field" style="margin:0;flex:1"><label class="cc-label">Search Location (name or ID)</label><input class="cc-input" id="ltr-search" placeholder="e.g. 07.017" onkeyup="if(event.key===\'Enter\')ltrSearchLocation()"/></div>' +
+    '<button class="btn btn-primary" onclick="ltrSearchLocation()" style="font-size:11px;padding:5px 12px;height:36px">Search WMS</button></div>' +
+    '<div id="ltr-current" style="display:none;margin-bottom:12px;padding:10px;background:#f9fafb;border-radius:6px;border:1px solid #e5e7eb;font-size:11px"></div>' +
+    '<div id="ltr-fields-wrap" style="display:none">' +
+    '<div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:8px">Requested Changes</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Type</label><select class="cc-input" id="ltr-f-type" style="font-size:11px"><option value="">— No change —</option><option value="LOCATION">LOCATION</option><option value="PICK">PICK</option><option value="STAGING">STAGING</option><option value="DOCK">DOCK</option><option value="AUTOMATED_LOCATION">AUTOMATED_LOCATION</option><option value="ZONE">ZONE</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Status</label><select class="cc-input" id="ltr-f-status" style="font-size:11px"><option value="">— No change —</option><option value="USABLE">USABLE</option><option value="DISABLED">DISABLED</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Support Pick Type</label><select class="cc-input" id="ltr-f-supportPickType" style="font-size:11px"><option value="">— No change —</option><option value="PALLET_PICK">PALLET_PICK</option><option value="CASE_PICK">CASE_PICK</option><option value="PIECE_PICK">PIECE_PICK</option><option value="BULK_PICK">BULK_PICK</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Category</label><select class="cc-input" id="ltr-f-category" style="font-size:11px"><option value="">— No change —</option><option value="WAREHOUSE">WAREHOUSE</option><option value="YARD">YARD</option><option value="DOCK">DOCK</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Capacity Type</label><select class="cc-input" id="ltr-f-capacityType" style="font-size:11px"><option value="">— No change —</option><option value="PALLET">PALLET</option><option value="RACK">RACK</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Linear Unit</label><select class="cc-input" id="ltr-f-linearUnit" style="font-size:11px"><option value="">— No change —</option><option value="INCH">INCH</option><option value="CM">CM</option><option value="M">M</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Capacity (number)</label><input type="number" class="cc-input" id="ltr-f-capacity" style="font-size:11px" placeholder=""/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Sequence</label><input type="number" class="cc-input" id="ltr-f-sequence" style="font-size:11px" placeholder=""/></div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:8px">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Customer(s)</label><select class="cc-input" id="ltr-f-customerIds" multiple style="font-size:11px;min-height:60px"><option value="">— No change —</option>' + custOpts + '</select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Location Tag</label><select class="cc-input" id="ltr-f-tagName" style="font-size:11px"><option value="">— No change —</option></select><button class="btn btn-secondary" onclick="ltrLoadTags()" style="font-size:10px;padding:2px 8px;margin-top:4px">Load Tags from WMS</button></div>' +
     '</div>' +
     '<div style="margin-top:12px;display:flex;gap:8px">' +
     '<button class="btn btn-primary" onclick="ltrSubmitRequest()" style="font-size:12px;padding:6px 14px">Submit for Approval</button>' +
     '<button class="btn btn-secondary" onclick="document.getElementById(\'ltr-form\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Cancel</button></div>' +
+    '</div>' +
     '<div id="ltr-msg" style="margin-top:8px;font-size:11px;display:none"></div></div>';
   form.scrollIntoView({behavior:'smooth'});
 }
 
 async function ltrSearchLocation() {
   const q = (document.getElementById('ltr-search') || {}).value.trim();
-  if (!q) { alert('Enter a location ID or name.'); return; }
-  const body = {currentPage:1, pageSize:5, facilityId: FACILITY_ID, warehouseId: FACILITY_ID};
-  if (/^\d+$/.test(q)) body.id = q; else body.names = [q];
-  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/wms-location/search-by-paging', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  if (!q) { alert('Enter a location name or ID to search.'); return; }
   const el = document.getElementById('ltr-current');
-  if (!resp || resp._needsAuth) { el.style.display=''; el.innerHTML='<span style="color:#ef4444">Authentication required.</span>'; return; }
+  el.style.display = ''; el.innerHTML = '<span class="spinner"></span> Searching WMS…';
+  const body = {currentPage:1, pageSize:10, facilityId: FACILITY_ID, warehouseId: FACILITY_ID};
+  if (/^\d+$/.test(q)) body.id = q; else { body.names = [q]; body.name = q; }
+  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/wms-location/search-by-paging', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  if (!resp || resp._needsAuth) { el.innerHTML='<span style="color:#ef4444">Authentication required. Please sign in.</span>'; return; }
   const d = resp.data || resp;
   const list = d.list || d.records || [];
-  if (list.length === 0) { el.style.display=''; el.innerHTML='<span style="color:#d97706">No location found for "' + esc(q) + '" at ' + esc(FACILITY_NAME||FACILITY_ID) + '.</span>'; return; }
+  if (list.length === 0) { el.innerHTML='<span style="color:#d97706">No location found for "' + esc(q) + '" at ' + esc(FACILITY_NAME||FACILITY_ID) + '. Try a different name or check the facility selector.</span>'; return; }
   const loc = list[0];
-  el.style.display = '';
-  el.innerHTML = '<strong>Current WMS values:</strong> ' + ['name:'+loc.name, 'type:'+loc.type, 'status:'+loc.status, 'supportPickType:'+loc.supportPickType, 'aisle:'+loc.aisle, 'bay:'+(loc.bay||loc.section)].map(s=>esc(s)).join(' · ');
-  // Pre-fill ID and name
-  const idEl = document.getElementById('ltr-f-id'); if (idEl) idEl.value = loc.id || '';
-  const nmEl = document.getElementById('ltr-f-name'); if (nmEl) nmEl.value = loc.name || '';
   window._ltrCurrentLoc = loc;
+  el.innerHTML = '<strong style="color:#059669">Location found:</strong> ' + esc(loc.name||loc.id) +
+    '<table style="width:100%;font-size:10px;border-collapse:collapse;margin-top:6px"><tr style="background:#f3f4f6"><th style="padding:3px 4px;text-align:left">Field</th><th style="padding:3px 4px;text-align:left">Current Value</th></tr>' +
+    [['ID',loc.id],['Name',loc.name],['Type',loc.type],['Status',loc.status],['Pick Type',loc.supportPickType],['Category',loc.category],['Aisle',loc.aisle],['Bay/Section',loc.bay||loc.section],['Level',loc.level],['Capacity Type',loc.capacityType],['Capacity',loc.capacity],['Customers',(loc.customerIds||[]).join(', ')||'—'],['Tag',loc.tagName||'—']].map(([k,v])=>'<tr><td style="padding:2px 4px;color:#6b7280">'+esc(k)+'</td><td style="padding:2px 4px">'+esc(String(v||'—'))+'</td></tr>').join('') +
+    '</table>';
+  // Show fields section
+  document.getElementById('ltr-fields-wrap').style.display = '';
+  // Pre-select current values in dropdowns as reference
+  const setIfExists = (id, val) => { const s = document.getElementById(id); if (s && val) { for(let i=0;i<s.options.length;i++) if(s.options[i].value===val){s.selectedIndex=i;break;} } };
+  setIfExists('ltr-f-type', loc.type);
+  setIfExists('ltr-f-status', loc.status);
+  setIfExists('ltr-f-supportPickType', loc.supportPickType);
+  setIfExists('ltr-f-category', loc.category);
+  setIfExists('ltr-f-capacityType', loc.capacityType);
 }
 
-function ltrParsePaste() {
-  const raw = (document.getElementById('ltr-paste') || {}).value || '';
-  if (!raw.trim()) return;
-  const sep = raw.includes('\t') ? '\t' : ',';
-  const vals = raw.split(sep).map(v => v.trim().replace(/^"|"$/g,''));
-  LTR_FIELDS.forEach((f, i) => {
-    const el = document.getElementById('ltr-f-' + f);
-    if (el && vals[i] !== undefined && vals[i] !== '') el.value = vals[i];
-  });
+async function ltrLoadTags() {
+  const sel = document.getElementById('ltr-f-tagName');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Loading tags…</option>';
+  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/search-by-paging', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({currentPage:1, pageSize:100})});
+  sel.innerHTML = '<option value="">— No change —</option>';
+  if (resp && resp.success !== false) {
+    const d = resp.data || resp;
+    const tags = d.list || d.records || [];
+    tags.forEach(t => { sel.innerHTML += '<option value="' + escAttr(t.name||t.id) + '">' + esc(t.name||t.id) + '</option>'; });
+    if (tags.length === 0) sel.innerHTML += '<option disabled>No tags found for this facility</option>';
+  } else {
+    sel.innerHTML += '<option disabled>Could not load tags</option>';
+  }
 }
 
 function ltrSubmitRequest() {
-  const idVal = (document.getElementById('ltr-f-id') || {}).value.trim();
-  const nameVal = (document.getElementById('ltr-f-name') || {}).value.trim();
-  if (!idVal && !nameVal) { alert('Location ID or Name is required.'); return; }
+  if (!window._ltrCurrentLoc) { alert('Please search and select a WMS location first.'); return; }
+  const loc = window._ltrCurrentLoc;
   const changes = {};
-  LTR_FIELDS.forEach(f => {
+  const fields = ['type','status','supportPickType','category','capacityType','linearUnit','capacity','sequence'];
+  fields.forEach(f => {
     const el = document.getElementById('ltr-f-' + f);
     if (!el) return;
     const v = el.value.trim();
-    if (v && f !== 'id' && f !== 'name') changes[f] = v;
+    if (v && v !== String(loc[f]||'')) changes[f] = v;
   });
-  if (Object.keys(changes).length === 0) { alert('No changes specified. Fill in at least one field to change.'); return; }
+  // Customers (multi-select)
+  const custSel = document.getElementById('ltr-f-customerIds');
+  if (custSel) {
+    const selected = Array.from(custSel.selectedOptions).map(o => o.value).filter(Boolean);
+    if (selected.length > 0) changes.customerIds = selected.join(',');
+  }
+  // Tag
+  const tagSel = document.getElementById('ltr-f-tagName');
+  if (tagSel && tagSel.value) changes.tagName = tagSel.value;
+
+  if (Object.keys(changes).length === 0) { alert('No changes selected. Choose at least one field to change.'); return; }
   const list = ltrLoad();
   list.push({
     id: 'ltr_' + Date.now(),
-    locationId: idVal,
-    locationName: nameVal || idVal,
+    locationId: loc.id,
+    locationName: loc.name || loc.id,
     facilityId: FACILITY_ID,
     changes,
     status: 'PENDING_APPROVAL',
     requester: admGetCurrentUsername() || '—',
     requestedAt: new Date().toISOString(),
-    currentValues: window._ltrCurrentLoc || null,
+    currentValues: loc,
   });
   ltrSave(list);
   document.getElementById('ltr-form').style.display = 'none';
+  window._ltrCurrentLoc = null;
   ltrRenderList();
 }
 
