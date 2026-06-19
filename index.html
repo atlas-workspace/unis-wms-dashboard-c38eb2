@@ -14787,7 +14787,9 @@ function picalRender() {
       if (e.ticketId || e.ticketNumber) {
         ticketBadge = '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:#ECFDF5;color:#059669;font-weight:600;margin-right:6px">Ticket: ' + esc(e.ticketNumber || e.ticketId) + '</span>';
       } else if (e.ticketStatus && /fail/i.test(e.ticketStatus)) {
-        ticketBadge = '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:#FEF2F2;color:#dc2626;margin-right:6px" title="' + escAttr(e.ticketStatus) + '">Ticket failed</span>';
+        const reason = String(e.ticketStatus).replace(/^Failed:\s*/i,'').slice(0,60) || 'See diagnostics';
+        ticketBadge = '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:#FEF2F2;color:#dc2626;margin-right:4px;cursor:help" title="' + escAttr(e.ticketStatus) + '">Failed</span>' +
+          '<span style="font-size:9px;color:#6b7280;margin-right:6px">' + esc(reason) + '</span>';
       }
       actionsCell = ticketBadge +
         '<span style="color:#753BBD;cursor:pointer;font-size:11px;font-weight:600;margin-right:8px" onclick="picalEditLocal(\'' + escAttr(e._localId) + '\')">Edit</span>' +
@@ -15349,6 +15351,23 @@ async function picalCreateTicket(rec, opts) {
     const respCode = resp ? (resp.code || resp.status || '') : 'null';
     const respMsg = resp ? (resp.msg || resp.message || (resp.data && (resp.data.msg || resp.data.message)) || '') : 'No response';
 
+    // Detect nginx 405 blocking — ticket service not accessible from this server
+    if (resp === null || (typeof resp === 'string' && resp.includes('405'))) {
+      diag.push({step:'Create Ticket', status:'error', msg:'Ticket service is not accepting requests from this dashboard server (HTTP 405 blocked by upstream firewall). This requires IT/network configuration to allow the dashboard server access to the ticket API. Contact your administrator.'});
+      picalLoadLocal(); const local = PICAL_LOCAL.find(s=>s.id===rec.id); if(local){local.ticketStatus='Failed: Ticket service blocked (405). Requires IT network config.'; local.ticketDiag=diag; picalSaveLocal();}
+      picalRender();
+      picalShowTicketDiag(diag);
+      return;
+    }
+
+    if (resp && resp._needsAuth) {
+      diag.push({step:'Create Ticket', status:'error', msg:'Session expired or not authenticated. Please sign in again and retry.'});
+      picalLoadLocal(); const local = PICAL_LOCAL.find(s=>s.id===rec.id); if(local){local.ticketStatus='Failed: Authentication required'; local.ticketDiag=diag; picalSaveLocal();}
+      picalRender();
+      picalShowTicketDiag(diag);
+      return;
+    }
+
     if (resp && (resp.success === true || String(resp.code) === '200' || String(resp.code) === '0' || resp.id || resp.ticketId || (resp.data && (resp.data.id || resp.data.ticketId || resp.data.no || resp.data.ticketNo)))) {
       const rd = resp.data || resp;
       const tid = rd.id || rd.ticketId || rd.no || rd.ticketNo || resp.id || resp.ticketId || '';
@@ -15385,14 +15404,14 @@ async function picalCreateTicket(rec, opts) {
     } else {
       diag.push({step:'Create Ticket', status:'error', msg:'Rejected. Code: ' + respCode + '. Message: ' + (respMsg || 'No details returned')});
       console.warn('Ticket creation failed:', {respCode, respMsg, resp});
-      picalLoadLocal(); const local = PICAL_LOCAL.find(s=>s.id===rec.id); if(local){local.ticketStatus='Failed: '+respMsg;picalSaveLocal();}
+      picalLoadLocal(); const local = PICAL_LOCAL.find(s=>s.id===rec.id); if(local){local.ticketStatus='Failed: '+(respMsg||'Code '+respCode); local.ticketDiag=diag; picalSaveLocal();}
       picalRender();
       picalShowTicketDiag(diag);
     }
   } catch(e) {
     diag.push({step:'Create Ticket', status:'error', msg:'Network error: ' + (e.message||'unknown')});
     console.error('Ticket exception:', e);
-    picalLoadLocal(); const local = PICAL_LOCAL.find(s=>s.id===rec.id); if(local){local.ticketStatus='Failed: network';picalSaveLocal();}
+    picalLoadLocal(); const local = PICAL_LOCAL.find(s=>s.id===rec.id); if(local){local.ticketStatus='Failed: network'; local.ticketDiag=diag; picalSaveLocal();}
     picalRender();
     picalShowTicketDiag(diag);
   }
