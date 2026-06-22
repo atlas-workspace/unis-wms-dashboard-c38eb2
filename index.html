@@ -16159,34 +16159,41 @@ function ltrRenderList() {
 function ltrShowNewForm() {
   const form = document.getElementById('ltr-form');
   const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
-  const custOpts = customers.map(c => '<option value="' + escAttr(c.id) + '">' + esc(c.name) + '</option>').join('');
+  const custOpts = customers.map(c => '<option value="' + escAttr(c.id) + '">' + esc(c.name) + ' (' + esc(c.id) + ')</option>').join('');
   form.style.display = '';
   form.innerHTML = '<div class="card" style="padding:16px;margin-bottom:16px;border-left:4px solid #5B21B6">' +
     '<div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:4px">New Location Update Request</div>' +
-    '<div style="font-size:11px;color:#6b7280;margin-bottom:12px">Search a live WMS location, review current values, then select requested changes from dropdowns. Requires manager approval before updating WMS.</div>' +
-    '<div style="font-size:10px;color:#9ca3af;margin-bottom:8px">Facility: ' + esc(FACILITY_NAME||FACILITY_ID) + ' (' + FACILITY_ID + ')</div>' +
+    '<div style="font-size:11px;color:#6b7280;margin-bottom:12px">Search a live WMS location, review current values, then select requested changes. Requires manager approval before updating WMS.</div>' +
+    '<div style="font-size:10px;color:#9ca3af;margin-bottom:8px">Facility: <strong>' + esc(FACILITY_NAME||FACILITY_ID) + '</strong> (' + FACILITY_ID + ')</div>' +
     // Location search
     '<div style="display:flex;gap:8px;margin-bottom:12px;align-items:end">' +
-    '<div class="cc-field" style="margin:0;flex:1"><label class="cc-label">Search Location (name or ID)</label><input class="cc-input" id="ltr-search" placeholder="e.g. 07.017" onkeyup="if(event.key===\'Enter\')ltrSearchLocation()"/></div>' +
+    '<div class="cc-field" style="margin:0;flex:1"><label class="cc-label">Search Location (name or ID)</label><input class="cc-input" id="ltr-search" placeholder="e.g. 07.017 or 590.004.1.1" onkeyup="if(event.key===\'Enter\')ltrSearchLocation()"/></div>' +
     '<button class="btn btn-primary" onclick="ltrSearchLocation()" style="font-size:11px;padding:5px 12px;height:36px">Search WMS</button></div>' +
     '<div id="ltr-current" style="display:none;margin-bottom:12px;padding:10px;background:#f9fafb;border-radius:6px;border:1px solid #e5e7eb;font-size:11px"></div>' +
     '<div id="ltr-fields-wrap" style="display:none">' +
-    '<div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:8px">Requested Changes</div>' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">' +
+    '<div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:8px">Requested Changes <span style="font-size:10px;color:#9ca3af;font-weight:400">— only change fields that need updating</span></div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">' +
+    // name
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Name</label><input class="cc-input" id="ltr-f-name" style="font-size:11px" placeholder="Current name shown above"/></div>' +
+    // type
     '<div class="cc-field" style="margin:0"><label class="cc-label">Type</label><select class="cc-input" id="ltr-f-type" style="font-size:11px"><option value="">— No change —</option><option value="LOCATION">LOCATION</option><option value="PICK">PICK</option><option value="STAGING">STAGING</option><option value="DOCK">DOCK</option><option value="AUTOMATED_LOCATION">AUTOMATED_LOCATION</option><option value="ZONE">ZONE</option></select></div>' +
+    // status
     '<div class="cc-field" style="margin:0"><label class="cc-label">Status</label><select class="cc-input" id="ltr-f-status" style="font-size:11px"><option value="">— No change —</option><option value="USABLE">USABLE</option><option value="DISABLED">DISABLED</option></select></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Support Pick Type</label><select class="cc-input" id="ltr-f-supportPickType" style="font-size:11px"><option value="">— No change —</option><option value="PALLET_PICK">PALLET_PICK</option><option value="CASE_PICK">CASE_PICK</option><option value="PIECE_PICK">PIECE_PICK</option><option value="BULK_PICK">BULK_PICK</option></select></div>' +
+    // supportPickType
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Support Pick Type</label><select class="cc-input" id="ltr-f-supportPickType" style="font-size:11px"><option value="">— No change —</option><option value="PALLET_PICK">PALLET_PICK</option><option value="CASE_PICK">CASE_PICK</option><option value="PIECE_PICK">PIECE_PICK</option><option value="BULK_PICK">BULK_PICK</option><option value="NONE">NONE</option></select></div>' +
+    // category
     '<div class="cc-field" style="margin:0"><label class="cc-label">Category</label><select class="cc-input" id="ltr-f-category" style="font-size:11px"><option value="">— No change —</option><option value="WAREHOUSE">WAREHOUSE</option><option value="YARD">YARD</option><option value="DOCK">DOCK</option></select></div>' +
+    // capacityType
     '<div class="cc-field" style="margin:0"><label class="cc-label">Capacity Type</label><select class="cc-input" id="ltr-f-capacityType" style="font-size:11px"><option value="">— No change —</option><option value="PALLET">PALLET</option><option value="RACK">RACK</option></select></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Linear Unit</label><select class="cc-input" id="ltr-f-linearUnit" style="font-size:11px"><option value="">— No change —</option><option value="INCH">INCH</option><option value="CM">CM</option><option value="M">M</option></select></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Capacity (number)</label><input type="number" class="cc-input" id="ltr-f-capacity" style="font-size:11px" placeholder=""/></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Sequence</label><input type="number" class="cc-input" id="ltr-f-sequence" style="font-size:11px" placeholder=""/></div>' +
+    // disallowToMixItemOnSameLocation
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Disallow Mix Items</label><select class="cc-input" id="ltr-f-disallowToMixItemOnSameLocation" style="font-size:11px"><option value="">— No change —</option><option value="TRUE">TRUE</option><option value="FALSE">FALSE</option></select></div>' +
     '</div>' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:8px">' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Customer(s)</label><select class="cc-input" id="ltr-f-customerIds" multiple style="font-size:11px;min-height:60px"><option value="">— No change —</option>' + custOpts + '</select></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Location Tag</label><select class="cc-input" id="ltr-f-tagName" style="font-size:11px"><option value="">— No change —</option></select><button class="btn btn-secondary" onclick="ltrLoadTags()" style="font-size:10px;padding:2px 8px;margin-top:4px">Load Tags from WMS</button></div>' +
+    // customerIds and tagName in wider row
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Customer(s) <span style="font-size:9px;color:#9ca3af">multi-select</span></label><select class="cc-input" id="ltr-f-customerIds" multiple style="font-size:11px;min-height:70px">' + custOpts + '</select><div style="font-size:9px;color:#9ca3af;margin-top:2px">Hold Ctrl/Cmd to select multiple. Leave unselected for no change.</div></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Location Tag</label><select class="cc-input" id="ltr-f-tagName" style="font-size:11px"><option value="">— Loading tags… —</option></select><div style="font-size:9px;color:#9ca3af;margin-top:2px" id="ltr-tag-status">Tags load automatically after location search</div></div>' +
     '</div>' +
-    '<div style="margin-top:12px;display:flex;gap:8px">' +
+    '<div style="margin-top:14px;display:flex;gap:8px">' +
     '<button class="btn btn-primary" onclick="ltrSubmitRequest()" style="font-size:12px;padding:6px 14px">Submit for Approval</button>' +
     '<button class="btn btn-secondary" onclick="document.getElementById(\'ltr-form\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Cancel</button></div>' +
     '</div>' +
@@ -16221,21 +16228,50 @@ async function ltrSearchLocation() {
   setIfExists('ltr-f-supportPickType', loc.supportPickType);
   setIfExists('ltr-f-category', loc.category);
   setIfExists('ltr-f-capacityType', loc.capacityType);
+  // Set name field to current value
+  const nameEl = document.getElementById('ltr-f-name');
+  if (nameEl) nameEl.value = loc.name || '';
+  // Set disallowToMixItemOnSameLocation
+  const mixEl = document.getElementById('ltr-f-disallowToMixItemOnSameLocation');
+  if (mixEl && loc.disallowToMixItemOnSameLocation != null) {
+    const mixVal = String(loc.disallowToMixItemOnSameLocation).toUpperCase() === 'TRUE' ? 'TRUE' : 'FALSE';
+    setIfExists('ltr-f-disallowToMixItemOnSameLocation', mixVal);
+  }
+  // Pre-select current customers if available
+  if (loc.customerIds && loc.customerIds.length > 0) {
+    const custSel = document.getElementById('ltr-f-customerIds');
+    if (custSel) {
+      const ids = new Set(loc.customerIds.map(String));
+      for (let i = 0; i < custSel.options.length; i++) {
+        if (ids.has(custSel.options[i].value)) custSel.options[i].selected = true;
+      }
+    }
+  }
+  // Auto-load tags
+  ltrLoadTags(loc.tagName);
 }
 
-async function ltrLoadTags() {
+async function ltrLoadTags(currentTag) {
   const sel = document.getElementById('ltr-f-tagName');
+  const statusEl = document.getElementById('ltr-tag-status');
   if (!sel) return;
   sel.innerHTML = '<option value="">Loading tags…</option>';
+  if (statusEl) statusEl.textContent = 'Loading tags from WMS…';
   const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/search-by-paging', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({currentPage:1, pageSize:100})});
   sel.innerHTML = '<option value="">— No change —</option>';
   if (resp && resp.success !== false) {
     const d = resp.data || resp;
     const tags = d.list || d.records || [];
-    tags.forEach(t => { sel.innerHTML += '<option value="' + escAttr(t.name||t.id) + '">' + esc(t.name||t.id) + '</option>'; });
-    if (tags.length === 0) sel.innerHTML += '<option disabled>No tags found for this facility</option>';
+    tags.forEach(t => {
+      const name = t.name || t.id;
+      const selected = currentTag && (name === currentTag || t.id === currentTag) ? ' selected' : '';
+      sel.innerHTML += '<option value="' + escAttr(name) + '"' + selected + '>' + esc(name) + '</option>';
+    });
+    if (tags.length === 0) { sel.innerHTML += '<option disabled>No tags found</option>'; if (statusEl) statusEl.textContent = 'No tags available for this facility.'; }
+    else { if (statusEl) statusEl.textContent = tags.length + ' tag(s) loaded. Current: ' + (currentTag || 'none'); }
   } else {
     sel.innerHTML += '<option disabled>Could not load tags</option>';
+    if (statusEl) statusEl.textContent = 'Tags unavailable — check WMS connection.';
   }
 }
 
