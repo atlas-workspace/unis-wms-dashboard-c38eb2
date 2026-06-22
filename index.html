@@ -16159,44 +16159,47 @@ function ltrRenderList() {
 function ltrShowNewForm() {
   const form = document.getElementById('ltr-form');
   const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
-  const custOpts = customers.map(c => '<option value="' + escAttr(c.id) + '">' + esc(c.name) + ' (' + esc(c.id) + ')</option>').join('');
+  const custOpts = customers.map(c => '<option value="' + escAttr(c.id) + '">' + esc(c.name) + '</option>').join('');
   form.style.display = '';
   form.innerHTML = '<div class="card" style="padding:16px;margin-bottom:16px;border-left:4px solid #5B21B6">' +
     '<div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:4px">New Location Update Request</div>' +
-    '<div style="font-size:11px;color:#6b7280;margin-bottom:12px">Search a live WMS location, review current values, then select requested changes. Requires manager approval before updating WMS.</div>' +
-    '<div style="font-size:10px;color:#9ca3af;margin-bottom:8px">Facility: <strong>' + esc(FACILITY_NAME||FACILITY_ID) + '</strong> (' + FACILITY_ID + ')</div>' +
-    // Location search
-    '<div style="display:flex;gap:8px;margin-bottom:12px;align-items:end">' +
-    '<div class="cc-field" style="margin:0;flex:1"><label class="cc-label">Search Location (name or ID)</label><input class="cc-input" id="ltr-search" placeholder="e.g. 07.017 or 590.004.1.1" onkeyup="if(event.key===\'Enter\')ltrSearchLocation()"/></div>' +
-    '<button class="btn btn-primary" onclick="ltrSearchLocation()" style="font-size:11px;padding:5px 12px;height:36px">Search WMS</button></div>' +
-    '<div id="ltr-current" style="display:none;margin-bottom:12px;padding:10px;background:#f9fafb;border-radius:6px;border:1px solid #e5e7eb;font-size:11px"></div>' +
-    '<div id="ltr-fields-wrap" style="display:none">' +
-    '<div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:4px;padding:8px 0;border-top:2px solid #FDE68A">Requested Location Fields</div>' +
-    '<div style="font-size:10px;color:#6b7280;margin-bottom:10px">Select the values you want to change. Fields left as "— No change —" will not be modified. <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:#FEF3C7;color:#92400E">Yellow-field selector workflow</span></div>' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">' +
-    // name
-    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700">name</label><input class="cc-input" id="ltr-f-name" style="font-size:11px" placeholder="Current name shown above"/></div>' +
-    // type
-    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700">type</label><select class="cc-input" id="ltr-f-type" style="font-size:11px"><option value="">— No change —</option><option value="LOCATION">LOCATION</option><option value="STAGING">STAGING</option><option value="ZONE">ZONE</option><option value="DOCK">DOCK</option><option value="PICK">PICK</option><option value="AUTOMATED_LOCATION">AUTOMATED_LOCATION</option></select></div>' +
-    // status
-    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700">status</label><select class="cc-input" id="ltr-f-status" style="font-size:11px"><option value="">— No change —</option><option value="USABLE">USABLE</option><option value="USEABLE">USEABLE</option><option value="DISABLED">DISABLED</option></select></div>' +
-    // supportPickType
-    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700">supportPickType</label><select class="cc-input" id="ortPickType" style="font-size:11px"><option value="">— No change —</option><option value="PALLET_PICK">PALLET_PICK</option><option value="BULK_PICK">BULK_PICK</option><option value="CASE_PICK">CASE_PICK</option><option value="PIECE_PICK">PIECE_PICK</option><option value="NONE">NONE</option></select></div>' +
-    // category
-    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700">category</label><select class="cc-input" id="ltr-f-category" style="font-size:11px"><option value="">— No change —</optioalue="WAREHOUSE">WAREHOUSE</option><option value="YARD">YARD</option><option value="DOCK">DOCK</option></select></div>' +
-    // capacityType
-    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700">capacityType</label><select class="cc-input" id="ltr-f-capacityType" style="font-size:11px"><option value="">— No change —</option><option value="PALLET">PALLET</option><option value="RACK">RACK</option><option value="Pallet">Pallet</option><option value="Volume">Volume</option><option value="Small Bin">Small Bin</option><option value="Large Bin">Large Bin</option></select></div>' +
-    // customerIds
-    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700">customerIds</label><select class="cc-input" id="ltr-f-customerIds" multiple style="font-size:11px;min-height:60px">' + custOpts + '</select><div style="font-size:9px;color:#6b7280;margin-top:2px">Hold Ctrl/Cmd for multiple</div></div>' +
-    // tagName
-    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700">tagName</label><select class="cc-input" id="ltr-f-tagName" style="font-size:11px"><option value="">— Loading tags… —</option></select><div style="font-size:9px;color:#9ca3af;margin-top:2px" id="ltr-tag-status">Tags load after location search</div></div>' +
-    // disallowToMixItemOnSameLocation
-    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700">disallowToMixItemOnSameLocation</label><select class="cc-input" id="ltr-f-disallowToMixItemOnSameLocation" style="font-size:11px"><option value="">— No change —</option><option value="TRUE">TRUE</option><option value="FALSE">FALSE</option></select></div>' +
+    '<div style="font-size:11px;color:#2563eb;margin-bottom:12px;padding:6px 10px;background:#EFF6FF;border-radius:4px">Search WMS locations first, select one result, then choose the requested field changes below.</div>' +
+    '<div style="font-size:10px;color:#9ca3af;margin-bottom:10px">Facility: <strong>' + esc(FACILITY_NAME||FACILITY_ID) + '</strong> (' + FACILITY_ID + ')</div>' +
+    // ═══ FIND LOCATION FROM WMS ═══
+    '<div style="margin-bottom:16px;padding:12px;background:#FAFAFA;border:1px solid #e5e7eb;border-radius:8px">' +
+    '<div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:10px">Find Location from WMS</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:10px">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">regexName</label><input class="cc-input" id="ltr-s-regexName" style="font-size:11px" placeholder="Pattern"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Name</label><input class="cc-input" id="ltr-s-name" style="font-size:11px" placeholder="Exact name"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Location Type</label><select class="cc-input" id="ltr-s-type" style="font-size:11px"><option value="">All</option><option value="LOCATION">LOCATION</option><option value="PICK">PICK</option><option value="STAGING">STAGING</option><option value="DOCK">DOCK</option><option value="AUTOMATED_LOCATION">AUTOMATED_LOCATION</option><option value="ZONE">ZONE</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Support Pick Type</label><select class="cc-input" id="ltr-s-supportPickType" style="font-size:11px"><option value="">All</option><option value="PALLET_PICK">PALLET_PICK</option><option value="CASE_PICK">CASE_PICK</option><option value="PIECE_PICK">PIECE_PICK</option><option value="BULK_PICK">BULK_PICK</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Tag</label><select class="cc-input" id="ltr-s-tag" style="font-size:11px"><option value="">All</option></select><button onclick="ltrLoadSearchTags()" style="font-size:9px;padding:1px 4px;margin-top:2px;cursor:pointer;background:#EDE9FE;border:1px solid #d8b4fe;border-radius:3px;color:#5B21B6">Load</button></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Status</label><select class="cc-input" id="ltr-s-status" style="font-size:11px"><option value="">All</option><option value="USABLE" selected>USABLE</option><option value="DISABLED">DISABLED</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Occupancy</label><select class="cc-input" id="ltr-s-spaceStatus" style="font-size:11px"><option value="">All</option><option value="EMPTY">EMPTY</option><option value="OCCUPIED">OCCUPIED</option><option value="FULL">FULL</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Aisle</label><input class="cc-input" id="ltr-s-aisle" style="font-size:11px"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Bay</label><input class="cc-input" id="ltr-s-bay" style="font-size:11px"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Level</label><input class="cc-input" id="ltr-s-level" style="font-size:11px"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Slot</label><input class="cc-input" id="ltr-s-slot" style="font-size:11px"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Customer</label><select class="cc-input" id="ltr-s-customer" style="font-size:11px"><option value="">All</option>' + custOpts + '</select></div>' +
     '</div>' +
-    // customerIds and tagName in wider row
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Customer(s) <span style="font-size:9px;color:#9ca3af">multi-select</span></label><select class="cc-input" id="ltr-f-customerIds" multiple style="font-size:11px;min-height:70px">' + custOpts + '</select><div style="font-size:9px;color:#9ca3af;margin-top:2px">Hold Ctrl/Cmd to select multiple. Leave unselected for no change.</div></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Location Tag</label><select class="cc-input" id="ltr-f-tagName" style="font-size:11px"><option value="">— Loading tags… —</option></select><div style="font-size:9px;color:#9ca3af;margin-top:2px" id="ltr-tag-status">Tags load automatically after location search</div></div>' +
+    '<button class="btn btn-primary" onclick="ltrSearchLocation()" style="font-size:12px;padding:6px 16px">Search</button></div>' +
+    // Results
+    '<div id="ltr-results" style="display:none;margin-bottom:14px"></div>' +
+    // Current values
+    '<div id="ltr-current" style="display:none;margin-bottom:14px;padding:10px;background:#ECFDF5;border-radius:6px;border:1px solid #A7F3D0;font-size:11px"></div>' +
+    // ═══ YELLOW REQUEST FIELDS ═══
+    '<div id="ltr-fields-wrap" style="display:none">' +
+    '<div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:8px;padding:6px 10px;background:#FEF3C7;border-radius:4px;border:1px solid #FDE68A">Requested Location Changes <span style="font-size:10px;font-weight:400;color:#78350F">— only change fields that need updating</span></div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">' +
+    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">name</label><input class="cc-input" id="ltr-f-name" style="font-size:11px"/></div>' +
+    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">type</label><select class="cc-input" id="ltr-f-type" style="font-size:11px"><option value="">— No change —</option><option value="LOCATION">LOCATION</option><option value="PICK">PICK</option><option value="STAGING">STAGING</option><option value="DOCK">DOCK</option><option value="AUTOMATED_LOCATION">AUTOMATED_LOCATION</option><option value="ZONE">ZONE</option></select></div>' +
+    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">status</label><select class="cc-input" id="ltr-f-status" style="font-size:11px"><option value="">— No change —</option><option value="USABLE">USABLE</option><option value="DISABLED">DISABLED</option></select></div>' +
+    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">supportPickType</label><select class="cc-input" id="ltr-f-supportPickType" style="font-size:11px"><option value="">— No change —</option><option value="PALLET_PICK">PALLET_PICK</option><option value="CASE_PICK">CASE_PICK</option><option value="PIECE_PICK">PIECE_PICK</option><option value="BULK_PICK">BULK_PICK</option><option value="NONE">NONE</option></select></div>' +
+    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">category</label><select class="cc-input" id="ltr-f-category" style="font-size:11px"><option value="">— No change —</option><option value="WAREHOUSE">WAREHOUSE</option><option value="YARD">YARD</option><option value="DOCK">DOCK</option></select></div>' +
+    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">capacityType</label><select class="cc-input" id="ltr-f-capacityType" style="font-size:11px"><option value="">— No change —</option><option value="PALLET">PALLET</option><option value="RACK">RACK</option></select></div>' +
+    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">disallowToMixItemOnSameLocation</label><select class="cc-input" id="ltr-f-disallowToMixItemOnSameLocation" style="font-size:11px"><option value="">— No change —</option><option value="TRUE">TRUE</option><option value="FALSE">FALSE</option></select></div>' +
+    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">customerIds</label><select class="cc-input" id="ltr-f-customerIds" multiple style="font-size:11px;min-height:60px">' + custOpts + '</select></div>' +
+    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">tagName</label><select class="cc-input" id="ltr-f-tagName" style="font-size:11px"><option value="">— No change —</option></select><button onclick="ltrLoadTags()" style="font-size:9px;padding:2px 6px;margin-top:4px;cursor:pointer;background:#EDE9FE;border:1px solid #d8b4fe;border-radius:3px;color:#5B21B6">Load Tags</button></div>' +
     '</div>' +
     '<div style="margin-top:14px;display:flex;gap:8px">' +
     '<button class="btn btn-primary" onclick="ltrSubmitRequest()" style="font-size:12px;padding:6px 14px">Submit for Approval</button>' +
@@ -16207,53 +16210,76 @@ function ltrShowNewForm() {
 }
 
 async function ltrSearchLocation() {
-  const q = (document.getElementById('ltr-search') || {}).value.trim();
-  if (!q) { alert('Enter a location name or ID to search.'); return; }
-  const el = document.getElementById('ltr-current');
-  el.style.display = ''; el.innerHTML = '<span class="spinner"></span> Searching WMS…';
-  const body = {currentPage:1, pageSize:10, facilityId: FACILITY_ID, warehouseId: FACILITY_ID};
-  if (/^\d+$/.test(q)) body.id = q; else { body.names = [q]; body.name = q; }
+  const el = document.getElementById('ltr-results');
+  const curEl = document.getElementById('ltr-current');
+  if (el) { el.style.display = ''; el.innerHTML = '<span class="spinner"></span> Searching WMS locations…'; }
+  if (curEl) curEl.style.display = 'none';
+  document.getElementById('ltr-fields-wrap').style.display = 'none';
+
+  const body = {currentPage:1, pageSize:20, facilityId: FACILITY_ID, warehouseId: FACILITY_ID};
+  const v = id => (document.getElementById(id) || {}).value || '';
+  if (v('ltr-s-regexName')) body.regexName = v('ltr-s-regexName');
+  if (v('ltr-s-name')) { body.names = [v('ltr-s-name')]; body.name = v('ltr-s-name'); }
+  if (v('ltr-s-type')) body.type = v('ltr-s-type');
+  if (v('ltr-s-supportPickType')) body.supportPickType = v('ltr-s-supportPickType');
+  if (v('ltr-s-status')) body.status = v('ltr-s-status');
+  if (v('ltr-s-spaceStatus')) body.spaceStatus = v('ltr-s-spaceStatus');
+  if (v('ltr-s-aisle')) body.aisle = v('ltr-s-aisle');
+  if (v('ltr-s-bay')) body.section = v('ltr-s-bay');
+  if (v('ltr-s-level')) body.level = Number(v('ltr-s-level'));
+  if (v('ltr-s-slot')) body.slot = v('ltr-s-slot');
+  if (v('ltr-s-customer')) body.customerIds = [v('ltr-s-customer')];
+
   const resp = await safeFetch(WMS_BASE + '/api/wms-bam/wms-location/search-by-paging', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
   if (!resp || resp._needsAuth) { el.innerHTML='<span style="color:#ef4444">Authentication required. Please sign in.</span>'; return; }
   const d = resp.data || resp;
   const list = d.list || d.records || [];
-  if (list.length === 0) { el.innerHTML='<span style="color:#d97706">No location found for "' + esc(q) + '" at ' + esc(FACILITY_NAME||FACILITY_ID) + '. Try a different name or check the facility selector.</span>'; return; }
-  const loc = list[0];
+  if (list.length === 0) { el.innerHTML='<span style="color:#d97706">No locations found matching filters at ' + esc(FACILITY_NAME||FACILITY_ID) + '.</span>'; return; }
+
+  el.innerHTML = '<div style="font-size:11px;color:#6b7280;margin-bottom:6px">' + list.length + ' result(s) — click a row to select</div>' +
+    '<div style="max-height:200px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:6px"><table style="width:100%;font-size:10px;border-collapse:collapse"><thead><tr style="background:#f9fafb;position:sticky;top:0"><th style="padding:4px 6px;text-align:left">Name</th><th style="padding:4px 6px">Type</th><th style="padding:4px 6px">Status</th><th style="padding:4px 6px">Pick Type</th><th style="padding:4px 6px">Category</th><th style="padding:4px 6px">Aisle</th><th style="padding:4px 6px">Tag</th></tr></thead><tbody>' +
+    list.map((loc, i) => '<tr style="cursor:pointer;border-top:1px solid #f3f4f6" onclick="ltrSelectResult('+i+')" onmouseenter="this.style.background=\'#EDE9FE\'" onmouseleave="this.style.background=\'\'"><td style="padding:4px 6px;font-family:monospace;color:#5B21B6;font-weight:600">' + esc(loc.name||loc.id) + '</td><td style="padding:4px 6px">' + esc(loc.type||'—') + '</td><td style="padding:4px 6px">' + esc(loc.status||'—') + '</td><td style="padding:4px 6px">' + esc(loc.supportPickType||'—') + '</td><td style="padding:4px 6px">' + esc(loc.category||'—') + '</td><td style="padding:4px 6px">' + esc(loc.aisle||'—') + '</td><td style="padding:4px 6px">' + esc(loc.tagName||'—') + '</td></tr>').join('') +
+    '</tbody></table></div>';
+  window._ltrSearchResults = list;
+}
+
+function ltrSelectResult(idx) {
+  const list = window._ltrSearchResults || [];
+  const loc = list[idx];
+  if (!loc) return;
   window._ltrCurrentLoc = loc;
-  el.innerHTML = '<strong style="color:#059669">Location found:</strong> ' + esc(loc.name||loc.id) +
-    '<table style="width:100%;font-size:10px;border-collapse:collapse;margin-top:6px"><tr style="background:#f3f4f6"><th style="padding:3px 4px;text-align:left">Field</th><th style="padding:3px 4px;text-align:left">Current Value</th></tr>' +
-    [['ID',loc.id],['Name',loc.name],['Type',loc.type],['Status',loc.status],['Pick Type',loc.supportPickType],['Category',loc.category],['Aisle',loc.aisle],['Bay/Section',loc.bay||loc.section],['Level',loc.level],['Capacity Type',loc.capacityType],['Capacity',loc.capacity],['Customers',(loc.customerIds||[]).join(', ')||'—'],['Tag',loc.tagName||'—']].map(([k,v])=>'<tr><td style="padding:2px 4px;color:#6b7280">'+esc(k)+'</td><td style="padding:2px 4px">'+esc(String(v||'—'))+'</td></tr>').join('') +
+  const curEl = document.getElementById('ltr-current');
+  curEl.style.display = '';
+  curEl.innerHTML = '<strong style="color:#059669">Selected:</strong> ' + esc(loc.name||loc.id) +
+    '<table style="width:100%;font-size:10px;border-collapse:collapse;margin-top:6px"><tr style="background:#f3f4f6"><th style="padding:3px 4px;text-align:left">Field</th><th style="padding:3px 4px;text-align:left">Current WMS Value</th></tr>' +
+    [['ID',loc.id],['Name',loc.name],['Type',loc.type],['Status',loc.status],['Pick Type',loc.supportPickType],['Category',loc.category],['Capacity Type',loc.capacityType],['Aisle',loc.aisle],['Bay/Section',loc.bay||loc.section],['Level',loc.level],['Slot',loc.slot],['Customers',(loc.customerIds||[]).join(', ')||'—'],['Tag',loc.tagName||'—'],['Disallow Mix',loc.disallowToMixItemOnSameLocation||'—']].map(([k,v])=>'<tr><td style="padding:2px 4px;color:#6b7280">'+esc(k)+'</td><td style="padding:2px 4px">'+esc(String(v||'—'))+'</td></tr>').join('') +
     '</table>';
-  // Show fields section
   document.getElementById('ltr-fields-wrap').style.display = '';
-  // Pre-select current values in dropdowns as reference
-  const setIfExists = (id, val) => { const s = document.getElementById(id); if (s && val) { for(let i=0;i<s.options.length;i++) if(s.options[i].value===val){s.selectedIndex=i;break;} } };
-  setIfExists('ltr-f-type', loc.type);
-  setIfExists('ltr-f-status', loc.status);
-  setIfExists('ltr-f-supportPickType', loc.supportPickType);
-  setIfExists('ltr-f-category', loc.category);
-  setIfExists('ltr-f-capacityType', loc.capacityType);
-  // Set name field to current value
-  const nameEl = document.getElementById('ltr-f-name');
-  if (nameEl) nameEl.value = loc.name || '';
-  // Set disallowToMixItemOnSameLocation
-  const mixEl = document.getElementById('ltr-f-disallowToMixItemOnSameLocation');
-  if (mixEl && loc.disallowToMixItemOnSameLocation != null) {
-    const mixVal = String(loc.disallowToMixItemOnSameLocation).toUpperCase() === 'TRUE' ? 'TRUE' : 'FALSE';
-    setIfExists('ltr-f-disallowToMixItemOnSameLocation', mixVal);
-  }
-  // Pre-select current customers if available
+  const setVal = (id, val) => { const e = document.getElementById(id); if (e && val) e.value = val; };
+  setVal('ltr-f-name', loc.name);
+  setVal('ltr-f-type', loc.type);
+  setVal('ltr-f-status', loc.status);
+  setVal('ltr-f-supportPickType', loc.supportPickType);
+  setVal('ltr-f-category', loc.category);
+  setVal('ltr-f-capacityType', loc.capacityType);
+  if (loc.disallowToMixItemOnSameLocation != null) setVal('ltr-f-disallowToMixItemOnSameLocation', String(loc.disallowToMixItemOnSameLocation).toUpperCase() === 'TRUE' ? 'TRUE' : 'FALSE');
   if (loc.customerIds && loc.customerIds.length > 0) {
     const custSel = document.getElementById('ltr-f-customerIds');
-    if (custSel) {
-      const ids = new Set(loc.customerIds.map(String));
-      for (let i = 0; i < custSel.options.length; i++) {
-        if (ids.has(custSel.options[i].value)) custSel.options[i].selected = true;
-      }
-    }
+    if (custSel) { const ids = new Set(loc.customerIds.map(String)); for (let i=0;i<custSel.options.length;i++) if(ids.has(custSel.options[i].value)) custSel.options[i].selected=true; }
   }
-  // Auto-load tags
   ltrLoadTags(loc.tagName);
+}
+
+async function ltrLoadSearchTags() {
+  const sel = document.getElementById('ltr-s-tag');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Loading…</option>';
+  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/search-by-paging', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({currentPage:1, pageSize:100})});
+  sel.innerHTML = '<option value="">All</option>';
+  if (resp && resp.success !== false) {
+    const d = resp.data || resp;
+    (d.list || d.records || []).forEach(t => { sel.innerHTML += '<option value="' + escAttr(t.name||t.id) + '">' + esc(t.name||t.id) + '</option>'; });
+  }
 }
 
 async function ltrLoadTags(currentTag) {
