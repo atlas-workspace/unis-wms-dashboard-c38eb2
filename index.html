@@ -17317,6 +17317,88 @@ try {
   const saved = localStorage.getItem('ai_chat_' + (typeof FACILITY_ID !== 'undefined' ? FACILITY_ID : 'LT_F1'));
   if (saved) AI_HISTORY = JSON.parse(saved);
 } catch(_) {}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODULE WORKFLOW GUIDE — contextual help per active tab
+// ═══════════════════════════════════════════════════════════════════════════
+
+const MODULE_WORKFLOWS = {
+  dashboard: {title:'Dashboard Overview', steps:['Sign in with your IAM credentials','Select your facility from the top-bar selector','Review KPIs: inventory, tasks, alerts','Click any widget to navigate to the detailed module','Use Quick Actions at bottom-left for common tasks'], purpose:'Central overview of warehouse operations, KPIs, and quick navigation.', tips:'Switch facilities to see different warehouse data. The date range updates automatically to the current week.'},
+  calendar: {title:'Physical Inventory Calendar', steps:['1. Click "+ Add Physical Inventory Date"','2. Select date, customer, confirmation status','3. Add internal emails and quote amount','4. Save the PI date (stored locally)','5. Edit to open Ticket Setup and create a UNIS ticket','6. Review ticket status badge in table row'], purpose:'Plan and track physical inventory dates. Create support tickets for PI coordination.', tips:'Ticket creation requires Department and Topic selection. If ticket fails, check the diagnostics panel in Edit form. Confirmation statuses: Confirmed, Pending, Canceled, Re-scheduled.'},
+  scheduler: {title:'Cycle Count Scheduler', steps:['1. Select a customer from the dropdown','2. Choose count type (BY_LOCATION) and method','3. Set schedule date (must be today)','4. Click "Add Count Line" to open location picker','5. Search and select locations from WMS','6. Click "Schedule Cycle Count" to create ticket+task'], purpose:'Create cycle count tickets and tasks for today\'s scheduled counts.', tips:'Only today\'s date is allowed. Bulk/Pallet Qty Check mode skips individual LP scanning. One ticket per customer per day.'},
+  cycle: {title:'Cycle Count Dashboard', steps:['1. View today\'s KPIs: total, open, completed','2. Review the Recent Cycle Counts table','3. Filter by status if needed','4. Click "View" to see count results for a ticket','5. Locations and count method shown per ticket'], purpose:'Monitor active and completed cycle count tickets with evidence status.', tips:'Tickets missing locations are enriched from WMS detail. Completed with 0 results shows as Empty/Invalid and can be regenerated.'},
+  countCalendar: {title:'Count Schedule Calendar', steps:['1. Navigate months with arrows','2. View dots on calendar days with scheduled counts','3. Review the event list below the grid','4. Filter by type: Cycle Count or Physical Count','5. Add local confirmed schedules if needed'], purpose:'See all cycle count and physical count schedules in a monthly calendar view.', tips:'WMS tickets are shown from real scheduleDate. Local planning records are labeled clearly. Cancelled tickets remain visible for traceability.'},
+  countApproval: {title:'Count Result Approval', steps:['1. Review pending count results','2. Check variance and counted quantities','3. Approve or reject each result','4. Track approval status'], purpose:'Review and approve cycle count results before inventory adjustments are applied.', tips:'Only authorized approvers can approve results. Check variance thresholds before approving.'},
+  consolidation: {title:'Consolidation', steps:['1. View BULK and Rack tabs for consolidation candidates','2. Review inventory items by customer and location','3. Select items for consolidation workflow','4. Open consolidation plan panel','5. Enter destination location and submit'], purpose:'Consolidate inventory across locations to optimize warehouse space utilization.', tips:'If no consolidation tasks exist, live inventory is shown as candidates. Use filters and search to find specific items.'},
+  replenish: {title:'Replenishment Tasks', steps:['1. View active replenishment tasks','2. Filter by status or customer','3. Monitor task progress and assignments','4. Review completed vs pending tasks'], purpose:'Track replenishment tasks that restock pick-face locations from bulk reserve.', tips:'Tasks are facility-scoped. Use the Suggestions sub-page for next-day demand analysis.'},
+  replenSuggest: {title:'Replenishment Suggestions', steps:['1. Select a customer or "All Customers"','2. Click "Refresh Suggestions"','3. Review shortage items, from/to locations, assignees','4. Toggle Consolidated view for efficiency','5. Use Autonomous Functions panel to select mode','6. Select rows and confirm to create tasks (requires password)'], purpose:'Analyze next-day order demand and suggest replenishment tasks to ensure pick locations are ready.', tips:'Auto Assign fills assignees from order plan data. Export includes all columns. Task creation requires the facility action password.'},
+  vlg: {title:'VLG Management', steps:['1. Search or browse virtual location groups','2. Click Edit to view/modify a group','3. Update allocations, name, or settings','4. Save changes (requires action password)'], purpose:'Manage Virtual Location Groups — customer allocation of warehouse zones.', tips:'All mutations (edit, save, delete) require the facility action password. Groups organize locations by customer, type, and time window.'},
+  locationTag: {title:'Location Tag', steps:['1. Search tags by name or filter by location','2. Click Edit to manage a tag\'s assigned locations','3. Add/remove locations from the tag','4. Save changes (requires action password)'], purpose:'View and manage location tags and their assigned locations.', tips:'Editing requires the action password. Use Location Tag Requests for a structured change workflow with manager approval.'},
+  locTagReq: {title:'Location Tag Update Requests', steps:['1. Click "+ New Request"','2. Search a WMS location by name/ID','3. Review current WMS values displayed','4. Select requested changes from dropdowns','5. Choose customers and tag from live WMS data','6. Submit for manager approval','7. Manager approves → WMS is updated automatically'], purpose:'Submit structured location update requests with before/after tracking and manager approval workflow.', tips:'Fields focus on: name, type, status, supportPickType, category, capacityType, customerIds, tagName, disallowToMixItemOnSameLocation. Tag changes are applied only if safely resolved in WMS.'},
+  reports: {title:'Cycle Count Daily Report', steps:['1. Click "Generate Report" to load today\'s data','2. Review KPIs and detail table','3. Export CSV for offline analysis','4. Configure daily email recipients','5. Enable automation toggle for scheduled delivery'], purpose:'Generate and export daily cycle count performance reports with email automation configuration.', tips:'Email delivery requires backend scheduled automation. Recipients and preferences are saved per facility. Report defaults to today in America/Los_Angeles.'},
+  robots: {title:'Robot Count / Fleet Status', steps:['1. View robot fleet KPIs','2. Monitor battery levels and throughput','3. Check individual robot status','4. Review count assignments'], purpose:'Monitor robotic fleet status, battery health, and count task assignments.', tips:'Data refreshes automatically. Alert on robot faults or low battery.'},
+  settings: {title:'Admin Settings', steps:['1. Set default facility','2. Change facility action password','3. Manage user access per facility','4. Review enforced guardrails','5. Export/import settings or reset'], purpose:'Dashboard configuration, security, per-facility passwords, and user access management.', tips:'Only visible to the dashboard owner (bescobar). Password changes apply per facility. Export excludes passwords for security.'},
+  inventory: {title:'Inventory', steps:['1. Browse all items, categories, or suppliers','2. Use sub-tabs for different views','3. Check low stock alerts','4. Review purchase orders'], purpose:'View tracked SKUs, on-hand quantities, locations, and supplier information.', tips:'Low stock alerts are in the Alerts section. Data is facility-scoped.'},
+  tasks: {title:'Tasks', steps:['1. View all warehouse tasks','2. Filter by team, priority, or status','3. Monitor due dates and assignments','4. Track completion progress'], purpose:'Overview of warehouse tasks across all teams and shifts.', tips:'Tasks include picks, putaways, replenishments, and cycle counts.'},
+  alerts: {title:'Alerts', steps:['1. Review critical, warning, and info alerts','2. Filter by severity','3. Acknowledge alerts as addressed','4. Monitor resolved count'], purpose:'Track critical issues, warnings, and system notifications across warehouse operations.', tips:'Critical alerts require immediate action. Acknowledge alerts to clear them from the active list.'},
+};
+
+let WF_OPEN = false;
+try { WF_OPEN = localStorage.getItem('wf_panel_open') === '1'; } catch(_) {}
+
+function wfGetActiveView() {
+  const active = document.querySelector('.view.active');
+  if (!active) return 'dashboard';
+  return (active.id || '').replace('view-', '') || 'dashboard';
+}
+
+function wfToggle() {
+  WF_OPEN = !WF_OPEN;
+  try { localStorage.setItem('wf_panel_open', WF_OPEN ? '1' : '0'); } catch(_) {}
+  wfRender();
+}
+
+function wfRender() {
+  const panel = document.getElementById('wf-panel');
+  const btn = document.getElementById('wf-toggle-btn');
+  if (!panel || !btn) return;
+  panel.style.display = WF_OPEN ? '' : 'none';
+  btn.textContent = WF_OPEN ? 'Hide Workflow' : 'Workflow';
+  if (!WF_OPEN) return;
+  const view = wfGetActiveView();
+  const wf = MODULE_WORKFLOWS[view] || MODULE_WORKFLOWS.dashboard;
+  panel.innerHTML = '<div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:6px">' + esc(wf.title) + '</div>' +
+    '<div style="font-size:11px;color:#6b7280;margin-bottom:10px">' + esc(wf.purpose) + '</div>' +
+    '<div style="font-size:11px;color:#374151;margin-bottom:8px"><strong>Steps:</strong></div>' +
+    '<ol style="margin:0 0 10px 16px;padding:0;font-size:11px;color:#374151;line-height:1.8">' +
+    wf.steps.map(s => '<li>' + esc(s.replace(/^\d+\.\s*/, '')) + '</li>').join('') + '</ol>' +
+    '<div style="font-size:10px;color:#6b7280;padding:6px 8px;background:#f9fafb;border-radius:4px;border:1px solid #e5e7eb"><strong>Tips:</strong> ' + esc(wf.tips) + '</div>';
+}
+
+// Observe view changes to update workflow
+const _origShowView = typeof showView === 'function' ? showView : null;
+if (_origShowView) {
+  const _wfShowViewWrap = function() { _origShowView.apply(this, arguments); setTimeout(wfRender, 100); };
+  // Patch showView to also refresh workflow panel
+  window._wfShowViewWrap = _wfShowViewWrap;
+}
+setTimeout(wfRender, 500);
+</script>
+
+<!-- Workflow toggle button and panel -->
+<div id="wf-toggle-btn" onclick="wfToggle()" style="position:fixed;top:12px;right:80px;padding:4px 12px;font-size:11px;background:#EDE9FE;color:#5B21B6;border-radius:16px;cursor:pointer;z-index:9997;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.08)">Workflow</div>
+<div id="wf-panel" style="display:none;position:fixed;top:44px;right:24px;width:320px;max-height:420px;overflow-y:auto;background:white;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.12);border:1px solid #e5e7eb;padding:16px;z-index:9997"></div>
+
+<script>
+// Initialize workflow panel state and hook into view switching
+(function(){
+  wfRender();
+  // Patch showView to refresh workflow on navigation
+  if (typeof showView === 'function') {
+    const orig = showView;
+    window.showView = function() { orig.apply(this, arguments); setTimeout(wfRender, 50); };
+  }
+})();
 </script>
 </body>
 </html>
