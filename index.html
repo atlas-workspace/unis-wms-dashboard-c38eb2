@@ -15113,11 +15113,6 @@ async function picalSaveEdit(localId) {
     rec.contactEmail = (document.getElementById('pical-edit-contact-email') || {}).value || '';
     rec.ticketTitle = (document.getElementById('pical-edit-ticket-title') || {}).value || '';
     rec.ticketMsg = (document.getElementById('pical-edit-ticket-msg') || {}).value || '';
-    const teamSel = document.getElementById('pical-edit-team');
-    const newTeamId = teamSel ? teamSel.value : '';
-    const newTeamName = teamSel && teamSel.selectedIndex > 0 ? teamSel.options[teamSel.selectedIndex].text : '';
-    rec.teamId = newTeamId || rec.teamId || '';
-    rec.teamName = newTeamName || rec.teamName || '';
   }
   picalSaveLocal();
 
