@@ -15180,35 +15180,19 @@ const TICKET_ATTACHMENTS_API = '/api/proxy/auth/ticket-open/attachments';
 const TICKET_DEPTS_API = '/api/proxy/auth/ticket-open/departments/page';
 const TICKET_TOPICS_API = '/api/proxy/auth/ticket-open/topics/page';
 
+// Minimal fallback only used when API is completely unreachable — PI default dept/topic only
 const TICKET_DEPT_FALLBACK = [
-  {id:'324119200704569344', name:'UNIS Fulfillment'},
-  {id:'9', name:'UNIS Fulfillment Data Entry'},
-  {id:'13', name:'UNIS Transportation'},
-  {id:'350570456977444864', name:'UNIS Transportation Terminal Support'},
-  {id:'4', name:'CSR Ticket Support'},
-  {id:'316285263552864256', name:'Ticket Support'},
+  {id:'324119200704569344', name:'UNIS Fulfillment (fallback)'},
 ];
 const TICKET_TOPIC_FALLBACK = [
-  {id:'351666257576935424', name:'UF:Inventory Accuracy & Stock Inquiries', departmentId:'324119200704569344'},
-  {id:'315682256835801088', name:'UF General Inquiry', departmentId:'324119200704569344'},
-  {id:'351664324296392704', name:'UF:Delivery Appointment Request', departmentId:'324119200704569344'},
-  {id:'351664628341489664', name:'UF:Pickup Appointment Request', departmentId:'324119200704569344'},
-  {id:'351664855693737984', name:'UF:Inventory Adjustment', departmentId:'324119200704569344'},
-  {id:'351665070093975552', name:'UF:Order Fulfillment & Processing', departmentId:'324119200704569344'},
-  {id:'351665492019986432', name:'UF:Shipment Tracking & Visibility', departmentId:'324119200704569344'},
-  {id:'351665669262884864', name:'UF Freight Claims and OSD', departmentId:'324119200704569344'},
-  {id:'351666037472444416', name:'UF:Returns Management', departmentId:'324119200704569344'},
-  {id:'351666480298672128', name:'UF:Customer Onboarding & Account Setup', departmentId:'324119200704569344'},
-  {id:'351666634904911872', name:'UF:Carrier Management & Coordination', departmentId:'324119200704569344'},
-  {id:'36', name:'UF DE: Live Request', departmentId:'9'},
-  {id:'37', name:'UF DE: Work Record', departmentId:'9'},
-  {id:'1', name:'General Inquiry', departmentId:''},
+  {id:'351666257576935424', name:'UF:Inventory Accuracy & Stock Inquiries (fallback)', departmentId:'324119200704569344'},
 ];
 const TICKET_DEFAULT_DEPT = '324119200704569344';
 const TICKET_DEFAULT_TOPIC = '351666257576935424';
 
 let TICKET_DEPTS_CACHE = null;
 let TICKET_TOPICS_CACHE = null;
+let TICKET_LOAD_STATUS = {depts: 'not loaded', topics: 'not loaded', deptCount: 0, topicCount: 0};
 
 async function ticketLoadDepts() {
   if (TICKET_DEPTS_CACHE) return TICKET_DEPTS_CACHE;
@@ -15217,12 +15201,21 @@ async function ticketLoadDepts() {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({page:1, size:200, input:{}}),
     });
-    if (resp && (resp.data || resp.list || resp.records)) {
+    if (resp && (resp.data || resp.list || resp.records || resp.success)) {
       const d = resp.data || resp;
       const list = d.list || d.records || d.content || (Array.isArray(d) ? d : []);
-      if (list.length > 0) { TICKET_DEPTS_CACHE = list; return list; }
+      if (list.length > 0) {
+        TICKET_DEPTS_CACHE = list;
+        TICKET_LOAD_STATUS.depts = 'loaded from API';
+        TICKET_LOAD_STATUS.deptCount = list.length;
+        console.log('[ticket] Loaded ' + list.length + ' departments from API');
+        return list;
+      }
     }
-  } catch(_) {}
+    TICKET_LOAD_STATUS.depts = 'API returned empty';
+  } catch(e) {
+    TICKET_LOAD_STATUS.depts = 'API error: ' + (e.message || 'unknown');
+  }
   return TICKET_DEPT_FALLBACK;
 }
 
@@ -15233,12 +15226,21 @@ async function ticketLoadTopics() {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({page:1, size:500, input:{}}),
     });
-    if (resp && (resp.data || resp.list || resp.records)) {
+    if (resp && (resp.data || resp.list || resp.records || resp.success)) {
       const d = resp.data || resp;
       const list = d.list || d.records || d.content || (Array.isArray(d) ? d : []);
-      if (list.length > 0) { TICKET_TOPICS_CACHE = list; return list; }
+      if (list.length > 0) {
+        TICKET_TOPICS_CACHE = list;
+        TICKET_LOAD_STATUS.topics = 'loaded from API';
+        TICKET_LOAD_STATUS.topicCount = list.length;
+        console.log('[ticket] Loaded ' + list.length + ' topics from API');
+        return list;
+      }
     }
-  } catch(_) {}
+    TICKET_LOAD_STATUS.topics = 'API returned empty';
+  } catch(e) {
+    TICKET_LOAD_STATUS.topics = 'API error: ' + (e.message || 'unknown');
+  }
   return TICKET_TOPIC_FALLBACK;
 }
 
@@ -15246,12 +15248,22 @@ function ticketPopulateDeptSelect(selId, selectedVal) {
   const sel = document.getElementById(selId);
   if (!sel) return;
   const depts = TICKET_DEPTS_CACHE || TICKET_DEPT_FALLBACK;
+  const isFallback = !TICKET_DEPTS_CACHE;
   sel.innerHTML = '<option value="">— Select Department —</option>';
   depts.forEach(d => {
     const id = d.id || d.departmentId || '';
     const name = d.name || d.departmentName || ('Dept ' + id);
     sel.innerHTML += '<option value="' + escAttr(String(id)) + '"' + (String(id) === String(selectedVal) ? ' selected' : '') + '>' + esc(name) + '</option>';
   });
+  // Show load status indicator
+  const statusEl = document.getElementById(selId + '-status');
+  if (statusEl) {
+    if (isFallback) {
+      statusEl.innerHTML = '<span style="color:#d97706">⚠ Using fallback (API unavailable). ' + depts.length + ' dept(s).</span>';
+    } else {
+      statusEl.innerHTML = '<span style="color:#059669">✓ ' + depts.length + ' department(s) loaded from Ticket API</span>';
+    }
+  }
 }
 
 function ticketPopulateTopicSelect(selId, deptId, selectedVal) {
