@@ -15278,7 +15278,7 @@ function ticketPopulateTopicSelect(selId, deptId, selectedVal) {
   }
   filtered.forEach(t => {
     const id = t.id || t.topicId || '';
-    const name = t.name || t.topicName || ('Topic ' + id);
+    const name = t.title || t.name || t.topicName || ('Topic ' + id);
     sel.innerHTML += '<option value="' + escAttr(String(id)) + '"' + (String(id) === String(selectedVal) ? ' selected' : '') + '>' + esc(name) + '</option>';
   });
 }
