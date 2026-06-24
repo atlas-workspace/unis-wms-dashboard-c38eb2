@@ -16162,10 +16162,13 @@ function ltrRenderList() {
 }
 
 function ltrShowNewForm() {
-  const form = document.getElementById('ltr-form');
-  const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
-  const custOpts = customers.map(c => '<option value="' + escAttr(c.id) + '">' + esc(c.name) + '</option>').join('');
-  form.style.display = '';
+  try {
+    const form = document.getElementById('ltr-form');
+    if (!form) { alert('Form container not found. Please refresh the page.'); return; }
+    const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
+    const custOpts = customers.map(c => '<option value="' + escAttr(c.id) + '">' + esc(c.name) + '</option>').join('');
+    window._ltrCustSel = [];
+    form.style.display = '';
   form.innerHTML = '<div class="card" style="padding:16px;margin-bottom:16px;border-left:4px solid #5B21B6">' +
     '<div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:4px">New Location Update Request</div>' +
     '<div style="font-size:11px;color:#2563eb;margin-bottom:12px;padding:6px 10px;background:#EFF6FF;border-radius:4px">Search WMS locations first, select one result, then choose the requested field changes below.</div>' +
@@ -16209,6 +16212,7 @@ function ltrShowNewForm() {
     '</div>' +
     '<div id="ltr-msg" style="margin-top:8px;font-size:11px;display:none"></div></div>';
   form.scrollIntoView({behavior:'smooth'});
+  } catch(e) { console.error('ltrShowNewForm error:', e); alert('Could not open request form: ' + e.message); }
 }
 
 async function ltrSearchLocation() {
