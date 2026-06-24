@@ -1992,7 +1992,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
             </div>
           </div>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-primary" onclick="ltrShowNewForm()" style="font-size:12px;padding:6px 14px">+ New Request</button>
+            <button id="ltr-new-request-btn" type="button" class="btn btn-primary" onclick="ltrOpenNewRequest(event)" style="font-size:12px;padding:6px 14px;pointer-events:auto;position:relative;z-index:2">+ New Request</button>
           </div>
         </div>
         <div id="ltr-form" style="display:none"></div>
@@ -16133,6 +16133,31 @@ function ltrSave(list) { try { localStorage.setItem(ltrGetKey(), JSON.stringify(
 
 function ltrInit() { ltrRenderList(); }
 
+function ltrOpenNewRequest(evt) {
+  if (evt && evt.preventDefault) evt.preventDefault();
+  try {
+    const form = document.getElementById('ltr-form');
+    if (!form) {
+      alert('Could not open the request form. Please refresh the dashboard and try again.');
+      return false;
+    }
+    if (typeof ltrShowNewForm !== 'function') {
+      alert('The request form is still loading. Please refresh the dashboard and try again.');
+      return false;
+    }
+    ltrShowNewForm();
+  } catch (err) {
+    console.error('[Location Tag Requests] open form failed', err);
+    alert('Could not open New Request: ' + (err && err.message ? err.message : 'please refresh and try again.'));
+  }
+  return false;
+}
+
+document.addEventListener('click', function(evt) {
+  const btn = evt.target && evt.target.closest ? evt.target.closest('#ltr-new-request-btn,[data-ltr-new-request]') : null;
+  if (btn) ltrOpenNewRequest(evt);
+});
+
 function ltrRenderList() {
   const list = ltrLoad();
   const filter = (document.getElementById('ltr-filter') || {}).value || '';
@@ -16141,7 +16166,7 @@ function ltrRenderList() {
   const title = document.getElementById('ltr-list-title');
   if (title) title.textContent = filtered.length + ' request(s)' + (filter ? ' (' + filter.replace(/_/g,' ').toLowerCase() + ')' : '');
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><t"7" style="text-align:center;padding:32px;color:#9ca3af">No requests' + (filter ? ' with this status' : ' yet') + '.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#9ca3af">No requests' + (filter ? ' with this status' : ' yet') + '.</td></tr>';
     return;
   }
   tbody.innerHTML = filtered.map((r, idx) => {
@@ -16299,7 +16324,9 @@ function ltrSelectResult(idx) {
   if (loc.disallowToMixItemOnSameLocation != null) setVal('ltr-f-disallowToMixItemOnSameLocation', String(loc.disallowToMixItemOnSameLocation).toUpperCase() === 'TRUE' ? 'TRUE' : 'FALSE');
   if (loc.customerIds && loc.customerIds.length > 0) {
     ltrCustPreselect(loc.customerIds);
-  }
+  } else {
+    window._ltrCustSel = [];
+    ltrCustSync();
   }
   ltrLoadTags(loc.tagName);
 }
