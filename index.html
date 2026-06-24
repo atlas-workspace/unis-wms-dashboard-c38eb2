@@ -14082,8 +14082,6 @@ function rsFilterTable() {
   RS_DATA = filtered;
   rsRender();
   RS_DATA = backup;
-}
-
 function rsAutoAssign() {
   if (RS_DATA.length === 0) { alert('No suggestions loaded. Run Refresh Suggestions first.'); return; }
   let assigned = 0;
@@ -16202,7 +16200,7 @@ function ltrShowNewForm() {
     '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">status</label><select class="cc-input" id="ltr-f-status" style="font-size:11px"><option value="">— No change —</option><option value="USABLE">USABLE</option><option value="DISABLED">DISABLED</option></select></div>' +
     '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">supportPickType</label><select class="cc-input" id="ltr-f-supportPickType" style="font-size:11px"><option value="">— No change —</option><option value="PALLET_PICK">PALLET_PICK</option><option value="CASE_PICK">CASE_PICK</option><option value="PIECE_PICK">PIECE_PICK</option><option value="BULK_PICK">BULK_PICK</option><option value="NONE">NONE</option></select></div>' +
     '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">disallowToMixItemOnSameLocation</label><select class="cc-input" id="ltr-f-disallowToMixItemOnSameLocation" style="font-size:11px"><option value="">— No change —</option><option value="TRUE">TRUE</option><option value="FALSE">FALSE</option></select></div>' +
-    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">Customer(s)</label><select class="cc-input" id="ltr-f-customerIds" multiple style="font-size:11px;min-height:50px">' + custOpts + '</select></div>' +
+    '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">Customer(s)</label><div style="position:relative"><div id="ltr-cust-trigger" onclick="ltrCustToggle()" style="border:1px solid #d1d5db;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;background:white;min-height:28px"><span id="ltr-cust-ph" style="color:#9ca3af">Select customer(s)…</span></div><div id="ltr-cust-panel" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;background:white;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.1);max-height:180px;overflow-y:auto;margin-top:2px"><input id="ltr-cust-search" placeholder="Filter…" style="width:100%;border:none;border-bottom:1px solid #f3f4f6;padding:5px 8px;font-size:11px;outline:none" oninput="ltrCustRender()"/><div id="ltr-cust-opts"></div></div></div><div id="ltr-cust-chips" style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px"></div><select id="ltr-f-customerIds" multiple style="display:none"></select></div>' +
     '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">tagName</label><select class="cc-input" id="ltr-f-tagName" style="font-size:11px"><option value="">— No change —</option></select><button onclick="ltrLoadTags()" style="font-size:9px;padding:2px 6px;margin-top:4px;cursor:pointer;background:#EDE9FE;border:1px solid #d8b4fe;border-radius:3px;color:#5B21B6">Load Tags</button></div>' +
     '</div>' +
     '<div style="margin-top:14px;display:flex;gap:8px">' +
@@ -16296,8 +16294,8 @@ function ltrSelectResult(idx) {
   setVal('ltr-f-supportPickType', loc.supportPickType);
   if (loc.disallowToMixItemOnSameLocation != null) setVal('ltr-f-disallowToMixItemOnSameLocation', String(loc.disallowToMixItemOnSameLocation).toUpperCase() === 'TRUE' ? 'TRUE' : 'FALSE');
   if (loc.customerIds && loc.customerIds.length > 0) {
-    const custSel = document.getElementById('ltr-f-customerIds');
-    if (custSel) { const ids = new Set(loc.customerIds.map(String)); for (let i=0;i<custSel.options.length;i++) if(ids.has(custSel.options[i].value)) custSel.options[i].selected=true; }
+    ltrCustPreselect(loc.customerIds);
+  }
   }
   ltrLoadTags(loc.tagName);
 }
@@ -16312,6 +16310,43 @@ async function ltrLoadSearchTags() {
     const d = resp.data || resp;
     (d.list || d.records || []).forEach(t => { sel.innerHTML += '<option value="' + escAttr(t.name||t.id) + '">' + esc(t.name||t.id) + '</option>'; });
   }
+}
+
+// Customer dropdown for Location Tag Requests
+window._ltrCustSel = [];
+function ltrCustToggle() {
+  const p = document.getElementById('ltr-cust-panel');
+  if (!p) return;
+  p.style.display = p.style.display === 'none' ? '' : 'none';
+  if (p.style.display !== 'none') ltrCustRender();
+}
+function ltrCustRender() {
+  const c = document.getElementById('ltr-cust-opts');
+  if (!c) return;
+  const q = (document.getElementById('ltr-cust-search') || {}).value.toLowerCase();
+  const custs = (FACILITY_CUSTOMERS[FACILITY_ID] || []).filter(x => !q || (x.name||'').toLowerCase().includes(q) || (x.id||'').includes(q));
+  const sel = new Set(window._ltrCustSel);
+  c.innerHTML = custs.length === 0 ? '<div style="padding:6px 8px;font-size:11px;color:#9ca3af">No customers</div>' :
+    custs.map(x => '<label style="display:flex;align-items:center;gap:5px;padding:3px 8px;font-size:11px;cursor:pointer" onmouseenter="this.style.background=\'#F3EEFF\'" onmouseleave="this.style.background=\'\'"><input type="checkbox" ' + (sel.has(x.id)?'checked':'') + ' onchange="ltrCustCheck(\''+escAttr(x.id)+'\',this.checked)" style="accent-color:#753BBD"/>' + esc(x.name) + ' <span style="color:#9ca3af;font-size:10px">(' + esc(x.id) + ')</span></label>').join('');
+}
+function ltrCustCheck(id, on) {
+  if (on && !window._ltrCustSel.includes(id)) window._ltrCustSel.push(id);
+  else window._ltrCustSel = window._ltrCustSel.filter(x => x !== id);
+  ltrCustSync();
+}
+function ltrCustSync() {
+  const trigger = document.getElementById('ltr-cust-trigger');
+  const chips = document.getElementById('ltr-cust-chips');
+  const hidden = document.getElementById('ltr-f-customerIds');
+  const custs = FACILITY_CUSTOMERS[FACILITY_ID] || [];
+  const lookup = {}; custs.forEach(c => lookup[c.id] = c.name);
+  if (trigger) trigger.innerHTML = window._ltrCustSel.length === 0 ? '<span style="color:#9ca3af">Select customer(s)…</span>' : '<span style="font-size:11px;color:#374151">' + window._ltrCustSel.length + ' customer(s) selected</span>';
+  if (chips) chips.innerHTML = window._ltrCustSel.map(id => '<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#EDE9FE;color:#5B21B6;display:inline-flex;align-items:center;gap:2px">' + esc(lookup[id]||id) + ' <span onclick="ltrCustCheck(\'' + escAttr(id) + '\',false);ltrCustRender()" style="cursor:pointer;font-weight:700">×</span></span>').join('');
+  if (hidden) { hidden.innerHTML = ''; window._ltrCustSel.forEach(id => { const o = document.createElement('option'); o.value = id; o.selected = true; hidden.appendChild(o); }); }
+}
+function ltrCustPreselect(ids) {
+  window._ltrCustSel = (ids || []).map(String);
+  ltrCustSync();
 }
 
 async function ltrLoadTags(currentTag) {
