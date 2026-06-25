@@ -16262,20 +16262,39 @@ function ltrShowNewForm() {
     '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">Customer(s)</label><div style="position:relative"><div id="ltr-cust-trigger" onclick="ltrCustToggle()" style="border:1px solid #d1d5db;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;background:white;min-height:28px"><span id="ltr-cust-ph" style="color:#9ca3af">Select customer(s)…</span></div><div id="ltr-cust-panel" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;background:white;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.1);max-height:180px;overflow-y:auto;margin-top:2px"><input id="ltr-cust-search" placeholder="Filter…" style="width:100%;border:none;border-bottom:1px solid #f3f4f6;padding:5px 8px;font-size:11px;outline:none" oninput="ltrCustRender()"/><div id="ltr-cust-opts"></div></div></div><div id="ltr-cust-chips" style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px"></div><select id="ltr-f-customerIds" multiple style="display:none"></select></div>' +
     '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">tagName</label><select class="cc-input" id="ltr-f-tagName" style="font-size:11px"><option value="">— No change —</option></select><button onclick="ltrLoadTags()" style="font-size:9px;padding:2px 6px;margin-top:4px;cursor:pointer;background:#EDE9FE;border:1px solid #d8b4fe;border-radius:3px;color:#5B21B6">Load Tags</button></div>' +
     '</div>' +
-    // Notification recipients
+    // Ticket creation on submit
     '<div style="margin-top:12px;padding:10px;background:#EFF6FF;border-radius:6px;border:1px solid #BFDBFE">' +
-    '<div style="font-size:11px;font-weight:600;color:#1e40af;margin-bottom:6px">Notify on Submission</div>' +
+    '<div style="font-size:11px;font-weight:600;color:#1e40af;margin-bottom:6px">Create Ticket on Submission</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Department</label><select class="cc-input" id="ltr-ticket-dept" style="font-size:11px" onchange="ltrTicketDeptChange()"><option value="">Loading…</option></select><div id="ltr-ticket-dept-status" style="font-size:9px;margin-top:2px"></div></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Topic</label><select class="cc-input" id="ltr-ticket-topic" style="font-size:11px"><option value="">Select department first</option></select></div>' +
+    '</div>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Notify User</label><select class="cc-input" id="ltr-notify-user" style="font-size:11px"><option value="">— None —</option></select></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Contact Email (for ticket)</label><input class="cc-input" id="ltr-notify-emails" style="font-size:11px" placeholder="email@company.com — included in ticket message"/></div>' +
-    '</div><div style="font-size:9px;color:#d97706;margin-top:4px">⚠ Recipients are saved with this request for manager review. Email delivery is not configured yet — notifications are not sent automatically.</div></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Contact Email (in ticket)</label><input class="cc-input" id="ltr-notify-emails" style="font-size:11px" placeholder="email@company.com"/></div>' +
+    '</div><div style="font-size:9px;color:#6b7280;margin-top:4px">A support ticket will be created when you submit. Select department/topic for routing.</div></div>' +
     '<div style="margin-top:14px;display:flex;gap:8px">' +
     '<button class="btn btn-primary" onclick="ltrSubmitRequest()" style="font-size:12px;padding:6px 14px">Submit for Approval</button>' +
     '<button class="btn btn-secondary" onclick="document.getElementById(\'ltr-form\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Cancel</button></div>' +
     '</div>' +
     '<div id="ltr-msg" style="margin-top:8px;font-size:11px;display:none"></div></div>';
   form.scrollIntoView({behavior:'smooth'});
+  // Load ticket departments/topics for the form
+  ltrLoadTicketDepts();
   } catch(e) { console.error('ltrShowNewForm error:', e); alert('Could not open request form: ' + e.message); }
+}
+
+async function ltrLoadTicketDepts() {
+  const depts = await ticketLoadDepts();
+  ticketPopulateDeptSelect('ltr-ticket-dept', TICKET_DEFAULT_DEPT);
+  const deptVal = (document.getElementById('ltr-ticket-dept') || {}).value || '';
+  const topics = await ticketLoadTopics();
+  ticketPopulateTopicSelect('ltr-ticket-topic', deptVal, TICKET_DEFAULT_TOPIC);
+}
+
+function ltrTicketDeptChange() {
+  const deptId = (document.getElementById('ltr-ticket-dept') || {}).value || '';
+  ticketPopulateTopicSelect('ltr-ticket-topic', deptId, '');
 }
 
 async function ltrSearchLocation() {
@@ -16539,9 +16558,11 @@ async function ltrSubmitRequest() {
     'Dashboard: ' + window.location.origin;
 
   try {
+    const selectedDept = (document.getElementById('ltr-ticket-dept') || {}).value || '324119200704569344';
+    const selectedTopic = (document.getElementById('ltr-ticket-topic') || {}).value || '351666257576935424';
     const ticketPayload = {
-      departmentId: '324119200704569344',
-      topicId: '351666257576935424',
+      departmentId: selectedDept,
+      topicId: selectedTopic,
       priorityId: 1,
       customerName: admGetCurrentUsername() || 'WMS Dashboard User',
       customerEmail: contactEmail,
@@ -16565,6 +16586,8 @@ async function ltrSubmitRequest() {
         r.ticketId = tId;
         r.ticketNumber = tNum;
         r.ticketCreatedAt = new Date().toISOString();
+        r.ticketDepartmentId = selectedDept;
+        r.ticketTopicId = selectedTopic;
       });
       ltrSave(savedList);
     } else {
