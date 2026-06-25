@@ -12763,12 +12763,38 @@ async function submitCycleCount() {
     if (isByLocation) {
       const hasValidLocs = linesForCust.every(l => l.id && l.id !== l.name && !/^[\d]+\./.test(l.id));
       if (!hasValidLocs) {
-        // Some locations may be using name as ID — try to warn
+        // Auto-resolve: attempt to look up WMS IDs for locations using name
         const badLocs = linesForCust.filter(l => !l.id || l.id === l.name || /^[\d]+\./.test(l.id));
         if (badLocs.length > 0) {
-          const names = badLocs.slice(0,3).map(l => l.name || l.id).join(', ');
-          results.push({customerId, ticketId:null, ok:false, msg:'Some locations are missing WMS IDs (' + names + '). Please re-search and select locations from WMS to get valid IDs. Location names cannot be used as IDs for RF.'});
-          continue;
+          btn.textContent = 'Resolving ' + badLocs.length + ' location ID(s)…';
+          let resolvedCount = 0;
+          for (const loc of badLocs) {
+            const locName = loc.name || loc.id || '';
+            if (!locName) continue;
+            const lookupResp = await safeFetch(WMS_BASE + '/api/wms-bam/wms-location/search-by-paging', {
+              method: 'POST',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({currentPage:1, pageSize:5, facilityId: FACILITY_ID, warehouseId: FACILITY_ID, names: [locName]}),
+            });
+            if (lookupResp && lookupResp.success !== false) {
+              const ld = lookupResp.data || lookupResp;
+              const matches = (ld.list || ld.records || []).filter(m => m.name === locName);
+              if (matches.length === 1 && matches[0].id) {
+                loc.id = matches[0].id;
+                loc.locationId = matches[0].id;
+                resolvedCount++;
+              }
+            }
+          }
+          // Re-check after resolution
+          const stillBad = linesForCust.filter(l => !l.id || l.id === l.name || /^[\d]+\./.test(l.id));
+          if (stillBad.length > 0) {
+            const names = stillBad.slice(0,3).map(l => l.name || l.id).join(', ');
+            results.push({customerId, ticketId:null, ok:false, msg:'Could not resolve WMS IDs for: ' + names + '. Please re-search and select these locations from WMS.'});
+            btn.disabled = false; btn.textContent = btnOrigText;
+            continue;
+          }
+          console.log('[cycle-count] Auto-resolved ' + resolvedCount + ' location ID(s) from WMS');
         }
       }
     }
