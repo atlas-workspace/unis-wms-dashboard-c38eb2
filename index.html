@@ -12847,11 +12847,38 @@ async function submitCycleCount() {
     });
     const url    = isPut ? (API.ccSchedule + '/' + encodeURIComponent(wiseTicketId)) : API.ccSchedule;
     const method = isPut ? 'PUT' : 'POST';
-    const resp = await safeFetch(url, {
-      method,
-      headers:{'Content-Type':'application/json','Accept':'application/json'},
-      body: JSON.stringify(payload),
-    });
+    let resp = null;
+    let attempts = 0;
+    const maxAttempts = 3;
+    while (attempts < maxAttempts) {
+      attempts++;
+      resp = await safeFetch(url, {
+        method,
+        headers:{'Content-Type':'application/json','Accept':'application/json'},
+        body: JSON.stringify(payload),
+      });
+      // Check for retryable transport failures
+      const rawMsg = resp ? (resp.msg || resp.message || '') : '';
+      const isTransportFailure = !resp || /SocketException|Unexpected end of file|connection reset|ECONNRESET|socket hang up|timeout/i.test(rawMsg);
+      if (isTransportFailure && attempts < maxAttempts) {
+        console.warn('[cycle-count] Attempt ' + attempts + '/' + maxAttempts + ' transport failure, retrying...', rawMsg.slice(0,80));
+        await new Promise(r => setTimeout(r, 1000 * attempts));
+        continue;
+      }
+      break;
+    }
+    if (attempts > 1) console.log('[cycle-count] Completed after ' + attempts + ' attempt(s)');
+
+    // Check for transport failure after all retries
+    const respMsg = resp ? (resp.msg || resp.message || '') : '';
+    if (!resp || /SocketException|Unexpected end of file|connection reset|ECONNRESET|socket hang up/i.test(respMsg)) {
+      const diagMsg = 'WMS connection dropped before confirming the count ticket. No ticket was confirmed created. Please retry.' +
+        (attempts > 1 ? ' (' + attempts + ' attempts made)' : '') +
+        ' If this continues, contact support.';
+      results.push({customerId, ticketId:null, ok:false, msg: diagMsg, _retryable: true, _attempts: attempts});
+      continue;
+    }
+
     if (resp && resp.success !== false) {
       const ticketId = (resp.data && (resp.data.id || resp.data.ticketId)) || resp.id || null;
       results.push({customerId, ticketId, ok:true, payload});
