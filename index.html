@@ -16270,12 +16270,8 @@ function ltrShowNewForm() {
     '<div class="cc-field" style="margin:0"><label class="cc-label">Department</label><select class="cc-input" id="ltr-ticket-dept" style="font-size:11px" onchange="ltrTicketDeptChange()"><option value="">Loading…</option></select><div id="ltr-ticket-dept-status" style="font-size:9px;margin-top:2px"></div></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Topic</label><select class="cc-input" id="ltr-ticket-topic" style="font-size:11px"><option value="">Select department first</option></select></div>' +
     '</div>' +
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Ticket Queue / Team <span style="font-size:9px;color:#9ca3af">(optional)</span></label><input class="cc-input" id="ltr-ticket-queue" style="font-size:11px" placeholder="e.g. UF Buena Park Inventory"/><div style="font-size:9px;color:#6b7280;margin-top:2px">Included in ticket message for routing. Not a department.</div></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Contact Email (in ticket)</label><input class="cc-input" id="ltr-notify-emails" style="font-size:11px" placeholder="email@company.com"/></div>' +
-    '</div>' +
-    '<div class="cc-field" style="margin:0;margin-bottom:8px"><label class="cc-label">Notify User</label><select class="cc-input" id="ltr-notify-user" style="font-size:11px"><option value="">— None —</option></select></div>' +
-    '<div style="font-size:9px;color:#d97706;margin-top:4px;padding:4px 8px;background:#FEF9C3;border-radius:4px">Note: "UF Buena Park Inventory" is a ticketing queue/team, not a department. Select <strong>UNIS Fulfillment - Buena Park</strong> as the department. Enter the queue name above to include it in the ticket for routing.</div>' +
+    '<div class="cc-field" style="margin:0;margin-bottom:8px"><label class="cc-label">Ticket Queue / Team</label><select class="cc-input" id="ltr-ticket-queue" style="font-size:11px"><option value="">— No team —</option></select><div id="ltr-ticket-queue-status" style="font-size:9px;color:#6b7280;margin-top:2px">Teams load when department is selected</div></div>' +
+    '<div style="font-size:9px;color:#6b7280;margin-bottom:8px;padding:4px 8px;background:#f9fafb;border-radius:4px">Team is assigned after ticket creation if available. If team list is unavailable, the selected label is included in the ticket message for routing.</div>' +
     '<div style="margin-top:14px;display:flex;gap:8px">' +
     '<button class="btn btn-primary" onclick="ltrSubmitRequest()" style="font-size:12px;padding:6px 14px">Submit for Approval</button>' +
     '<button class="btn btn-secondary" onclick="document.getElementById(\'ltr-form\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Cancel</button></div>' +
@@ -16298,6 +16294,38 @@ async function ltrLoadTicketDepts() {
 function ltrTicketDeptChange() {
   const deptId = (document.getElementById('ltr-ticket-dept') || {}).value || '';
   ticketPopulateTopicSelect('ltr-ticket-topic', deptId, '');
+  ltrLoadTeamsForDept(deptId);
+}
+
+async function ltrLoadTeamsForDept(deptId) {
+  const sel = document.getElementById('ltr-ticket-queue');
+  const status = document.getElementById('ltr-ticket-queue-status');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Loading teams…</option>';
+  if (status) status.textContent = 'Loading teams for selected department…';
+  if (!deptId) { sel.innerHTML = '<option value="">— No team —</option>'; if (status) status.textContent = 'Select a department first'; return; }
+  try {
+    const resp = await safeFetch('/api/proxy/auth/ticket-staff/teams/page', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({page:1, size:100, input:{departmentId: deptId}}),
+    });
+    sel.innerHTML = '<option value="">— No team —</option>';
+    if (resp && (resp.data || resp.list || resp.records) && !resp._needsAuth) {
+      const d = resp.data || resp;
+      const teams = d.list || d.records || d.content || (Array.isArray(d) ? d : []);
+      if (teams.length > 0) {
+        teams.forEach(t => {
+          sel.innerHTML += '<option value="' + escAttr(String(t.id || '')) + '" data-name="' + escAttr(t.name || '') + '">' + esc(t.name || t.id) + '</option>';
+        });
+        if (status) status.innerHTML = '<span style="color:#059669">' + teams.length + ' team(s) available</span>';
+        return;
+      }
+    }
+    if (status) status.innerHTML = '<span style="color:#d97706">Team list unavailable — ticket will be created without team assignment.</span>';
+  } catch(_) {
+    sel.innerHTML = '<option value="">— No team —</option>';
+    if (status) status.innerHTML = '<span style="color:#d97706">Team list unavailable.</span>';
+  }
 }
 
 async function ltrSearchLocation() {
@@ -16493,10 +16521,11 @@ async function ltrSubmitRequest() {
 
   if (Object.keys(changes).length === 0) { alert('No changes selected. Choose at least one field to change.'); return; }
 
-  // Notification recipients
-  const notifyUser = (document.getElementById('ltr-notify-user') || {}).value || '';
-  const notifyEmailsRaw = (document.getElementById('ltr-notify-emails') || {}).value || '';
-  const notifyEmails = notifyEmailsRaw.split(/[,;\n]+/).map(e => e.trim()).filter(Boolean);
+  // Ticket queue/team selection
+  const ticketQueueSel = document.getElementById('ltr-ticket-queue');
+  const ticketTeamId = ticketQueueSel ? ticketQueueSel.value : '';
+  const ticketTeamName = ticketQueueSel && ticketQueueSel.selectedIndex > 0 ? ticketQueueSel.options[ticketQueueSel.selectedIndex].textContent : '';
+  const contactEmail = (admGetCurrentUsername() || 'dashboard') + '@itemgroup.com';
 
   // Support multi-location: create one request per selected location
   const indices = window._ltrSelectedIndices || [0];
@@ -16531,8 +16560,8 @@ async function ltrSubmitRequest() {
       requester: admGetCurrentUsername() || '—',
       requestedAt: new Date().toISOString(),
       currentValues: l,
-      notifyUser: notifyUser || undefined,
-      notifyEmails: notifyEmails.length > 0 ? notifyEmails : undefined,
+      ticketTeamId: ticketTeamId || undefined,
+      ticketTeamName: ticketTeamName || undefined,
       ticketStatus: 'PENDING',
     });
   });
@@ -16543,8 +16572,6 @@ async function ltrSubmitRequest() {
   window._ltrSelectedIndices = null;
 
   // Create a ticket in UNIS Ticket System for notification/visibility
-  const contactEmail = notifyEmails.length > 0 ? notifyEmails[0] : (admGetCurrentUsername() + '@itemgroup.com');
-  const ticketQueue = (document.getElementById('ltr-ticket-queue') || {}).value || '';
   const changeSummary = Object.entries(changes).map(([k,v]) => {
     const cur = loc[k] || '—';
     return '  • ' + k + ': ' + cur + ' → ' + v;
@@ -16555,9 +16582,7 @@ async function ltrSubmitRequest() {
     'LOCATION: ' + (loc.name || loc.id) + ' (ID: ' + loc.id + ')\n' +
     'REQUESTER: ' + (admGetCurrentUsername() || '—') + '\n' +
     'DATE: ' + new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}) + '\n' +
-    (ticketQueue ? 'REQUESTED QUEUE/TEAM: ' + ticketQueue + '\n' : '') +
-    (notifyUser ? 'NOTIFY USER: ' + notifyUser + '\n' : '') +
-    (notifyEmails.length > 0 ? 'CONTACT: ' + notifyEmails.join(', ') + '\n' : '') +
+    (ticketTeamName ? 'REQUESTED QUEUE/TEAM: ' + ticketTeamName + '\n' : '') +
     '\nREQUESTED CHANGES:\n' + (changeSummary || '  (none)') + '\n\n' +
     'This request requires manager approval in the dashboard before WMS changes are applied.\n' +
     'Dashboard: ' + window.location.origin;
@@ -16593,8 +16618,25 @@ async function ltrSubmitRequest() {
         r.ticketCreatedAt = new Date().toISOString();
         r.ticketDepartmentId = selectedDept;
         r.ticketTopicId = selectedTopic;
+        r.ticketTeamId = ticketTeamId || undefined;
+        r.ticketTeamName = ticketTeamName || undefined;
       });
       ltrSave(savedList);
+      // Assign team after ticket creation if real teamId available
+      if (ticketTeamId && tId) {
+        try {
+          const assignResp = await safeFetch(TICKET_API + '/' + encodeURIComponent(tId), {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({teamId: ticketTeamId})});
+          const savedList2 = ltrLoad();
+          savedList2.filter(r => r.ticketId === tId).forEach(r => {
+            r.teamAssignmentStatus = (assignResp && assignResp.success !== false) ? 'ASSIGNED' : 'FAILED';
+          });
+          ltrSave(savedList2);
+        } catch(_) {}
+      } else if (ticketTeamName && !ticketTeamId) {
+        const savedList2 = ltrLoad();
+        savedList2.filter(r => r.ticketId === tId).forEach(r => { r.teamAssignmentStatus = 'LABEL_ONLY'; });
+        ltrSave(savedList2);
+      }
     } else {
       const errMsg = ticketResp ? (ticketResp.msg || ticketResp.message || (ticketResp.data && ticketResp.data.msg) || '') : 'Service unavailable';
       recentRequests.forEach(r => {
@@ -16811,8 +16853,6 @@ function ltrEditRequest(idx) {
     '<div class="cc-field" style="margin:0"><label class="cc-label">Location Tag</label><select class="cc-input" id="ltr-e-tagName" style="font-size:11px"><option value="">— No change —</option>' + (r.tagId ? '<option value="' + escAttr(r.tagId) + '" selected>' + esc(r.tagName || r.tagId) + '</option>' : '') + '</select><button onclick="ltrLoadEditTags(\'' + escAttr(String(idx)) + '\')" style="font-size:9px;padding:2px 6px;margin-top:4px;cursor:pointer;background:#EDE9FE;border:1px solid #d8b4fe;border-radius:3px;color:#5B21B6">Load Tags</button></div>' +
     '</div>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Notify User</label><input class="cc-input" id="ltr-e-notifyUser" style="font-size:11px" value="' + escAttr(r.notifyUser || '') + '"/></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Notify Email(s)</label><input class="cc-input" id="ltr-e-notifyEmails" style="font-size:11px" value="' + escAttr((r.notifyEmails||[]).join(', ')) + '"/></div>' +
     '</div>' +
     '<div style="margin-top:14px;display:flex;gap:8px">' +
     '<button class="btn btn-primary" onclick="ltrSaveEdit('+idx+')" style="font-size:12px;padding:6px 14px">Save &amp; Resubmit</button>' +
@@ -16857,9 +16897,6 @@ function ltrSaveEdit(idx) {
   r.status = 'PENDING_APPROVAL';
   r.editedAt = new Date().toISOString();
   r.editedBy = admGetCurrentUsername() || '—';
-  r.notifyUser = (document.getElementById('ltr-e-notifyUser') || {}).value || r.notifyUser || undefined;
-  const emailsRaw = (document.getElementById('ltr-e-notifyEmails') || {}).value || '';
-  r.notifyEmails = emailsRaw ? emailsRaw.split(/[,;\n]+/).map(e => e.trim()).filter(Boolean) : r.notifyEmails;
   // Clear previous failure diagnostics
   delete r.errorMsg;
   delete r.applyDiag;
