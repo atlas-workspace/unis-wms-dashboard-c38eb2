@@ -11850,7 +11850,12 @@ async function deleteTask(id) {
     return;
   }
   // WMS-linked record
-  if (!confirm('Cancel cycle count "' + (t.name||'') + '" in WMS (ticket ' + t.ticketId + ') and remove it from the dashboard?')) return;
+  const wiseStatus = (t.wiseStatus || '').toUpperCase();
+  if (/COUNTING|IN_PROGRESS/.test(wiseStatus)) {
+    alert('This task has already started counting in WMS (status: ' + wiseStatus + '). Cancellation requires WMS supervisor permission — dashboard Admin alone cannot override active WMS tasks.\n\nContact a WMS supervisor or administrator to cancel this task.');
+    return;
+  }
+  if (!confirm('Cancel cycle count "' + (t.name||'') + '" in WMS (ticket ' + t.ticketId + ')?\n\nNote: WMS cancel permissions are separate from dashboard Admin access.')) return;
   const url = API.ccSchedule + '/' + encodeURIComponent(t.ticketId) + '/cancel';
   const resp = await safeFetch(url, {method:'PUT'});
   if (resp && resp.success === false) {
@@ -12726,10 +12731,15 @@ async function submitCycleCount() {
       continue;
     }
     if (isByLocation) {
-      const hasValidLocs = linesForCust.some(l => l.id || l.locationId || l.name);
+      const hasValidLocs = linesForCust.every(l => l.id && l.id !== l.name && !/^[\d]+\./.test(l.id));
       if (!hasValidLocs) {
-        results.push({customerId, ticketId:null, ok:false, msg:'Count lines have no location IDs. Add locations with valid IDs before creating the task.'});
-        continue;
+        // Some locations may be using name as ID — try to warn
+        const badLocs = linesForCust.filter(l => !l.id || l.id === l.name || /^[\d]+\./.test(l.id));
+        if (badLocs.length > 0) {
+          const names = badLocs.slice(0,3).map(l => l.name || l.id).join(', ');
+          results.push({customerId, ticketId:null, ok:false, msg:'Some locations are missing WMS IDs (' + names + '). Please re-search and select locations from WMS to get valid IDs. Location names cannot be used as IDs for RF.'});
+          continue;
+        }
       }
     }
     // Name suffix when multiple customers — keep them distinct in Wise
@@ -12819,9 +12829,9 @@ async function submitCycleCount() {
       name:        baseName + nameSuffix,
       customerId:  customerId,
       countLines:  linesForCust.map(r => ({
+        locationId:   r.id || r.locationId || undefined,
         locationName: r.name,
         name:         r.name,
-        locationId:   r.id || r.locationId || r.name,
         locationType: r.type || 'LOCATION',
         type:         r.type || 'LOCATION',
         aisle:        r.aisle || null,
