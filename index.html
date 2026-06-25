@@ -16196,7 +16196,7 @@ function ltrRenderList() {
       const newDisplay = k === 'customerIds' ? ltrResolveCustomerNames(String(v)) : String(v).slice(0,20);
       return '<span style="color:#6b7280">' + esc(label) + ':</span> <span style="text-decoration:line-through;color:#9ca3af">' + esc(curDisplay) + '</span> → <strong style="color:#059669">' + esc(newDisplay) + '</strong>';
     }).join('<br>') + (changeEntries.length > 3 ? '<br><span style="color:#9ca3af">+' + (changeEntries.length - 3) + ' more</span>' : '');
-    const notifyInfo = (r.notifyEmails || r.notifyUsers) ? '<span style="font-size:9px;color:#2563eb" title="' + escAttr((r.notifyEmails||[]).join(', ')) + '">📧</span>' : '';
+    const notifyInfo = (r.notifyEmails || r.notifyUsers) ? '<span style="font-size:9px;color:#d97706" title="' + escAttr((r.notifyEmails||[]).join(', ')) + ' (saved only — not sent)">📧 saved</span>' : '';
     const isApplied = r.status === 'APPLIED';
     const isEditable = !isApplied;
     let actions = '';
@@ -16269,7 +16269,7 @@ function ltrShowNewForm() {
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Notify User</label><select class="cc-input" id="ltr-notify-user" style="font-size:11px"><option value="">— None —</option></select></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Email Recipient(s)</label><input class="cc-input" id="ltr-notify-emails" style="font-size:11px" placeholder="email@company.com, email2@co.com"/></div>' +
-    '</div><div style="font-size:9px;color:#6b7280;margin-top:4px">Recipients will be saved with this request for manager review.</div></div>' +
+    '</div><div style="font-size:9px;color:#d97706;margin-top:4px">⚠ Recipients are saved with this request for manager review. Email delivery is not configured yet — notifications are not sent automatically.</div></div>' +
     '<div style="margin-top:14px;display:flex;gap:8px">' +
     '<button class="btn btn-primary" onclick="ltrSubmitRequest()" style="font-size:12px;padding:6px 14px">Submit for Approval</button>' +
     '<button class="btn btn-secondary" onclick="document.getElementById(\'ltr-form\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Cancel</button></div>' +
@@ -16520,7 +16520,7 @@ function ltrSubmitRequest() {
   window._ltrCurrentLoc = null;
   window._ltrSelectedIndices = null;
   ltrRenderList();
-  const notifyNote = (notifyEmails.length > 0 || notifyUser) ? ' Notification recipients saved with request.' : '';
+  const notifyNote = (notifyEmails.length > 0 || notifyUser) ? ' Recipients saved (email delivery not configured — saved for manager review only).' : '';
   if (uniqueLocations.length > 1) alert(uniqueLocations.length + ' request(s) submitted for approval.' + notifyNote);
   else alert('Request submitted for approval.' + notifyNote);
 }
