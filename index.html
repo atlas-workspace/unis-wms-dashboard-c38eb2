@@ -12304,23 +12304,35 @@ async function updateSelectedCountResults(status) {
   if (!confirm(action + ' ' + ids.length + ' selected count result(s)?')) return;
   const btn = status === 'REJECTED' ? document.querySelector('[onclick*="batchReject"]') : document.querySelector('[onclick*="batchApprove"]');
   if (btn) { btn.disabled = true; btn.textContent = action + 'ing ' + ids.length + '…'; }
-  let success = 0, failed = 0, lastErr = '';
-  for (const id of ids) {
-    try {
-      const resp = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-result/' + encodeURIComponent(id), {method:'PUT',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({status})});
-      if (resp && resp._needsAuth) { lastErr = 'Authentication required'; failed++; }
-      else if (resp && resp.success === false) { lastErr = resp.msg || resp.message || 'Rejected by WMS'; failed++; }
-      else { success++; }
-    } catch(e) { failed++; lastErr = e.message || 'Network error'; }
+
+  // Use correct batch endpoint: POST with raw JSON array of IDs
+  const endpoint = status === 'REJECTED'
+    ? WMS_BASE + '/api/cyclecount-app/cycle-count/count-result/batch-reject'
+    : WMS_BASE + '/api/cyclecount-app/cycle-count/count-result/batch-approve';
+
+  try {
+    const resp = await safeFetch(endpoint, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify(ids),
+    });
+    if (btn) { btn.disabled = false; btn.textContent = 'Batch ' + action; }
+    if (resp && resp._needsAuth) {
+      alert('Authentication required. Please sign in again.');
+    } else if (resp && resp.success === false) {
+      const errMsg = resp.msg || resp.message || 'WMS rejected the request';
+      let msg = '✗ Batch ' + action.toLowerCase() + ' failed: ' + errMsg;
+      if (/permission|forbidden|unauthor/i.test(errMsg)) {
+        msg += '\n\nNote: WMS may require supervisor permissions. Dashboard admin access does not override WMS role permissions.';
+      }
+      alert(msg);
+    } else {
+      alert('✓ ' + ids.length + ' result(s) ' + (status === 'REJECTED' ? 'rejected' : 'approved') + ' successfully.');
+    }
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Batch ' + action; }
+    alert('✗ Network error: ' + (e.message || 'Could not reach WMS'));
   }
-  if (btn) { btn.disabled = false; btn.textContent = 'Batch ' + action; }
-  let msg = '';
-  if (success > 0) msg += '✓ ' + success + ' result(s) ' + (status === 'REJECTED' ? 'rejected' : 'approved') + ' successfully.\n';
-  if (failed > 0) msg += '✗ ' + failed + ' result(s) could not be processed: ' + lastErr + '\n';
-  if (failed > 0 && /permission|forbidden|unauthor/i.test(lastErr)) {
-    msg += '\nNote: WMS may require supervisor permissions to ' + action.toLowerCase() + ' count results. Dashboard admin access does not override WMS role permissions.';
-  }
-  alert(msg);
   await loadCountApprovalView();
 }
 function batchApproveCountResults() { updateSelectedCountResults('CLOSED'); }
