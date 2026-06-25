@@ -16512,6 +16512,8 @@ function ltrSubmitRequest() {
       currentValues: l,
       notifyUser: notifyUser || undefined,
       notifyEmails: notifyEmails.length > 0 ? notifyEmails : undefined,
+      notificationStatus: 'SAVED_ONLY',
+      notificationMessage: 'Email delivery not configured. Recipients saved for manager review.',
     });
   });
 
