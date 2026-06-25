@@ -1091,6 +1091,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
               <label class="cc-label">Count Method</label>
               <select class="cc-input" id="cc-method" onchange="ccMethodChanged()">
                 <option value="PIECE">Piece Count</option>
+                <option value="SIMPLE_QTY">Simple Qty Count</option>
                 <option value="CASE">Case Count</option>
                 <option value="PALLET">Pallet Count</option>
                 <option value="PALLET_QTY">Bulk / Pallet Qty Check</option>
@@ -12604,6 +12605,8 @@ function toIsoSchedule(local) {
 function ccGetEffectiveMethod() {
   const val = (document.getElementById('cc-method') || {}).value || 'PIECE';
   if (val === 'PALLET_QTY') return 'PALLET';
+  // SIMPLE_QTY maps to PIECE for WMS compatibility — counter just counts qty
+  if (val === 'SIMPLE_QTY') return 'PIECE';
   return val;
 }
 
@@ -12624,6 +12627,9 @@ function ccMethodChanged() {
   if (val === 'PALLET_QTY') {
     help.style.display = '';
     help.innerHTML = '<strong>Bulk / Pallet Qty Check:</strong> Counters scan the location and confirm pallet/bulk quantity only. Individual ILP/license plate scanning is not required unless the quantity does not match — then piece-level exception count is triggered. Best for BY_LOCATION counts in bulk/pallet storage areas.';
+  } else if (val === 'SIMPLE_QTY') {
+    help.style.display = '';
+    help.innerHTML = '<strong>Simple Qty Count:</strong> Counters scan the location and enter the total item quantity. No lot, serial, expiry, or manufacturing date capture required unless mandated by the item. Fastest method for straightforward quantity verification.';
   } else {
     help.style.display = 'none';
   }
