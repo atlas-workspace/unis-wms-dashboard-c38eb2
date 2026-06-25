@@ -1090,10 +1090,10 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
             <div class="cc-field">
               <label class="cc-label">Count Method</label>
               <select class="cc-input" id="cc-method" onchange="ccMethodChanged()">
-                <option value="PIECE">Piece Count</option>
-                <option value="SIMPLE_QTY">Simple Qty Count</option>
-                <option value="CASE">Case Count</option>
-                <option value="PALLET">Pallet Count</option>
+                <option value="PIECE_COUNT">Piece Count</option>
+                <option value="SIMPLE_QTY_COUNT">Simple Qty Count</option>
+                <option value="CASE_COUNT">Case Count</option>
+                <option value="PALLET_COUNT">Pallet Count</option>
               </select>
               <div id="cc-method-help" style="display:none;font-size:11px;color:#6b7280;margin-top:4px;padding:6px 8px;background:#f9fafb;border-radius:4px;border:1px solid #e5e7eb"></div>
             </div>
@@ -10141,10 +10141,10 @@ const FALLBACK = {
     {id:'BY_ITEM_LOCATION', name:'By Item + Location'}
   ],
   ccMethods: [
-    {id:'PIECE',  name:'Piece Count'},
-    {id:'SIMPLE_QTY', name:'Simple Qty Count'},
-    {id:'CASE',   name:'Case Count'},
-    {id:'PALLET', name:'Pallet Count'},
+    {id:'PIECE_COUNT',  name:'Piece Count'},
+    {id:'SIMPLE_QTY_COUNT', name:'Simple Qty Count'},
+    {id:'CASE_COUNT',   name:'Case Count'},
+    {id:'PALLET_COUNT', name:'Pallet Count'},
   ],
   ccCollectFields: [
     {id:'EXPIRATION_DATE', name:'Expiration Date'},
@@ -10344,7 +10344,7 @@ async function initSchedulerForm() {
   fillSelect(document.getElementById('cc-method'), ccMethods);
   // method default
   const methSel = document.getElementById('cc-method');
-  if (methSel && methSel.value === '') methSel.value = 'PIECE';
+  if (methSel && methSel.value === '') methSel.value = 'PIECE_COUNT';
 
   // Wire customer change → enables Add Count Line + mirrors to modal + preview count
   const ccCust = document.getElementById('cc-customer');
@@ -11437,7 +11437,7 @@ function resetCycleForm() {
   const rec = document.getElementById('cc-recurrence');
   if (rec) rec.value = 'NONE';
   document.getElementById('cc-type').value = '';
-  document.getElementById('cc-method').value = 'PIECE';
+  document.getElementById('cc-method').value = 'PIECE_COUNT';
   document.getElementById('cc-blind').classList.add('on');
   document.getElementById('cc-manual').classList.remove('on');
   document.getElementById('cc-quota-num').value = '';
@@ -11806,7 +11806,7 @@ function editTask(id) {
   const rec = document.getElementById('cc-recurrence');
   if (rec) rec.value = t.recurrence || 'NONE';
   document.getElementById('cc-type').value = t.type || '';
-  document.getElementById('cc-method').value = t.countMethod || 'PIECE';
+  document.getElementById('cc-method').value = t.countMethod || 'PIECE_COUNT';
   document.getElementById('cc-sched-date').value = t.scheduleDate || '';
   document.getElementById('cc-target-date').value = t.targetCompletionDate || '';
   document.getElementById('cc-blind').classList.toggle('on', !!t.blindCount);
@@ -12601,21 +12601,20 @@ function toIsoSchedule(local) {
 }
 
 function ccGetEffectiveMethod() {
-  const val = (document.getElementById('cc-method') || {}).value || 'PIECE';
-  if (val === 'PALLET_QTY') return 'PALLET';
-  // SIMPLE_QTY maps to PIECE for WMS compatibility — counter just counts qty
-  if (val === 'SIMPLE_QTY') return 'PIECE';
+  const val = (document.getElementById('cc-method') || {}).value || 'PIECE_COUNT';
+  // Map any legacy values to WMS-accepted enum
+  if (val === 'PIECE' || val === 'SIMPLE_QTY') return 'PIECE_COUNT';
+  if (val === 'CASE') return 'CASE_COUNT';
+  if (val === 'PALLET' || val === 'PALLET_QTY') return 'PALLET_COUNT';
   return val;
 }
 
 function ccGetDockCheckMethod() {
-  const val = (document.getElementById('cc-method') || {}).value || '';
-  if (val === 'PALLET_QTY') return 'PALLET_QTY';
   return undefined;
 }
 
 function ccIsBulkQtyMode() {
-  return (document.getElementById('cc-method') || {}).value === 'PALLET_QTY';
+  return false;
 }
 
 function ccMethodChanged() {
@@ -14661,7 +14660,7 @@ function ccalShowAddForm() {
     '<div class="cc-field" style="margin:0"><label class="cc-label">Type</label><select class="cc-input" id="ccal-add-type"><option value="CYCLE_COUNT">Cycle Count</option><option value="PHYSICAL_COUNT">Physical Count</option></select></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Customer</label><select class="cc-input" id="ccal-add-customer"><option value="">—</option>' + custOpts + '</select></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Count Type</label><select class="cc-input" id="ccal-add-counttype"><option value="BY_LOCATION">By Location</option><option value="BY_ITEM">By Item</option></select></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Method</label><select class="cc-input" id="ccal-add-method"><option value="PIECE">PIECE</option><option value="CASE">CASE</option><option value="PALLET">PALLET</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Method</label><select class="cc-input" id="ccal-add-method"><option value="PIECE_COUNT">Piece Count</option><option value="SIMPLE_QTY_COUNT">Simple Qty Count</option><option value="CASE_COUNT">Case Count</option><option value="PALLET_COUNT">Pallet Count</option></select></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Location Count</label><input type="number" class="cc-input" id="ccal-add-locs" value="0" min="0"/></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Notes</label><input class="cc-input" id="ccal-add-notes" placeholder="Optional notes"/></div>' +
     '</div>' +
