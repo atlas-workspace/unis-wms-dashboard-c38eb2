@@ -16408,17 +16408,18 @@ async function ltrLoadTags(currentTag) {
   if (!sel) return;
   sel.innerHTML = '<option value="">Loading tags…</option>';
   if (statusEl) statusEl.textContent = 'Loading tags from WMS…';
-  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/search-by-paging', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({currentPage:1, pageSize:100})});
+  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/search-by-paging', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pageNo:1, pageSize:100})});
   sel.innerHTML = '<option value="">— No change —</option>';
   if (resp && resp.success !== false) {
     const d = resp.data || resp;
     const tags = d.list || d.records || [];
     tags.forEach(t => {
-      const name = t.name || t.id;
-      const selected = currentTag && (name === currentTag || t.id === currentTag) ? ' selected' : '';
-      sel.innerHTML += '<option value="' + escAttr(name) + '"' + selected + '>' + esc(name) + '</option>';
+      const tagId = t.id || '';
+      const name = t.name || tagId;
+      const selected = currentTag && (String(tagId) === String(currentTag) || name === currentTag) ? ' selected' : '';
+      sel.innerHTML += '<option value="' + escAttr(String(tagId)) + '" data-name="' + escAttr(name) + '"' + selected + '>' + esc(name) + ' (ID:' + esc(String(tagId)) + ')</option>';
     });
-    if (tags.length === 0) { sel.innerHTML += '<option disabled>No tags found</option>'; if (statusEl) statusEl.textContent = 'No tags available for this facility.'; }
+    if (tags.length === 0) { sel.innerHTML += '<option disabled>No tags found</option>'; if (statusEl) statusEl.textContent = 'No tags available.'; }
     else { if (statusEl) statusEl.textContent = tags.length + ' tag(s) loaded. Current: ' + (currentTag || 'none'); }
   } else {
     sel.innerHTML += '<option disabled>Could not load tags</option>';
@@ -16443,7 +16444,14 @@ function ltrSubmitRequest() {
     if (selected.length > 0) changes.customerIds = selected.join(',');
   }
   const tagSel = document.getElementById('ltr-f-tagName');
-  if (tagSel && tagSel.value) changes.tagName = tagSel.value;
+  let tagId = '';
+  let tagName = '';
+  if (tagSel && tagSel.value) {
+    tagId = tagSel.value;
+    const selOpt = tagSel.options[tagSel.selectedIndex];
+    tagName = selOpt ? (selOpt.dataset.name || selOpt.textContent || tagId) : tagId;
+    changes.tagName = tagName;
+  }
 
   if (Object.keys(changes).length === 0) { alert('No changes selected. Choose at least one field to change.'); return; }
 
@@ -16458,6 +16466,24 @@ function ltrSubmitRequest() {
   const list = ltrLoad();
   const locations = indices.map(i => results[i]).filter(Boolean);
   if (locations.length === 0) locations.push(loc);
+
+  locations.forEach(l => {
+    list.push({
+      id: 'ltr_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+      locationId: l.id,
+      locationName: l.name || l.id,
+      facilityId: FACILITY_ID,
+      changes,
+      tagId: tagId || undefined,
+      tagName: tagName || undefined,
+      status: 'PENDING_APPROVAL',
+      requester: admGetCurrentUsername() || '—',
+      requestedAt: new Date().toISOString(),
+      currentValues: l,
+      notifyUser: notifyUser || undefined,
+      notifyEmails: notifyEmails.length > 0 ? notifyEmails : undefined,
+    });
+  });
 
   locations.forEach(l => {
     list.push({
@@ -16554,20 +16580,79 @@ async function ltrApprove(idx) {
   const respMsg = resp ? (resp.msg || resp.message || '') : 'No response';
 
   if (resp && resp.success !== false && (String(respCode) === '0' || String(respCode) === '200' || resp.data || (!respMsg && resp.success !== false))) {
-    r2.status = 'APPLIED';
+    r2.locationUpdateStatus = 'success';
     r2.appliedAt = new Date().toISOString();
     r2.applyNote = 'Applied fields: ' + appliedFields.join(', ') + (skippedFields.length > 0 ? '. Skipped: ' + skippedFields.join(', ') : '');
-    ltrSave(list2);
-    ltrRenderList();
-    alert('Location updated in WMS.' + (skippedFields.length > 0 ? '\n\nNote: ' + skippedFields.join(', ') + ' — not applied automatically.' : ''));
   } else {
     r2.status = 'APPROVED_BUT_FAILED';
+    r2.locationUpdateStatus = 'failed';
     r2.errorMsg = respMsg || 'WMS did not confirm the update.';
     r2.applyDiag = {fields: appliedFields, skipped: skippedFields, upstreamCode: String(respCode), upstreamMsg: respMsg};
     ltrSave(list2);
     ltrRenderList();
-    alert('Update failed: ' + (respMsg || 'WMS rejected the request.') + '\n\nFields attempted: ' + appliedFields.join(', '));
+    alert('Location field update failed: ' + (respMsg || 'WMS rejected the request.'));
+    return;
   }
+
+  // Step 2: Apply Location Tag membership change if requested
+  if (changes.tagName && r.tagId) {
+    r2.tagUpdateStatus = 'pending';
+    try {
+      // Fetch current tag to get existing locationIds
+      const tagResp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/' + encodeURIComponent(r.tagId), {method:'GET', headers:{'Accept':'application/json'}});
+      if (!tagResp || tagResp._needsAuth) {
+        r2.tagUpdateStatus = 'failed';
+        r2.tagUpdateMsg = 'Could not fetch tag details. Authentication required.';
+      } else {
+        const tagData = tagResp.data || tagResp;
+        const currentLocIds = tagData.locationIds || (tagData.locations || []).map(l => l.id || l) || [];
+        const locIdsToAdd = Array.isArray(r.locationId) ? r.locationId.map(String) : [String(r.locationId)];
+        const mergedIds = [...new Set([...currentLocIds.map(String), ...locIdsToAdd])];
+
+        const tagPayload = {
+          id: r.tagId,
+          name: tagData.name || r.tagName || changes.tagName,
+          desc: tagData.desc || tagData.description || '',
+          locationIds: mergedIds,
+        };
+
+        const tagPutResp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag', {
+          method: 'PUT',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(tagPayload),
+        });
+
+        const tagPutCode = tagPutResp ? (tagPutResp.code || '') : '';
+        const tagPutMsg = tagPutResp ? (tagPutResp.msg || tagPutResp.message || '') : 'No response';
+
+        if (tagPutResp && tagPutResp.success !== false && (String(tagPutCode) === '0' || String(tagPutCode) === '200' || tagPutResp.data || !tagPutMsg)) {
+          r2.tagUpdateStatus = 'success';
+          r2.tagUpdateMsg = 'Location added to tag "' + (tagData.name || changes.tagName) + '". Members: ' + currentLocIds.length + ' → ' + mergedIds.length;
+        } else {
+          r2.tagUpdateStatus = 'failed';
+          r2.tagUpdateMsg = 'Tag update rejected: ' + (tagPutMsg || 'Unknown error');
+        }
+      }
+    } catch(tagErr) {
+      r2.tagUpdateStatus = 'failed';
+      r2.tagUpdateMsg = 'Tag update error: ' + (tagErr.message || 'Unknown');
+    }
+  }
+
+  // Final status
+  if (r2.locationUpdateStatus === 'success' && (!changes.tagName || !r.tagId || r2.tagUpdateStatus === 'success')) {
+    r2.status = 'APPLIED';
+  } else if (r2.locationUpdateStatus === 'success' && r2.tagUpdateStatus === 'failed') {
+    r2.status = 'APPLIED_TAG_WARNING';
+    r2.applyNote = (r2.applyNote || '') + '. Tag update: ' + (r2.tagUpdateMsg || 'failed');
+  } else {
+    r2.status = 'APPLIED';
+  }
+
+  ltrSave(list2);
+  ltrRenderList();
+  const tagNote = r2.tagUpdateStatus === 'failed' ? '\n\n⚠ Tag update warning: ' + r2.tagUpdateMsg : (r2.tagUpdateStatus === 'success' ? '\n\n✓ Location Tag membership updated.' : '');
+  alert('Location updated in WMS.' + tagNote + (skippedFields.length > 0 ? '\n\nNote: some fields skipped.' : ''));
 }
 
 function ltrReject(idx) {
