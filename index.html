@@ -16515,29 +16515,59 @@ async function ltrApprove(idx) {
   ltrSave(list);
   ltrRenderList();
 
-  // Build WMS update payload
-  const payload = {id: r.locationId};
+  // Build WMS update payload — single location object with id + name + changed fields
+  const current = r.currentValues || {};
+  const payload = {id: r.locationId, name: current.name || r.locationName || r.locationId};
   const changes = r.changes || {};
+  const appliedFields = [];
+  const skippedFields = [];
+
   Object.keys(changes).forEach(k => {
-    if (k === 'tagName') return; // handled separately
-    if (k === 'disallowToMixItemOnSameLocation') { payload[k] = changes[k] === 'TRUE'; return; }
-    if (['maxSize','length','width','height','sequence','capacity'].includes(k)) { payload[k] = Number(changes[k]) || 0; return; }
+    if (k === 'tagName') { skippedFields.push('tagName (requires separate tag workflow)'); return; }
+    if (k === 'disallowToMixItemOnSameLocation') { payload[k] = changes[k] === 'TRUE' || changes[k] === true; appliedFields.push(k); return; }
+    if (k === 'customerIds') {
+      const ids = String(changes[k]).split(',').map(s => s.trim()).filter(Boolean);
+      payload.customerIds = ids;
+      appliedFields.push('customerIds');
+      return;
+    }
+    if (['maxSize','length','width','height','sequence','capacity'].includes(k)) { payload[k] = Number(changes[k]) || 0; appliedFields.push(k); return; }
     payload[k] = changes[k];
+    appliedFields.push(k);
   });
+
+  if (appliedFields.length === 0 && skippedFields.length > 0) {
+    const list2 = ltrLoad();
+    list2[idx].status = 'APPLIED';
+    list2[idx].appliedAt = new Date().toISOString();
+    list2[idx].applyNote = 'No WMS fields to update. Skipped: ' + skippedFields.join(', ');
+    ltrSave(list2);
+    ltrRenderList();
+    alert('Approved. No WMS-updatable fields to apply.\nSkipped: ' + skippedFields.join(', '));
+    return;
+  }
 
   const resp = await safeFetch(WMS_BASE + '/api/wms/wms-location', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
   const list2 = ltrLoad();
   const r2 = list2[idx];
-  if (resp && resp.success !== false && (String(resp.code||'') === '0' || String(resp.code||'') === '200' || resp.data || !resp.msg)) {
+  const respCode = resp ? (resp.code || '') : '';
+  const respMsg = resp ? (resp.msg || resp.message || '') : 'No response';
+
+  if (resp && resp.success !== false && (String(respCode) === '0' || String(respCode) === '200' || resp.data || (!respMsg && resp.success !== false))) {
     r2.status = 'APPLIED';
     r2.appliedAt = new Date().toISOString();
+    r2.applyNote = 'Applied fields: ' + appliedFields.join(', ') + (skippedFields.length > 0 ? '. Skipped: ' + skippedFields.join(', ') : '');
+    ltrSave(list2);
+    ltrRenderList();
+    alert('Location updated in WMS.' + (skippedFields.length > 0 ? '\n\nNote: ' + skippedFields.join(', ') + ' — not applied automatically.' : ''));
   } else {
     r2.status = 'APPROVED_BUT_FAILED';
-    r2.errorMsg = (resp && (resp.msg || resp.message)) || 'WMS did not confirm the update.';
+    r2.errorMsg = respMsg || 'WMS did not confirm the update.';
+    r2.applyDiag = {fields: appliedFields, skipped: skippedFields, upstreamCode: String(respCode), upstreamMsg: respMsg};
+    ltrSave(list2);
+    ltrRenderList();
+    alert('Update failed: ' + (respMsg || 'WMS rejected the request.') + '\n\nFields attempted: ' + appliedFields.join(', '));
   }
-  ltrSave(list2);
-  ltrRenderList();
-  alert(r2.status === 'APPLIED' ? 'Location updated successfully in WMS.' : 'Update failed: ' + (r2.errorMsg || 'Unknown error'));
 }
 
 function ltrReject(idx) {
