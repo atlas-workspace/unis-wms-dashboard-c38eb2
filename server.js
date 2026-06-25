@@ -2,6 +2,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const nodemailer = require('nodemailer');
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
 
@@ -168,9 +169,35 @@ async function handleApi(req, res, url) {
   }
 }
 
+// Email/SMTP configuration — all from env vars, never hardcoded
+const SMTP_HOST = process.env.SMTP_HOST || '';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
+const SMTP_SECURE = process.env.SMTP_SECURE === 'true';
+const SMTP_USER = process.env.SMTP_USER || '';
+const SMTP_PASS = process.env.SMTP_PASS || '';
+const SMTP_FROM = process.env.SMTP_FROM || '';
+const SMTP_REPLY_TO = process.env.SMTP_REPLY_TO || '';
+const APP_PUBLIC_URL = process.env.APP_PUBLIC_URL || 'https://unis-wms-dashboard-c38eb2.coolify.item.pub';
+const SMTP_CONFIGURED = !!(SMTP_HOST && SMTP_USER && SMTP_PASS && SMTP_FROM);
+console.log('[email] SMTP configured:', SMTP_CONFIGURED, 'host:', SMTP_HOST ? 'set' : 'missing', 'from:', SMTP_FROM ? 'set' : 'missing');
+
+let smtpTransport = null;
+if (SMTP_CONFIGURED) {
+  smtpTransport = nodemailer.createTransport({
+    host: SMTP_HOST, port: SMTP_PORT, secure: SMTP_SECURE,
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
+  });
+}
+
 const server = http.createServer((req,res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   if (url.pathname.startsWith('/api/proxy/')) return handleApi(req,res,url);
+  if (url.pathname === '/api/notification/email-health') {
+    return send(res, 200, {configured: SMTP_CONFIGURED, status: SMTP_CONFIGURED ? 'CONNECTED' : 'NOT_CONFIGURED', fromConfigured: !!SMTP_FROM});
+  }
+  if (req.method === 'POST' && url.pathname === '/api/notification/send-location-tag-request') {
+    return handleSendNotification(req, res);
+  }
   let file = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
   file = path.normalize(file).replace(/^([/\\])+/, '');
   const full = path.join(ROOT, file);
@@ -182,3 +209,52 @@ const server = http.createServer((req,res) => {
   });
 });
 server.listen(PORT, () => console.log(`UNIS WMS dashboard server listening on ${PORT}`));
+
+async function handleSendNotification(req, res) {
+  try {
+    const raw = await readBody(req);
+    let body;
+    try { body = JSON.parse(raw); } catch(_) { return send(res, 400, {success:false, msg:'Invalid request body'}); }
+
+    const emails = (body.emails || []).filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+    if (emails.length === 0) return send(res, 400, {success:false, msg:'No valid email recipients provided'});
+
+    if (!SMTP_CONFIGURED || !smtpTransport) {
+      return send(res, 200, {success:true, status:'SAVED_ONLY', msg:'Email delivery is not configured. Recipients saved for reference.'});
+    }
+
+    const location = body.locationName || body.locationId || 'Unknown';
+    const facility = body.facility || 'Unknown';
+    const requester = body.requester || 'Unknown';
+    const changes = body.changes || {};
+    const createdDate = body.createdDate || new Date().toISOString();
+    const changeLines = Object.entries(changes).map(([k,v]) => `  • ${k}: ${v}`).join('\n');
+    const dashboardUrl = APP_PUBLIC_URL;
+
+    const subject = `Location Tag Update Request — ${location} at ${facility}`;
+    const text = `A location update request has been submitted and requires manager approval.\n\n` +
+      `LOCATION: ${location}\n` +
+      `FACILITY: ${facility}\n` +
+      `REQUESTER: ${requester}\n` +
+      `DATE: ${new Date(createdDate).toLocaleString('en-US', {timeZone:'America/Los_Angeles'})}\n\n` +
+      `REQUESTED CHANGES:\n${changeLines || '  (none specified)'}\n\n` +
+      `This request requires manager approval before any WMS changes are applied.\n` +
+      `Review in dashboard: ${dashboardUrl}\n\n` +
+      `— UNIS WMS Dashboard`;
+
+    const mailOpts = {
+      from: SMTP_FROM,
+      to: emails.join(', '),
+      subject,
+      text,
+    };
+    if (SMTP_REPLY_TO) mailOpts.replyTo = SMTP_REPLY_TO;
+
+    await smtpTransport.sendMail(mailOpts);
+    console.log('[email] Sent notification to', emails.length, 'recipient(s) for location', location);
+    return send(res, 200, {success:true, status:'SENT', msg:'Email sent to ' + emails.length + ' recipient(s)'});
+  } catch(e) {
+    console.error('[email] Send failed:', e.message);
+    return send(res, 200, {success:true, status:'FAILED', msg:'Email delivery failed. Recipients saved for reference.'});
+  }
+}

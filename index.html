@@ -16444,7 +16444,7 @@ async function ltrLoadTags(currentTag) {
   }
 }
 
-function ltrSubmitRequest() {
+async function ltrSubmitRequest() {
   if (!window._ltrCurrentLoc) { alert('Please search and select a WMS location first.'); return; }
   const loc = window._ltrCurrentLoc;
   const changes = {};
@@ -16521,8 +16521,35 @@ function ltrSubmitRequest() {
   document.getElementById('ltr-form').style.display = 'none';
   window._ltrCurrentLoc = null;
   window._ltrSelectedIndices = null;
+
+  // Send email notification if recipients provided
+  if (notifyEmails.length > 0) {
+    try {
+      const emailResp = await fetch('/api/notification/send-location-tag-request', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          emails: notifyEmails,
+          locationName: loc.name || loc.id,
+          locationId: loc.id,
+          facility: (FACILITY_NAME || FACILITY_ID) + ' (' + FACILITY_ID + ')',
+          requester: admGetCurrentUsername() || '—',
+          changes: changes,
+          createdDate: new Date().toISOString(),
+        }),
+      });
+      const emailData = await emailResp.json();
+      const savedList = ltrLoad();
+      savedList.filter(r => r.requestedAt && Date.now() - new Date(r.requestedAt).getTime() < 5000).forEach(r => {
+        r.notificationStatus = emailData.status || 'SAVED_ONLY';
+        r.notificationMessage = emailData.msg || 'Status unknown';
+      });
+      ltrSave(savedList);
+    } catch(_) {}
+  }
+
   ltrRenderList();
-  const notifyNote = (notifyEmails.length > 0 || notifyUser) ? ' Recipients saved (email delivery not configured — saved for manager review only).' : '';
+  const notifyNote = (notifyEmails.length > 0 || notifyUser) ? ' Notification recipients processed.' : '';
   if (uniqueLocations.length > 1) alert(uniqueLocations.length + ' request(s) submitted for approval.' + notifyNote);
   else alert('Request submitted for approval.' + notifyNote);
 }
