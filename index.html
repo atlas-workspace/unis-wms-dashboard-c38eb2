@@ -16195,7 +16195,7 @@ function ltrRenderList() {
       const newDisplay = k === 'customerIds' ? ltrResolveCustomerNames(String(v)) : String(v).slice(0,20);
       return '<span style="color:#6b7280">' + esc(label) + ':</span> <span style="text-decoration:line-through;color:#9ca3af">' + esc(curDisplay) + '</span> → <strong style="color:#059669">' + esc(newDisplay) + '</strong>';
     }).join('<br>') + (changeEntries.length > 3 ? '<br><span style="color:#9ca3af">+' + (changeEntries.length - 3) + ' more</span>' : '');
-    const notifyInfo = (r.notifyEmails || r.notifyUsers) ? '<span style="font-size:9px;color:#d97706" title="' + escAttr((r.notifyEmails||[]).join(', ')) + ' (saved only — not sent)">📧 saved</span>' : '';
+    const notifyInfo = r.ticketNumber ? '<span style="font-size:9px;color:#059669;font-weight:600" title="Ticket ' + escAttr(r.ticketNumber) + '">🎫 ' + esc(r.ticketNumber) + '</span>' : r.ticketStatus === 'TICKET_FAILED' ? '<span style="font-size:9px;color:#dc2626" title="' + escAttr(r.ticketMessage||'') + '">🎫 failed</span>' : r.ticketStatus === 'PENDING' ? '<span style="font-size:9px;color:#6b7280">🎫 pending</span>' : '';
     const isApplied = r.status === 'APPLIED';
     const isEditable = !isApplied;
     let actions = '';
@@ -16267,7 +16267,7 @@ function ltrShowNewForm() {
     '<div style="font-size:11px;font-weight:600;color:#1e40af;margin-bottom:6px">Notify on Submission</div>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Notify User</label><select class="cc-input" id="ltr-notify-user" style="font-size:11px"><option value="">— None —</option></select></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Email Recipient(s)</label><input class="cc-input" id="ltr-notify-emails" style="font-size:11px" placeholder="email@company.com, email2@co.com"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Contact Email (for ticket)</label><input class="cc-input" id="ltr-notify-emails" style="font-size:11px" placeholder="email@company.com — included in ticket message"/></div>' +
     '</div><div style="font-size:9px;color:#d97706;margin-top:4px">⚠ Recipients are saved with this request for manager review. Email delivery is not configured yet — notifications are not sent automatically.</div></div>' +
     '<div style="margin-top:14px;display:flex;gap:8px">' +
     '<button class="btn btn-primary" onclick="ltrSubmitRequest()" style="font-size:12px;padding:6px 14px">Submit for Approval</button>' +
@@ -16511,8 +16511,7 @@ async function ltrSubmitRequest() {
       currentValues: l,
       notifyUser: notifyUser || undefined,
       notifyEmails: notifyEmails.length > 0 ? notifyEmails : undefined,
-      notificationStatus: 'SAVED_ONLY',
-      notificationMessage: 'Email delivery not configured. Recipients saved for manager review.',
+      ticketStatus: 'PENDING',
     });
   });
 
@@ -16521,34 +16520,74 @@ async function ltrSubmitRequest() {
   window._ltrCurrentLoc = null;
   window._ltrSelectedIndices = null;
 
-  // Send email notification if recipients provided
-  if (notifyEmails.length > 0) {
-    try {
-      const emailResp = await fetch('/api/notification/send-location-tag-request', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          emails: notifyEmails,
-          locationName: loc.name || loc.id,
-          locationId: loc.id,
-          facility: (FACILITY_NAME || FACILITY_ID) + ' (' + FACILITY_ID + ')',
-          requester: admGetCurrentUsername() || '—',
-          changes: changes,
-          createdDate: new Date().toISOString(),
-        }),
-      });
-      const emailData = await emailResp.json();
-      const savedList = ltrLoad();
-      savedList.filter(r => r.requestedAt && Date.now() - new Date(r.requestedAt).getTime() < 5000).forEach(r => {
-        r.notificationStatus = emailData.status || 'SAVED_ONLY';
-        r.notificationMessage = emailData.msg || 'Status unknown';
+  // Create a ticket in UNIS Ticket System for notification/visibility
+  const contactEmail = notifyEmails.length > 0 ? notifyEmails[0] : (admGetCurrentUsername() + '@itemgroup.com');
+  const changeSummary = Object.entries(changes).map(([k,v]) => {
+    const cur = loc[k] || '—';
+    return '  • ' + k + ': ' + cur + ' → ' + v;
+  }).join('\n');
+  const ticketTitle = 'Location Tag Change Request — ' + (loc.name || loc.id) + ' — ' + (FACILITY_NAME || FACILITY_ID);
+  const ticketMsg = 'A Location Tag update request has been submitted and requires manager approval.\n\n' +
+    'FACILITY: ' + (FACILITY_NAME || FACILITY_ID) + ' (' + FACILITY_ID + ')\n' +
+    'LOCATION: ' + (loc.name || loc.id) + ' (ID: ' + loc.id + ')\n' +
+    'REQUESTER: ' + (admGetCurrentUsername() || '—') + '\n' +
+    'DATE: ' + new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}) + '\n' +
+    (notifyUser ? 'NOTIFY USER: ' + notifyUser + '\n' : '') +
+    (notifyEmails.length > 0 ? 'CONTACT: ' + notifyEmails.join(', ') + '\n' : '') +
+    '\nREQUESTED CHANGES:\n' + (changeSummary || '  (none)') + '\n\n' +
+    'This request requires manager approval in the dashboard before WMS changes are applied.\n' +
+    'Dashboard: ' + window.location.origin;
+
+  try {
+    const ticketPayload = {
+      departmentId: '324119200704569344',
+      topicId: '351666257576935424',
+      priorityId: 1,
+      customerName: admGetCurrentUsername() || 'WMS Dashboard User',
+      customerEmail: contactEmail,
+      title: ticketTitle,
+      message: { content: ticketMsg },
+      formEntries: [],
+    };
+    const ticketResp = await safeFetch('/api/proxy/auth/ticket/tickets', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(ticketPayload),
+    });
+    const savedList = ltrLoad();
+    const recentRequests = savedList.filter(r => r.requestedAt && Date.now() - new Date(r.requestedAt).getTime() < 5000);
+    if (ticketResp && (ticketResp.success === true || String(ticketResp.code) === '200' || String(ticketResp.code) === '0' || (ticketResp.data && (ticketResp.data.id || ticketResp.data.no)))) {
+      const td = ticketResp.data || ticketResp;
+      const tId = td.id || td.ticketId || td.no || '';
+      const tNum = td.number || td.ticketNumber || td.no || tId;
+      recentRequests.forEach(r => {
+        r.ticketStatus = 'TICKET_CREATED';
+        r.ticketId = tId;
+        r.ticketNumber = tNum;
+        r.ticketCreatedAt = new Date().toISOString();
       });
       ltrSave(savedList);
-    } catch(_) {}
+    } else {
+      const errMsg = ticketResp ? (ticketResp.msg || ticketResp.message || (ticketResp.data && ticketResp.data.msg) || '') : 'Service unavailable';
+      recentRequests.forEach(r => {
+        r.ticketStatus = 'TICKET_FAILED';
+        r.ticketMessage = errMsg || 'Ticket creation not confirmed';
+      });
+      ltrSave(savedList);
+      console.warn('[ltr] Ticket creation failed:', errMsg);
+    }
+  } catch(ticketErr) {
+    console.warn('[ltr] Ticket error:', ticketErr.message);
+    const savedList = ltrLoad();
+    savedList.filter(r => r.requestedAt && Date.now() - new Date(r.requestedAt).getTime() < 5000).forEach(r => {
+      r.ticketStatus = 'TICKET_FAILED';
+      r.ticketMessage = 'Network error';
+    });
+    ltrSave(savedList);
   }
 
   ltrRenderList();
-  const notifyNote = (notifyEmails.length > 0 || notifyUser) ? ' Notification recipients processed.' : '';
+  const notifyNote = ' A support ticket was created for tracking.';
   if (uniqueLocations.length > 1) alert(uniqueLocations.length + ' request(s) submitted for approval.' + notifyNote);
   else alert('Request submitted for approval.' + notifyNote);
 }
