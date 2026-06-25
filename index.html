@@ -12299,10 +12299,28 @@ async function loadCountApprovalView() {
 function toggleAllApprovalRows(checked) { document.querySelectorAll('.cra-row').forEach(cb => cb.checked = checked); }
 async function updateSelectedCountResults(status) {
   const ids = Array.from(document.querySelectorAll('.cra-row:checked')).map(cb => cb.value);
-  if (!ids.length) { alert('Select at least one result.'); return; }
+  if (!ids.length) { alert('Select one or more pending results to ' + (status === 'REJECTED' ? 'reject' : 'approve') + '.'); return; }
+  const action = status === 'REJECTED' ? 'Reject' : 'Approve';
+  if (!confirm(action + ' ' + ids.length + ' selected count result(s)?')) return;
+  const btn = status === 'REJECTED' ? document.querySelector('[onclick*="batchReject"]') : document.querySelector('[onclick*="batchApprove"]');
+  if (btn) { btn.disabled = true; btn.textContent = action + 'ing ' + ids.length + '…'; }
+  let success = 0, failed = 0, lastErr = '';
   for (const id of ids) {
-    await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-result/' + encodeURIComponent(id), {method:'PUT',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({status})});
+    try {
+      const resp = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-result/' + encodeURIComponent(id), {method:'PUT',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({status})});
+      if (resp && resp._needsAuth) { lastErr = 'Authentication required'; failed++; }
+      else if (resp && resp.success === false) { lastErr = resp.msg || resp.message || 'Rejected by WMS'; failed++; }
+      else { success++; }
+    } catch(e) { failed++; lastErr = e.message || 'Network error'; }
   }
+  if (btn) { btn.disabled = false; btn.textContent = 'Batch ' + action; }
+  let msg = '';
+  if (success > 0) msg += '✓ ' + success + ' result(s) ' + (status === 'REJECTED' ? 'rejected' : 'approved') + ' successfully.\n';
+  if (failed > 0) msg += '✗ ' + failed + ' result(s) could not be processed: ' + lastErr + '\n';
+  if (failed > 0 && /permission|forbidden|unauthor/i.test(lastErr)) {
+    msg += '\nNote: WMS may require supervisor permissions to ' + action.toLowerCase() + ' count results. Dashboard admin access does not override WMS role permissions.';
+  }
+  alert(msg);
   await loadCountApprovalView();
 }
 function batchApproveCountResults() { updateSelectedCountResults('CLOSED'); }
@@ -13052,9 +13070,9 @@ async function submitCycleCount() {
       // Navigate to Count Result Approval with prefill
       showView('countApproval');
       setTimeout(() => {
-        const ticketFilter = document.getElementById('ca-filter-ticket');
+        const ticketFilter = document.getElementById('cra-ticket');
         if (ticketFilter && blockerTicket) { ticketFilter.value = blockerTicket; }
-        const statusFilter = document.getElementById('ca-filter-status');
+        const statusFilter = document.getElementById('cra-status');
         if (statusFilter) { statusFilter.value = 'PENDING'; }
         if (typeof loadCountApprovalView === 'function') loadCountApprovalView();
       }, 300);
