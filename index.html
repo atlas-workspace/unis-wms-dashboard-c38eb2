@@ -16182,15 +16182,20 @@ function ltrRenderList() {
   tbody.innerHTML = filtered.map((r, idx) => {
     const realIdx = list.indexOf(r);
     const statusCls = r.status === 'APPLIED' ? 'color:#059669' : r.status === 'REJECTED' ? 'color:#9ca3af' : /FAIL/.test(r.status) ? 'color:#dc2626' : r.status === 'PENDING_APPROVAL' ? 'color:#d97706' : 'color:#374151';
-    const changes = Object.keys(r.changes || {}).length;
+    const changeEntries = Object.entries(r.changes || {});
+    const changeSummary = changeEntries.length === 0 ? '—' : changeEntries.slice(0, 3).map(([k, v]) => {
+      const cur = r.currentValues ? (r.currentValues[k] || '—') : '—';
+      return '<span style="color:#6b7280">' + esc(k) + ':</span> <span style="text-decoration:line-through;color:#9ca3af">' + esc(String(cur).slice(0,15)) + '</span> → <strong style="color:#059669">' + esc(String(v).slice(0,15)) + '</strong>';
+    }).join('<br>') + (changeEntries.length > 3 ? '<br><span style="color:#9ca3af">+' + (changeEntries.length - 3) + ' more</span>' : '');
+    const notifyInfo = (r.notifyEmails || r.notifyUsers) ? '<span style="font-size:9px;color:#2563eb" title="' + escAttr((r.notifyEmails||[]).join(', ')) + '">📧</span>' : '';
     const actions = r.status === 'PENDING_APPROVAL' && admIsOwner() ?
       '<span style="color:#059669;cursor:pointer;font-size:11px;font-weight:600;margin-right:6px" onclick="ltrApprove('+realIdx+')">Approve</span><span style="color:#dc2626;cursor:pointer;font-size:11px;font-weight:600" onclick="ltrReject('+realIdx+')">Reject</span>' :
       '<span style="color:#753BBD;cursor:pointer;font-size:11px;font-weight:600" onclick="ltrViewDetail('+realIdx+')">View</span>';
     return '<tr><td style="font-family:monospace;font-size:11px">' + esc(r.locationName || r.locationId || '—') + '</td>' +
       '<td style="font-size:11px">' + esc(r.changes && r.changes.tagName ? r.changes.tagName : '—') + '</td>' +
-      '<td style="font-size:11px">' + changes + ' field(s)</td>' +
+      '<td style="font-size:10px;line-height:1.4;max-width:220px">' + changeSummary + '</td>' +
       '<td style="font-size:11px;' + statusCls + ';font-weight:600">' + esc(r.status.replace(/_/g,' ')) + '</td>' +
-      '<td style="font-size:11px">' + esc(r.requester || '—') + '</td>' +
+      '<td style="font-size:11px">' + esc(r.requester || '—') + ' ' + notifyInfo + '</td>' +
       '<td style="font-size:11px">' + (r.requestedAt ? new Date(r.requestedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—') + '</td>' +
       '<td style="white-space:nowrap">' + actions + '</td></tr>';
   }).join('');
@@ -16241,6 +16246,13 @@ function ltrShowNewForm() {
     '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">Customer(s)</label><div style="position:relative"><div id="ltr-cust-trigger" onclick="ltrCustToggle()" style="border:1px solid #d1d5db;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;background:white;min-height:28px"><span id="ltr-cust-ph" style="color:#9ca3af">Select customer(s)…</span></div><div id="ltr-cust-panel" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;background:white;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.1);max-height:180px;overflow-y:auto;margin-top:2px"><input id="ltr-cust-search" placeholder="Filter…" style="width:100%;border:none;border-bottom:1px solid #f3f4f6;padding:5px 8px;font-size:11px;outline:none" oninput="ltrCustRender()"/><div id="ltr-cust-opts"></div></div></div><div id="ltr-cust-chips" style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px"></div><select id="ltr-f-customerIds" multiple style="display:none"></select></div>' +
     '<div class="cc-field" style="margin:0;background:#FFFBEB;padding:6px;border-radius:6px;border:1px solid #FDE68A"><label class="cc-label" style="font-weight:700;color:#92400E">tagName</label><select class="cc-input" id="ltr-f-tagName" style="font-size:11px"><option value="">— No change —</option></select><button onclick="ltrLoadTags()" style="font-size:9px;padding:2px 6px;margin-top:4px;cursor:pointer;background:#EDE9FE;border:1px solid #d8b4fe;border-radius:3px;color:#5B21B6">Load Tags</button></div>' +
     '</div>' +
+    // Notification recipients
+    '<div style="margin-top:12px;padding:10px;background:#EFF6FF;border-radius:6px;border:1px solid #BFDBFE">' +
+    '<div style="font-size:11px;font-weight:600;color:#1e40af;margin-bottom:6px">Notify on Submission</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Notify User</label><select class="cc-input" id="ltr-notify-user" style="font-size:11px"><option value="">— None —</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Email Recipient(s)</label><input class="cc-input" id="ltr-notify-emails" style="font-size:11px" placeholder="email@company.com, email2@co.com"/></div>' +
+    '</div><div style="font-size:9px;color:#6b7280;margin-top:4px">Recipients will be saved with this request for manager review.</div></div>' +
     '<div style="margin-top:14px;display:flex;gap:8px">' +
     '<button class="btn btn-primary" onclick="ltrSubmitRequest()" style="font-size:12px;padding:6px 14px">Submit for Approval</button>' +
     '<button class="btn btn-secondary" onclick="document.getElementById(\'ltr-form\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Cancel</button></div>' +
@@ -16435,6 +16447,11 @@ function ltrSubmitRequest() {
 
   if (Object.keys(changes).length === 0) { alert('No changes selected. Choose at least one field to change.'); return; }
 
+  // Notification recipients
+  const notifyUser = (document.getElementById('ltr-notify-user') || {}).value || '';
+  const notifyEmailsRaw = (document.getElementById('ltr-notify-emails') || {}).value || '';
+  const notifyEmails = notifyEmailsRaw.split(/[,;\n]+/).map(e => e.trim()).filter(Boolean);
+
   // Support multi-location: create one request per selected location
   const indices = window._ltrSelectedIndices || [0];
   const results = window._ltrSearchResults || [];
@@ -16453,6 +16470,8 @@ function ltrSubmitRequest() {
       requester: admGetCurrentUsername() || '—',
       requestedAt: new Date().toISOString(),
       currentValues: l,
+      notifyUser: notifyUser || undefined,
+      notifyEmails: notifyEmails.length > 0 ? notifyEmails : undefined,
     });
   });
   ltrSave(list);
@@ -16460,7 +16479,9 @@ function ltrSubmitRequest() {
   window._ltrCurrentLoc = null;
   window._ltrSelectedIndices = null;
   ltrRenderList();
-  if (locations.length > 1) alert(locations.length + ' request(s) submitted for approval.');
+  const notifyNote = (notifyEmails.length > 0 || notifyUser) ? ' Notification recipients saved with request.' : '';
+  if (locations.length > 1) alert(locations.length + ' request(s) submitted for approval.' + notifyNote);
+  else alert('Request submitted for approval.' + notifyNote);
 }
 
 function ltrViewDetail(idx) {
