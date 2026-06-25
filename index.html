@@ -13038,6 +13038,29 @@ async function submitCycleCount() {
   if (scheduleId) msg += '✓ Schedule created (' + recurrence + '): ' + scheduleId + '.\n';
   if (scheduleError) msg += '⚠ Schedule creation failed: ' + scheduleError + '.\n';
   if (failed.length) {
+    // Check for unresolved count result blocker
+    const unresolvedMatch = failed.find(r => /unresolved count record|approve or reject/i.test(r.msg || ''));
+    if (unresolvedMatch) {
+      const ticketMatch = (unresolvedMatch.msg || '').match(/Ticket\s+(TICKET-\d+)/i);
+      const locMatch = (unresolvedMatch.msg || '').match(/Location\s+'([^']+)'/i);
+      const blockerTicket = ticketMatch ? ticketMatch[1] : '';
+      const blockerLoc = locMatch ? locMatch[1] : '';
+      msg += '⚠ BLOCKED: Location ' + (blockerLoc || '?') + ' has pending count results from ' + (blockerTicket || 'a previous ticket') + '.\n\n';
+      msg += 'Action required: Approve or reject those pending results in Count Result Approval before creating a new count.\n';
+      msg += 'Go to: Cycle Count → Count Result Approval → filter by ' + (blockerTicket || 'ticket') + '\n';
+      alert(msg);
+      // Navigate to Count Result Approval with prefill
+      showView('countApproval');
+      setTimeout(() => {
+        const ticketFilter = document.getElementById('ca-filter-ticket');
+        if (ticketFilter && blockerTicket) { ticketFilter.value = blockerTicket; }
+        const statusFilter = document.getElementById('ca-filter-status');
+        if (statusFilter) { statusFilter.value = 'PENDING'; }
+        if (typeof loadCountApprovalView === 'function') loadCountApprovalView();
+      }, 300);
+      btn.disabled = false;
+      return;
+    }
     msg += '✗ ' + failed.length + ' rejected by Wise:\n  ' + failed.map(r=>r.msg).join('\n  ') + '\n';
     // If every failure was Unauthorized, reconnect via sign-in
     const allUnauth = failed.every(r => /unauthor/i.test(r.msg || ''));
