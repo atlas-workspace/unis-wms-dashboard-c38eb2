@@ -16164,6 +16164,16 @@ document.addEventListener('click', function(evt) {
   if (btn) ltrOpenNewRequest(evt);
 });
 
+function ltrResolveCustomerNames(idsStr) {
+  if (!idsStr || idsStr === '—') return '—';
+  const ids = String(idsStr).split(',').map(s => s.trim()).filter(Boolean);
+  const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
+  return ids.map(id => {
+    const c = customers.find(c => c.id === id);
+    return c ? c.name : id;
+  }).join(', ');
+}
+
 function ltrRenderList() {
   const list = ltrLoad();
   const filter = (document.getElementById('ltr-filter') || {}).value || '';
@@ -16181,7 +16191,10 @@ function ltrRenderList() {
     const changeEntries = Object.entries(r.changes || {});
     const changeSummary = changeEntries.length === 0 ? '—' : changeEntries.slice(0, 3).map(([k, v]) => {
       const cur = r.currentValues ? (r.currentValues[k] || '—') : '—';
-      return '<span style="color:#6b7280">' + esc(k) + ':</span> <span style="text-decoration:line-through;color:#9ca3af">' + esc(String(cur).slice(0,15)) + '</span> → <strong style="color:#059669">' + esc(String(v).slice(0,15)) + '</strong>';
+      const label = k === 'customerIds' ? 'Customer(s)' : k === 'tagName' ? 'Location Tag' : k === 'disallowToMixItemOnSameLocation' ? 'Mix Rule' : k;
+      const curDisplay = k === 'customerIds' ? ltrResolveCustomerNames(String(cur)) : String(cur).slice(0,20);
+      const newDisplay = k === 'customerIds' ? ltrResolveCustomerNames(String(v)) : String(v).slice(0,20);
+      return '<span style="color:#6b7280">' + esc(label) + ':</span> <span style="text-decoration:line-through;color:#9ca3af">' + esc(curDisplay) + '</span> → <strong style="color:#059669">' + esc(newDisplay) + '</strong>';
     }).join('<br>') + (changeEntries.length > 3 ? '<br><span style="color:#9ca3af">+' + (changeEntries.length - 3) + ' more</span>' : '');
     const notifyInfo = (r.notifyEmails || r.notifyUsers) ? '<span style="font-size:9px;color:#2563eb" title="' + escAttr((r.notifyEmails||[]).join(', ')) + '">📧</span>' : '';
     const isApplied = r.status === 'APPLIED';
@@ -16471,7 +16484,20 @@ function ltrSubmitRequest() {
   const locations = indices.map(i => results[i]).filter(Boolean);
   if (locations.length === 0) locations.push(loc);
 
-  locations.forEach(l => {
+  // Deduplicate locations by ID
+  const seenIds = new Set();
+  const uniqueLocations = locations.filter(l => {
+    if (seenIds.has(l.id)) return false;
+    seenIds.add(l.id);
+    return true;
+  });
+
+  // Duplicate prevention: check if identical pending request already exists
+  const existingPending = list.filter(r => r.status === 'PENDING_APPROVAL' && r.facilityId === FACILITY_ID);
+
+  uniqueLocations.forEach(l => {
+    const isDup = existingPending.some(r => r.locationId === l.id && JSON.stringify(r.changes) === JSON.stringify(changes));
+    if (isDup) return; // skip duplicate
     list.push({
       id: 'ltr_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
       locationId: l.id,
@@ -16489,28 +16515,13 @@ function ltrSubmitRequest() {
     });
   });
 
-  locations.forEach(l => {
-    list.push({
-      id: 'ltr_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
-      locationId: l.id,
-      locationName: l.name || l.id,
-      facilityId: FACILITY_ID,
-      changes,
-      status: 'PENDING_APPROVAL',
-      requester: admGetCurrentUsername() || '—',
-      requestedAt: new Date().toISOString(),
-      currentValues: l,
-      notifyUser: notifyUser || undefined,
-      notifyEmails: notifyEmails.length > 0 ? notifyEmails : undefined,
-    });
-  });
   ltrSave(list);
   document.getElementById('ltr-form').style.display = 'none';
   window._ltrCurrentLoc = null;
   window._ltrSelectedIndices = null;
   ltrRenderList();
   const notifyNote = (notifyEmails.length > 0 || notifyUser) ? ' Notification recipients saved with request.' : '';
-  if (locations.length > 1) alert(locations.length + ' request(s) submitted for approval.' + notifyNote);
+  if (uniqueLocations.length > 1) alert(uniqueLocations.length + ' request(s) submitted for approval.' + notifyNote);
   else alert('Request submitted for approval.' + notifyNote);
 }
 
