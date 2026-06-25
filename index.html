@@ -14088,6 +14088,8 @@ function rsFilterTable() {
   RS_DATA = filtered;
   rsRender();
   RS_DATA = backup;
+}
+
 function rsAutoAssign() {
   if (RS_DATA.length === 0) { alert('No suggestions loaded. Run Refresh Suggestions first.'); return; }
   let assigned = 0;
