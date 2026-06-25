@@ -16181,7 +16181,7 @@ function ltrRenderList() {
   }
   tbody.innerHTML = filtered.map((r, idx) => {
     const realIdx = list.indexOf(r);
-    const statusCls = r.status === 'APPLIED' ? 'color:#059669' : r.status === 'REJECTED' ? 'color:#9ca3af' : /FAIL/.test(r.status) ? 'color:#dc2626' : r.status === 'PENDING_APPROVAL' ? 'color:#d97706' : 'color:#374151';
+    const statusCls = r.status === 'APPLIED' ? 'color:#059669' : r.status === 'APPLIED_TAG_WARNING' ? 'color:#d97706' : r.status === 'REJECTED' ? 'color:#9ca3af' : /FAIL/.test(r.status) ? 'color:#dc2626' : r.status === 'PENDING_APPROVAL' ? 'color:#d97706' : 'color:#374151';
     const changeEntries = Object.entries(r.changes || {});
     const changeSummary = changeEntries.length === 0 ? '—' : changeEntries.slice(0, 3).map(([k, v]) => {
       const cur = r.currentValues ? (r.currentValues[k] || '—') : '—';
