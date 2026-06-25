@@ -16188,9 +16188,17 @@ function ltrRenderList() {
       return '<span style="color:#6b7280">' + esc(k) + ':</span> <span style="text-decoration:line-through;color:#9ca3af">' + esc(String(cur).slice(0,15)) + '</span> → <strong style="color:#059669">' + esc(String(v).slice(0,15)) + '</strong>';
     }).join('<br>') + (changeEntries.length > 3 ? '<br><span style="color:#9ca3af">+' + (changeEntries.length - 3) + ' more</span>' : '');
     const notifyInfo = (r.notifyEmails || r.notifyUsers) ? '<span style="font-size:9px;color:#2563eb" title="' + escAttr((r.notifyEmails||[]).join(', ')) + '">📧</span>' : '';
-    const actions = r.status === 'PENDING_APPROVAL' && admIsOwner() ?
-      '<span style="color:#059669;cursor:pointer;font-size:11px;font-weight:600;margin-right:6px" onclick="ltrApprove('+realIdx+')">Approve</span><span style="color:#dc2626;cursor:pointer;font-size:11px;font-weight:600" onclick="ltrReject('+realIdx+')">Reject</span>' :
-      '<span style="color:#753BBD;cursor:pointer;font-size:11px;font-weight:600" onclick="ltrViewDetail('+realIdx+')">View</span>';
+    const isApplied = r.status === 'APPLIED';
+    const isEditable = !isApplied;
+    let actions = '';
+    if (r.status === 'PENDING_APPROVAL' && admIsOwner()) {
+      actions = '<span style="color:#059669;cursor:pointer;font-size:11px;font-weight:600;margin-right:6px" onclick="ltrApprove('+realIdx+')">Approve</span><span style="color:#dc2626;cursor:pointer;font-size:11px;font-weight:600;margin-right:6px" onclick="ltrReject('+realIdx+')">Reject</span>';
+    }
+    actions += '<span style="color:#753BBD;cursor:pointer;font-size:11px;font-weight:600;margin-right:6px" onclick="ltrViewDetail('+realIdx+')">View</span>';
+    if (isEditable) {
+      actions += '<span style="color:#2563eb;cursor:pointer;font-size:11px;font-weight:600;margin-right:6px" onclick="ltrEditRequest('+realIdx+')">Edit</span>';
+      actions += '<span style="color:#dc2626;cursor:pointer;font-size:11px;font-weight:600" onclick="ltrDeleteRequest('+realIdx+')">Delete</span>';
+    }
     return '<tr><td style="font-family:monospace;font-size:11px">' + esc(r.locationName || r.locationId || '—') + '</td>' +
       '<td style="font-size:11px">' + esc(r.changes && r.changes.tagName ? r.changes.tagName : '—') + '</td>' +
       '<td style="font-size:10px;line-height:1.4;max-width:220px">' + changeSummary + '</td>' +
@@ -16664,6 +16672,102 @@ function ltrReject(idx) {
   list[idx].rejectedBy = admGetCurrentUsername();
   ltrSave(list);
   ltrRenderList();
+}
+
+function ltrDeleteRequest(idx) {
+  const list = ltrLoad();
+  const r = list[idx];
+  if (!r) return;
+  if (r.status === 'APPLIED') { alert('Applied requests cannot be deleted — they are kept for audit.'); return; }
+  if (!confirm('Delete this request for ' + (r.locationName || r.locationId || 'location') + '? This cannot be undone.')) return;
+  list.splice(idx, 1);
+  ltrSave(list);
+  ltrRenderList();
+}
+
+function ltrEditRequest(idx) {
+  const list = ltrLoad();
+  const r = list[idx];
+  if (!r) return;
+  if (r.status === 'APPLIED') { alert('Applied requests cannot be edited — they are locked for audit.'); return; }
+  const form = document.getElementById('ltr-form');
+  if (!form) return;
+  const changes = r.changes || {};
+  const current = r.currentValues || {};
+  form.style.display = '';
+  form.innerHTML = '<div class="card" style="padding:16px;margin-bottom:16px;border-left:4px solid #2563eb">' +
+    '<div style="font-size:13px;font-weight:700;color:#1f2937;margin-bottom:4px">Edit Request — ' + esc(r.locationName || r.locationId) + '</div>' +
+    '<div style="font-size:11px;color:#6b7280;margin-bottom:12px">Edit requested changes. Saving will reset status to Pending Approval.</div>' +
+    (r.errorMsg ? '<div style="font-size:10px;color:#dc2626;margin-bottom:8px;padding:4px 8px;background:#FEF2F2;border-radius:4px">Previous failure: ' + esc(r.errorMsg) + '</div>' : '') +
+    '<div style="margin-bottom:12px;padding:8px;background:#f9fafbdius:6px;border:1px solid #e5e7eb;font-size:10px"><strong>Current WMS values:</strong><br>' +
+    [['Name',current.name],['Type',current.type],['Status',current.status],['Pick Type',current.supportPickType],['Tag',current.tagName||'—']].map(([k,v])=>esc(k)+': '+esc(String(v||'—'))).join(' · ') + '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">type</label><select class="cc-input" id="ltr-e-type" style="font-size:11px"><option value="">— No change —</option><option value="LOCATION"' + (changes.type==='LOCATION'?' selected':'') + '>LOCATION</option><option value="PICK"' + (changes.type==='PICK'?' selected':'') + '>PICK</option><option value="STAGING"' + (changes.type==='STAGING'?' selected':'') + '>STAGING</option><option value="DOCK"' + (changes.type==='DOCK'?' selected':'') + '>DOCK</option><option value="AUTOMATED_LOCATION"' + (changes.type==='AUTOMATED_LOCATION'?' selected':'') + '>AUTOMATED_LOCATION</option><option value="ZONE"' + (changes.type==='ZONE'?' selected':'') + '>ZONE</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">status</label><select class="cc-input" id="ltr-e-status" style="font-size:11px"><option value="">— No change —</option><option value="USABLE"' + (changes.status==='USABLE'?' selected':'') + '>USABLE</option><option value="DISABLED"' + (changes.status==='DISABLED'?' selected':'') + '>DISABLED</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">supportPickType</label><select class="cc-input" id="ltr-e-supportPickType" style="font-size:11px"><option value="">— No change —</option><option value="PALLET_PICK"' + (changes.supportPickType==='PALLET_PICK'?' selected':'') + '>PALLET_PICK</option><option value="CASE_PICK"' + (changes.supportPickType==='CASE_PICK'?' selected':'') + '>CASE_PICK</option><option value="PIECE_PICK"' + (changes.supportPickType==='PIECE_PICK'?' selected':'') + '>PIECE_PICK</option><option value="BULK_PICK"' + (changes.supportPickType==='BULK_PICK'?' selected':'') + '>BULK_PICK</option><option value="NONE"' + (changes.supportPickType==='NONE'?' selected':'') + '>NONE</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">disallowMix</label><select class="cc-input" id="ltr-e-disallowToMixItemOnSameLocation" style="font-size:11px"><option value="">— No change —</option><option value="TRUE"' + (changes.disallowToMixItemOnSameLocation==='TRUE'?' selected':'') + '>TRUE</option><option value="FALSE"' + (changes.disallowToMixItemOnSameLocation==='FALSE'?' selected':'') + '>FALSE</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Location Tag</label><select class="cc-input" id="ltr-e-tagName" style="font-size:11px"><option value="">— No change —</option>' + (r.tagId ? '<option value="' + escAttr(r.tagId) + '" selected>' + esc(r.tagName || r.tagId) + '</option>' : '') + '</select><button onclick="ltrLoadEditTags(\'' + escAttr(String(idx)) + '\')" style="font-size:9px;padding:2px 6px;margin-top:4px;cursor:pointer;background:#EDE9FE;border:1px solid #d8b4fe;border-radius:3px;color:#5B21B6">Load Tags</button></div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Notify User</label><input class="cc-input" id="ltr-e-notifyUser" style="font-size:11px" value="' + escAttr(r.notifyUser || '') + '"/></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Notify Email(s)</label><input class="cc-input" id="ltr-e-notifyEmails" style="font-size:11px" value="' + escAttr((r.notifyEmails||[]).join(', ')) + '"/></div>' +
+    '</div>' +
+    '<div style="margin-top:14px;display:flex;gap:8px">' +
+    '<button class="btn btn-primary" onclick="ltrSaveEdit('+idx+')" style="font-size:12px;padding:6px 14px">Save &amp; Resubmit</button>' +
+    '<button class="btn btn-secondary" onclick="document.getElementById(\'ltr-form\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Cancel</button></div></div>';
+  form.scrollIntoView({behavior:'smooth'});
+}
+
+async function ltrLoadEditTags(idx) {
+  const sel = document.getElementById('ltr-e-tagName');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Loading…</option>';
+  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/search-by-paging', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pageNo:1, pageSize:100})});
+  sel.innerHTML = '<option value="">— No change —</option>';
+  if (resp && resp.success !== false) {
+    const d = resp.data || resp;
+    (d.list || d.records || []).forEach(t => {
+      sel.innerHTML += '<option value="' + escAttr(String(t.id)) + '">' + esc(t.name || t.id) + '</option>';
+    });
+  }
+}
+
+function ltrSaveEdit(idx) {
+  const list = ltrLoad();
+  const r = list[idx];
+  if (!r) return;
+  const changes = {};
+  ['type','status','supportPickType','disallowToMixItemOnSameLocation'].forEach(f => {
+    const v = (document.getElementById('ltr-e-' + f) || {}).value || '';
+    if (v) changes[f] = v;
+  });
+  const tagSel = document.getElementById('ltr-e-tagName');
+  let tagId = '', tagName = '';
+  if (tagSel && tagSel.value) {
+    tagId = tagSel.value;
+    tagName = tagSel.options[tagSel.selectedIndex] ? tagSel.options[tagSel.selectedIndex].textContent : tagId;
+    changes.tagName = tagName;
+  }
+  if (Object.keys(changes).length === 0) { alert('No changes selected.'); return; }
+  r.changes = changes;
+  r.tagId = tagId || r.tagId || undefined;
+  r.tagName = tagName || r.tagName || undefined;
+  r.status = 'PENDING_APPROVAL';
+  r.editedAt = new Date().toISOString();
+  r.editedBy = admGetCurrentUsername() || '—';
+  r.notifyUser = (document.getElementById('ltr-e-notifyUser') || {}).value || r.notifyUser || undefined;
+  const emailsRaw = (document.getElementById('ltr-e-notifyEmails') || {}).value || '';
+  r.notifyEmails = emailsRaw ? emailsRaw.split(/[,;\n]+/).map(e => e.trim()).filter(Boolean) : r.notifyEmails;
+  // Clear previous failure diagnostics
+  delete r.errorMsg;
+  delete r.applyDiag;
+  delete r.locationUpdateStatus;
+  delete r.tagUpdateStatus;
+  delete r.tagUpdateMsg;
+  ltrSave(list);
+  document.getElementById('ltr-form').style.display = 'none';
+  ltrRenderList();
+  alert('Request updated and resubmitted for approval.');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
