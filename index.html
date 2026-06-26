@@ -1519,7 +1519,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           <div class="card" style="margin-bottom:16px;padding:20px">
             <div style="font-size:14px;font-weight:700;color:#1f2937;margin-bottom:12px">Cycle Count Guardrails</div>
             <div style="font-size:11px;color:#6b7280;margin-bottom:10px">These are enforced operational guardrails and cannot be disabled from the dashboard.</div>
-            <div class="set-row"><div><div class="lbl">Today-only schedule date</div><div class="desc">Tasks can only be created for today's date in America/Los_Angeles</div></div><span style="font-size:11px;color:#059669;font-weight:600">Enforced ✓</span></div>
+            <div class="set-row"><div><div class="lbl">Schedule date</div><div class="desc">Tasks are created for the selected start date/time</div></div><span style="font-size:11px;color:#059669;font-weight:600">Flexible ✓</span></div>
             <div class="set-row"><div><div class="lbl">One ticket + one task per schedule/day</div><div class="desc">Prevents duplicate tickets for the same customer/day</div></div><span style="font-size:11px;color:#059669;font-weight:600">Enforced ✓</span></div>
             <div class="set-row"><div><div class="lbl">Require RF locations on BY_LOCATION tickets</div><div class="desc">Tasks must have valid locationId for RF scan</div></div><span style="font-size:11px;color:#059669;font-weight:600">Enforced ✓</span></div>
             <div class="set-row"><div><div class="lbl">Completed requires count results</div><div class="desc">Zero-result completed tickets allow regeneration</div></div><span style="font-size:11px;color:#059669;font-weight:600">Enforced ✓</span></div>
@@ -12716,32 +12716,26 @@ function ccCheckScheduleDateInline() {
   const sd = document.getElementById('cc-sched-date');
   const warn = document.getElementById('cc-sched-date-warn');
   if (!sd || !warn) return;
-  if (!sd.value || ccIsScheduleDateToday(sd.value)) {
+  if (!sd.value) {
     warn.style.display = 'none';
-  } else {
-    const todayLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
-    const todayLabel = todayLA.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
-    const selectedDate = new Date(sd.value + (sd.value.length <= 10 ? 'T12:00:00' : ''));
-    const selectedLabel = selectedDate.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
-    warn.style.display = '';
-    warn.innerHTML = '⚠ You selected <strong>' + selectedLabel + '</strong>, but tasks can only be created for today (<strong>' + todayLabel + '</strong>). <span style="color:#2563eb;cursor:pointer;text-decoration:underline" onclick="ccSetScheduleToToday()">Set to today</span>';
+    return;
   }
+  const selectedDate = new Date(sd.value + (sd.value.length <= 10 ? 'T12:00:00' : ''));
+  const selectedLabel = selectedDate.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', year:'numeric'});
+  warn.style.display = '';
+  warn.style.color = '#059669';
+  warn.style.background = '#ECFDF5';
+  warn.innerHTML = '✓ Scheduled for <strong>' + selectedLabel + '</strong>';
 }
 
 async function submitCycleCount() {
   const btn = document.getElementById('cc-submit-btn');
 
-  // GUARDRAIL: Only create tasks for today's date (America/Los_Angeles)
+  // Validate: Start Time must be set and not in the past
   const schedDateVal = (document.getElementById('cc-sched-date') || {}).value || '';
-  if (!ccIsScheduleDateToday(schedDateVal)) {
-    const nowLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
-    const todayLabel = nowLA.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', year:'numeric'});
-    const useToday = confirm('Schedule date (' + (schedDateVal ? schedDateVal.slice(0,10) : 'none') + ') is not today (' + todayLabel + ').\n\nWould you like to set it to today and continue?');
-    if (useToday) {
-      ccSetScheduleToToday();
-    } else {
-      return;
-    }
+  if (!schedDateVal) {
+    alert('Please select a Start Time for the cycle count.');
+    return;
   }
 
   const quotaNum = parseInt(document.getElementById('cc-quota-num').value, 10);
