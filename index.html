@@ -2450,37 +2450,56 @@ async function fetchFacilityCustomersFromAPI() {
   const locCust = document.getElementById('loc-customer');
   if (cust) cust.innerHTML = '<option value="">Loading customers…</option>';
 
-  const resp = await safeFetch(WMS_BASE + '/api/mdm/customer/search-by-paging', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({currentPage:1, pageSize:200}),
-  });
+  let allCustomers = [];
+  let page = 1;
+  const pageSize = 200;
+  let hasMore = true;
 
-  let list = [];
-  if (resp && !resp._needsAuth && resp.success !== false) {
+  while (hasMore) {
+    const resp = await safeFetch(WMS_BASE + '/api/mdm/customer/search-by-paging', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({currentPage: page, pageSize: pageSize}),
+    });
+
+    if (!resp || resp._needsAuth || resp.success === false) {
+      if (page === 1) console.warn('[customers] API failed for facility', FACILITY_ID);
+      break;
+    }
+
     const d = resp.data || resp;
-    list = (d.list || d.records || []).map(c => ({
+    const rows = (d.list || d.records || []).map(c => ({
       id: c.id || c.orgId || c.customerId,
       name: c.name || c.customerName || c.orgName || c.id,
+      code: c.code || c.customerCode || '',
       count: 0,
     }));
+
+    allCustomers = allCustomers.concat(rows);
+    const total = d.totalCount || d.total || 0;
+    if (rows.length < pageSize || allCustomers.length >= total) hasMore = false;
+    else page++;
+    // Safety cap to avoid infinite loops
+    if (page > 10) break;
   }
 
-  if (list.length === 0 && resp) {
-    console.warn('[customers] API returned 0 customers for facility', FACILITY_ID, 'status:', resp.code || resp.status || 'ok');
+  if (allCustomers.length === 0) {
+    console.warn('[customers] API returned 0 customers for facility', FACILITY_ID);
+  } else {
+    console.log('[customers] Loaded', allCustomers.length, 'customers for', FACILITY_ID);
   }
 
   // Cache for this session
-  if (list.length > 0) FACILITY_CUSTOMERS[FACILITY_ID] = list;
+  if (allCustomers.length > 0) FACILITY_CUSTOMERS[FACILITY_ID] = allCustomers;
 
-  const opts = list.map(c => ({id: c.id, name: c.name}));
+  const opts = allCustomers.map(c => ({id: c.id, name: c.name + (c.code ? ' (' + c.code + ')' : '')}));
   fillSelect(cust, opts);
   fillSelect(locCust, opts);
   if (cust) cust.value = '';
   syncAddLineEnabled();
 
-  if (list.length === 0) {
-    if (cust) cust.innerHTML = '<option value="">No customers found for this facility</option>';
+  if (allCustomers.length === 0) {
+    if (cust) cust.innerHTML = '<option value="">Customer options could not be loaded for this warehouse. Please retry or contact an administrator.</option>';
   }
 }
 
