@@ -12721,8 +12721,10 @@ function ccCheckScheduleDateInline() {
   } else {
     const todayLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
     const todayLabel = todayLA.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+    const selectedDate = new Date(sd.value + (sd.value.length <= 10 ? 'T12:00:00' : ''));
+    const selectedLabel = selectedDate.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
     warn.style.display = '';
-    warn.innerHTML = '⚠ Selected date is day (' + todayLabel + '). Tasks can only be created for today. <span style="color:#2563eb;cursor:pointer;text-decoration:underline" onclick="ccSetScheduleToToday()">Use today</span>';
+    warn.innerHTML = '⚠ You selected <strong>' + selectedLabel + '</strong>, but tasks can only be created for today (<strong>' + todayLabel + '</strong>). <span style="color:#2563eb;cursor:pointer;text-decoration:underline" onclick="ccSetScheduleToToday()">Set to today</span>';
   }
 }
 
