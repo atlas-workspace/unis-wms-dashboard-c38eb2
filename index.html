@@ -982,7 +982,8 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
                 </div>
                 <div class="cc-field">
                   <label class="cc-label"><span class="req">*</span>Start Time</label>
-                  <input type="datetime-local" class="cc-input date" id="cc-sched-date" step="60"/>
+                  <input type="datetime-local" class="cc-input date" id="cc-sched-date" step="60" onchange="ccCheckScheduleDateInline()"/>
+                  <div id="cc-sched-date-warn" style="display:none;font-size:10px;color:#d97706;margin-top:4px;padding:4px 6px;background:#FEF3C7;border-radius:4px"></div>
                 </div>
                 <div class="cc-field">
                   <label class="cc-label"><span class="req">*</span>End Time</label>
@@ -12674,6 +12675,35 @@ function ccIsScheduleDateToday(schedDateStr) {
   return schedDateStr.slice(0, 10) === todayStr;
 }
 
+function ccGetTodayLA() {
+  const nowLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
+  const pad = n => String(n).padStart(2,'0');
+  return nowLA.getFullYear() + '-' + pad(nowLA.getMonth()+1) + '-' + pad(nowLA.getDate());
+}
+
+function ccSetScheduleToToday() {
+  const todayStr = ccGetTodayLA();
+  const sd = document.getElementById('cc-sched-date');
+  if (sd) sd.value = todayStr + 'T08:00';
+  const td = document.getElementById('cc-target-date');
+  if (td) td.value = todayStr + 'T23:59';
+  ccCheckScheduleDateInline();
+}
+
+function ccCheckScheduleDateInline() {
+  const sd = document.getElementById('cc-sched-date');
+  const warn = document.getElementById('cc-sched-date-warn');
+  if (!sd || !warn) return;
+  if (!sd.value || ccIsScheduleDateToday(sd.value)) {
+    warn.style.display = 'none';
+  } else {
+    const todayLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
+    const todayLabel = todayLA.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+    warn.style.display = '';
+    warn.innerHTML = '⚠ Selected date is day (' + todayLabel + '). Tasks can only be created for today. <span style="color:#2563eb;cursor:pointer;text-decoration:underline" onclick="ccSetScheduleToToday()">Use today</span>';
+  }
+}
+
 async function submitCycleCount() {
   const btn = document.getElementById('cc-submit-btn');
 
@@ -12682,8 +12712,12 @@ async function submitCycleCount() {
   if (!ccIsScheduleDateToday(schedDateVal)) {
     const nowLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
     const todayLabel = nowLA.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', year:'numeric'});
-    alert('Cycle count tasks can only be created for today (' + todayLabel + ').\n\nThe selected schedule date (' + (schedDateVal ? schedDateVal.slice(0,10) : 'none') + ') is not today. Please adjust the Schedule Date to today before creating the task.');
-    return;
+    const useToday = confirm('Schedule date (' + (schedDateVal ? schedDateVal.slice(0,10) : 'none') + ') is not today (' + todayLabel + ').\n\nWould you like to set it to today and continue?');
+    if (useToday) {
+      ccSetScheduleToToday();
+    } else {
+      return;
+    }
   }
 
   const quotaNum = parseInt(document.getElementById('cc-quota-num').value, 10);
