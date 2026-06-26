@@ -2433,7 +2433,8 @@ function switchFacility(newId) {
 function refreshFacilityCustomers() {
   const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
   if (customers.length > 0) {
-    const opts = customers.map(c => ({id: c.id, name: c.name + (c.count ? '  (' + c.count.toLocaleString() + ' locs)' : '')}));
+    const sorted = [...customers].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const opts = sorted.map(c => ({id: c.id, name: c.name + (c.count ? '  (' + c.count.toLocaleString() + ' locs)' : '')}));
     fillSelect(document.getElementById('cc-customer'), opts);
     fillSelect(document.getElementById('loc-customer'), opts);
     const cust = document.getElementById('cc-customer');
@@ -2492,7 +2493,9 @@ async function fetchFacilityCustomersFromAPI() {
   // Cache for this session
   if (allCustomers.length > 0) FACILITY_CUSTOMERS[FACILITY_ID] = allCustomers;
 
-  const opts = allCustomers.map(c => ({id: c.id, name: c.name + (c.code ? ' (' + c.code + ')' : '')}));
+  // Sort alphabetically by name for business users
+  const sorted = [...allCustomers].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  const opts = sorted.map(c => ({id: c.id, name: c.name + (c.code ? ' (' + c.code + ')' : '')}));
   fillSelect(cust, opts);
   fillSelect(locCust, opts);
   if (cust) cust.value = '';
