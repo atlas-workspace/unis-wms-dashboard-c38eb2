@@ -15125,11 +15125,11 @@ function picalShowAddForm() {
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px">' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Department</label><select class="cc-input" id="pical-add-dept" onchange="ticketOnDeptChange(\x27pical-add-dept\x27,\x27pical-add-topic\x27)"><option value="">Loading…</option></select></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Topic</label><select class="cc-input" id="pical-add-topic"><option value="">Select department first</option></select></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Contact Email(s)</label><input class="cc-input" id="pical-add-contact-email" placeholder="email@co.com, email2@co.com"/></div>' +
+    
     '<div class="cc-field" style="margin:0"><label class="cc-label">Ticket Title</label><input class="cc-input" id="pical-add-ticket-title" placeholder="Physical Inventory Setup"/></div>' +
     '</div>' +
     '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px;align-items:end">' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Team</label><select class="cc-input" id="pical-add-team"><option value="">No team (assign later)</option></select></div>' +
+    '<div class="cc-field" style="margin:0"><label class="cc-label">Team</label><select class="cc-input" id="pical-add-team"><option value="">No team (assign later)</option><option value="336699888571584512">UF Buena Park Inventory</option></select></div>' +
     '<button class="btn btn-secondary" type="button" onclick="picalLoadTeams(\'add\')" style="font-size:11px;padding:5px 10px;height:36px">Load Teams</button>' +
     '</div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Setup Message</label><textarea class="cc-input" id="pical-add-ticket-msg" rows="8" style="resize:vertical;font-size:12px;line-height:1.5" placeholder="Setup instructions or message for the ticket..."></textarea></div>' +
@@ -15239,7 +15239,7 @@ function picalEditLocal(localId) {
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px">' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Department</label><select class="cc-input" id="pical-edit-dept" onchange="ticketOnDeptChange(\x27pical-edit-dept\x27,\x27pical-edit-topic\x27)"><option value="">Loading…</option></select></div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Topic</label><select class="cc-input" id="pical-edit-topic"><option value="">Select department first</option></select></div>' +
-    '<div class="cc-field" style="margin:0"><label class="cc-label">Contact Email</label><input class="cc-input" id="pical-edit-contact-email" value="' + escAttr(rec.contactEmail || '') + '" placeholder="contact@company.com"/></div>' +
+
     '<div class="cc-field" style="margin:0"><label class="cc-label">Ticket Title</label><input class="cc-input" id="pical-edit-ticket-title" value="' + escAttr(rec.ticketTitle || '') + '" placeholder="Physical Inventory Setup"/></div>' +
     '</div>' +
     '<div class="cc-field" style="margin:0"><label class="cc-label">Setup Message / Email Template</label><textarea class="cc-input" id="pical-edit-ticket-msg" rows="10" style="resize:vertical;font-size:12px" placeholder="Setup instructions...">' + esc(editMsg) + '</textarea></div>' +
@@ -15247,7 +15247,7 @@ function picalEditLocal(localId) {
     '<button type="button" class="btn btn-secondary" onclick="picalGenerateTemplate(\'edit\')" style="font-size:11px;padding:4px 10px">Use Formal PI Email Template</button>' +
     '<button type="button" class="btn btn-secondary" onclick="picalLoadTeams(\'edit\')" style="font-size:11px;padding:4px 10px">Load Teams</button>' +
     '</div>' +
-    '<div class=eld" style="margin:6px 0 0"><label class="cc-label">Team (optional)</label><select class="cc-input" id="pical-edit-team" style="font-size:12px"><option value="">No team / manual</option>' + (rec.teamId ? '<option value="' + escAttr(rec.teamId) + '" selected>' + esc(rec.teamName || 'Team ' + rec.teamId) + '</option>' : '') + '</select></div>' +
+    '<div class=eld" style="margin:6px 0 0"><label class="cc-label">Team (optional)</label><select class="cc-input" id="pical-edit-team" style="font-size:12px"><option value="">No team / manual</option><option value="336699888571584512">UF Buena Park Inventory</option>' + (rec.teamId ? '<option value="' + escAttr(rec.teamId) + '" selected>' + esc(rec.teamName || 'Team ' + rec.teamId) + '</option>' : '') + '</select></div>' +
     '<div class="cc-field" style="margin:6px 0 0"><label class="cc-label">Attachments (optional)</label><input type="file" id="pical-edit-files" multiple style="font-size:12px"/></div>' +
     '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6b7280;margin-top:8px;cursor:pointer"><input type="checkbox" id="pical-edit-send-msg" checked style="accent-color:#753BBD"/> Include setup message</label>' +
     '</div></div>' +
@@ -15281,7 +15281,7 @@ async function picalSaveEdit(localId) {
   if (createTicket) {
     rec.deptId = (document.getElementById('pical-edit-dept') || {}).value || '';
     rec.topicId = (document.getElementById('pical-edit-topic') || {}).value || '';
-    rec.contactEmail = (document.getElementById('pical-edit-contact-email') || {}).value || '';
+
     rec.ticketTitle = (document.getElementById('pical-edit-ticket-title') || {}).value || '';
     rec.ticketMsg = (document.getElementById('pical-edit-ticket-msg') || {}).value || '';
   }
@@ -15587,7 +15587,7 @@ async function picalCreateTicket(rec, opts) {
   const missing = [];
   if (!opts.dept) missing.push('Department');
   if (!opts.topic) missing.push('Topic');
-  if (!opts.contactEmail) missing.push('Contact Email');
+  
   if (!opts.title) missing.push('Title');
   if (!opts.msg) missing.push('Setup Message');
   if (missing.length > 0) {
