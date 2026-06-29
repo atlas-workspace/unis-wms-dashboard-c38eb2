@@ -695,6 +695,18 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           </div>
         </div>
 
+        <!-- CYCLE COUNT KPI BY CUSTOMER -->
+        <div class="card" style="margin-top:18px">
+          <div class="card-hdr">
+            <div>
+              <div class="card-ttl">Cycle Count by Customer</div>
+              <div class="scheduler-help">Count ticket metrics grouped by customer/account for the current facility.</div>
+            </div>
+            <button class="btn btn-secondary" onclick="loadDashCycleCountKpi()" style="font-size:12px;padding:5px 12px">Refresh</button>
+          </div>
+          <div id="dash-cc-kpi" style="padding:12px;font-size:12px;color:#9ca3af">Click Refresh or sign in to load cycle count KPIs.</div>
+        </div>
+
         <!-- CHARTS -->
         <div class="charts-row">
           <div class="card">
@@ -2297,6 +2309,7 @@ function showDash() {
   if (admSb) admSb.style.display = admIsOwner() ? '' : 'none';
   initCharts();
   loadInsight();
+  loadDashCycleCountKpi();
   startSyncClock();
   updateTokenStatus();
   if (!window.__wmsTokenTimersStarted) {
@@ -17079,6 +17092,86 @@ function ltrSaveEdit(idx) {
   document.getElementById('ltr-form').style.display = 'none';
   ltrRenderList();
   alert('Request updated and resubmitted for approval.');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DASHBOARD — Cycle Count KPI by Customer
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function loadDashCycleCountKpi() {
+  const container = document.getElementById('dash-cc-kpi');
+  if (!container) return;
+  if (!WISE_TOKEN) { container.innerHTML = '<span style="color:#9ca3af">Sign in to view cycle count metrics.</span>'; return; }
+  container.innerHTML = '<span class="spinner"></span> Loading cycle count records…';
+
+  const resp = await safeFetch(WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','Accept':'application/json'},
+    body: JSON.stringify({currentPage:1, pageSize:100, facilityId: FACILITY_ID, warehouseId: FACILITY_ID}),
+  });
+
+  if (!resp || resp._needsAuth) { container.innerHTML = '<span style="color:#ef4444">Authentication required. Please sign in.</span>'; return; }
+  const d = resp.data || resp;
+  const tickets = d.list || d.records || [];
+
+  if (tickets.length === 0) { container.innerHTML = '<span style="color:#9ca3af">No cycle count records found for ' + esc(FACILITY_NAME || FACILITY_ID) + '.</span>'; return; }
+
+  // Group by customer
+  const custLookup = {};
+  (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => custLookup[c.id] = c.name);
+
+  const byCustomer = {};
+  tickets.forEach(t => {
+    const cid = t.customerId || 'UNASSIGNED';
+    const cname = custLookup[cid] || cid;
+    if (!byCustomer[cid]) byCustomer[cid] = {name: cname, total: 0, open: 0, completed: 0, cancelled: 0, empty: 0};
+    const g = byCustomer[cid];
+    g.total++;
+    const st = (t.status || '').toUpperCase();
+    if (/COMPLET|CLOSED|DONE/.test(st)) g.completed++;
+    else if (/CANCEL/.test(st)) g.cancelled++;
+    else g.open++;
+  });
+
+  // Sort by total descending
+  const rows = Object.values(byCustomer).sort((a, b) => b.total - a.total);
+  const totalAll = tickets.length;
+  const openAll = rows.reduce((s, r) => s + r.open, 0);
+  const completedAll = rows.reduce((s, r) => s + r.completed, 0);
+
+  let html = '<div style="display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap">' +
+    '<div style="text-align:center;padding:8px 16px;background:#F3EEFF;border-radius:8px"><div style="font-size:18px;font-weight:700;color:#5B21B6">' + totalAll + '</div><div style="font-size:10px;color:#6b7280">Total Tickets</div></div>' +
+    '<div style="text-align:center;padding:8px 16px;background:#ECFDF5;border-radius:8px"><div style="font-size:18px;font-weight:700;color:#059669">' + completedAll + '</div><div style="font-size:10px;color:#6b7280">Completed</div></div>' +
+    '<div style="text-align:center;padding:8px 16px;background:#FEF3C7;border-radius:8px"><div style="font-size:18px;font-weight:700;color:#d97706">' + openAll + '</div><div style="font-size:10px;color:#6b7280">Open / In Progress</div></div>' +
+    '<div style="text-align:center;padding:8px 16px;background:#f3f4f6;border-radius:8px"><div style="font-size:18px;font-weight:700;color:#374151">' + rows.length + '</div><div style="font-size:10px;color:#6b7280">Customers</div></div>' +
+    '</div>';
+
+  html += '<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr style="background:#f9fafb;border-bottom:1px solid #e5e7eb">' +
+    '<th style="padding:6px 8px;text-align:left">Customer</th>' +
+    '<th style="padding:6px 8px;text-align:center">Total</th>' +
+    '<th style="padding:6px 8px;text-align:center">Open</th>' +
+    '<th style="padding:6px 8px;text-align:center">Completed</th>' +
+    '<th style="padding:6px 8px;text-align:center">Cancelled</th>' +
+    '<th style="padding:6px 8px;text-align:center">Completion %</th>' +
+    '</tr></thead><tbody>';
+
+  rows.forEach(r => {
+    const pct = r.total > 0 ? Math.round((r.completed / r.total) * 100) : 0;
+    const pctColor = pct >= 80 ? '#059669' : pct >= 50 ? '#d97706' : '#dc2626';
+    const nameDisplay = r.name === 'UNASSIGNED' ? '<span style="color:#9ca3af;font-style:italic">Unassigned</span>' : esc(String(r.name).slice(0, 30));
+    html += '<tr style="border-bottom:1px solid #f3f4f6">' +
+      '<td style="padding:5px 8px;font-weight:600">' + nameDisplay + '</td>' +
+      '<td style="padding:5px 8px;text-align:center">' + r.total + '</td>' +
+      '<td style="padding:5px 8px;text-align:center;color:#d97706;font-weight:600">' + (r.open || '—') + '</td>' +
+      '<td style="padding:5px 8px;text-align:center;color:#059669">' + (r.completed || '—') + '</td>' +
+      '<td style="padding:5px 8px;text-align:center;color:#9ca3af">' + (r.cancelled || '—') + '</td>' +
+      '<td style="padding:5px 8px;text-align:center"><span style="color:' + pctColor + ';font-weight:600">' + pct + '%</span></td>' +
+      '</tr>';
+  });
+
+  html += '</tbody></table>';
+  html += '<div style="font-size:10px;color:#9ca3af;margin-top:8px">Based on ' + totalAll + ' cycle count tickets at ' + esc(FACILITY_NAME || FACILITY_ID) + '. Refresh for latest data.</div>';
+  container.innerHTML = html;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
