@@ -818,38 +818,33 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
 
       <!-- ════ VIEW: INVENTORY ════ -->
       <div class="view" id="view-inventory">
-        <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div><div class="kpi-lbl">SKUs Tracked</div><div class="kpi-val">1,248</div><div class="kpi-chg up">▲ 5.2%</div></div></div>
-          <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">In Stock</div><div class="kpi-val">842</div><div class="kpi-chg neutral">67.6% of SKUs</div></div></div>
-          <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg></div><div><div class="kpi-lbl">Low Stock</div><div class="kpi-val">231</div><div class="kpi-chg down">▼ 2.1%</div></div></div>
-          <div class="kpi"><div class="kpi-ico red"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><div><div class="kpi-lbl">Out of Stock</div><div class="kpi-val">98</div><div class="kpi-chg up">▲ 3 vs last wk</div></div></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:15px;font-weight:700;color:#1f2937" id="inv-title">Inventory</div>
+            <div style="font-size:12px;color:#6b7280" id="inv-facility-label">Select a warehouse to view live inventory</div>
+          </div>
+          <button class="btn btn-primary" onclick="loadLiveInventory()" style="font-size:12px;padding:6px 14px" id="inv-refresh-btn">Load Live Inventory</button>
+        </div>
+        <div class="kpi-grid" id="inv-kpis">
+          <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div><div class="kpi-lbl">Total Records</div><div class="kpi-val" id="inv-kpi-total">—</div><div class="kpi-chg neutral" id="inv-kpi-total-sub">load to see</div></div></div>
+          <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Locations Used</div><div class="kpi-val" id="inv-kpi-locs">—</div><div class="kpi-chg neutral">occupied</div></div></div>
+          <div class="kpi"><div class="kpi-ico amber"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div><div class="kpi-lbl">Items</div><div class="kpi-val" id="inv-kpi-items">—</div><div class="kpi-chg neutral">unique SKUs</div></div></div>
+          <div class="kpi"><div class="kpi-ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg></div><div><div class="kpi-lbl">Customers</div><div class="kpi-val" id="inv-kpi-custs">—</div><div class="kpi-chg neutral">with inventory</div></div></div>
         </div>
 
-        <div class="card">
-          <div class="card-hdr">
-            <div class="card-ttl" id="inv-sub-title">All Items</div>
-            <select class="sel">
-              <option>All Categories</option>
-              <option>Electronics</option>
-              <option>Furniture</option>
-              <option>Accessories</option>
-            </select>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:12px 16px;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <span style="font-size:13px;font-weight:600;color:#374151" id="inv-sub-title">Live Inventory</span>
+            <input class="cc-input" id="inv-search" placeholder="Filter by item, location, customer…" style="width:220px;font-size:12px;padding:5px 10px" oninput="invFilterTable()"/>
           </div>
-          <table class="tbl">
-            <thead><tr><th>SKU</th><th>Product</th><th>Category</th><th>Location</th><th>On Hand</th><th>Reorder</th><th>Status</th></tr></thead>
-            <tbody>
-              <tr><td style="color:#9ca3af">WM-1001</td><td>Wireless Mouse</td><td>Electronics</td><td>A-12-03</td><td><span class="num-amber">5</span></td><td>10</td><td><span class="badge low">Low</span></td></tr>
-              <tr><td style="color:#9ca3af">KB-2002</td><td>Mechanical Keyboard</td><td>Electronics</td><td>A-12-04</td><td><span class="num-red">3</span></td><td>10</td><td><span class="badge low">Low</span></td></tr>
-              <tr><td style="color:#9ca3af">UC-3003</td><td>USB-C Cable 2m</td><td>Accessories</td><td>B-04-11</td><td><span class="num-amber">8</span></td><td>15</td><td><span class="badge low">Low</span></td></tr>
-              <tr><td style="color:#9ca3af">OC-4004</td><td>Office Chair</td><td>Furniture</td><td>D-01-02</td><td><span class="num-red">2</span></td><td>5</td><td><span class="badge vlow">Very Low</span></td></tr>
-              <tr><td style="color:#9ca3af">MN-5005</td><td>Monitor 24"</td><td>Electronics</td><td>A-08-07</td><td><span class="num-red">0</span></td><td>5</td><td><span class="badge out">Out</span></td></tr>
-              <tr><td style="color:#9ca3af">HP-6006</td><td>Headphones Wireless</td><td>Electronics</td><td>A-15-09</td><td>48</td><td>20</td><td><span class="badge ok">In Stock</span></td></tr>
-              <tr><td style="color:#9ca3af">DK-7007</td><td>Standing Desk</td><td>Furniture</td><td>D-02-01</td><td>14</td><td>5</td><td><span class="badge ok">In Stock</span></td></tr>
-              <tr><td style="color:#9ca3af">WB-8008</td><td>Webcam HD</td><td>Electronics</td><td>A-09-05</td><td>92</td><td>25</td><td><span class="badge ok">In Stock</span></td></tr>
-              <tr><td style="color:#9ca3af">PR-9009</td><td>Laser Printer</td><td>Electronics</td><td>C-03-02</td><td>23</td><td>8</td><td><span class="badge ok">In Stock</span></td></tr>
-            </tbody>
-          </table>
+          <div style="overflow-x:auto">
+            <table class="tbl" style="margin:0;font-size:12px">
+              <thead><tr><th>Location</th><th>Item</th><th>Customer</th><th>Qty</th><th>UOM</th><th>Status</th><th>Pick Type</th></tr></thead>
+              <tbody id="inv-tbody"><tr><td colspan="7" style="text-align:center;padding:40px;color:#9ca3af">Click "Load Live Inventory" to fetch data for the selected warehouse.</td></tr></tbody>
+            </table>
+          </div>
         </div>
+        <div style="font-size:10px;color:#9ca3af;margin-top:8px" id="inv-diag"></div>
       </div>
 
       <!-- ════ VIEW: TASKS ════ -->
@@ -17173,6 +17168,110 @@ async function loadDashCycleCountKpi() {
   html += '<div style="font-size:10px;color:#9ca3af;margin-top:8px">Based on ' + totalAll + ' cycle count tickets at ' + esc(FACILITY_NAME || FACILITY_ID) + '. Refresh for latest data.</div>';
   container.innerHTML = html;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INVENTORY — Live warehouse-scoped inventory view
+// ═══════════════════════════════════════════════════════════════════════════
+
+let INV_DATA = [];
+
+async function loadLiveInventory() {
+  const btn = document.getElementById('inv-refresh-btn');
+  const tbody = document.getElementById('inv-tbody');
+  const facLabel = document.getElementById('inv-facility-label');
+  const diag = document.getElementById('inv-diag');
+  if (facLabel) facLabel.textContent = 'Loading inventory for ' + (FACILITY_NAME || FACILITY_ID) + '…';
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+  if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#9ca3af"><span class="spinner"></span> Fetching live inventory for ' + esc(FACILITY_NAME || FACILITY_ID) + '…</td></tr>';
+
+  if (!WISE_TOKEN) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#ef4444">Please sign in to view live inventory.</td></tr>';
+    if (btn) { btn.disabled = false; btn.textContent = 'Load Live Inventory'; }
+    return;
+  }
+
+  INV_DATA = [];
+  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/inventory/search-by-paging', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({currentPage: 1, pageSize: 100}),
+  });
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Load Live Inventory'; }
+
+  if (!resp || resp._needsAuth) {
+    if (facLabel) facLabel.textContent = 'Authentication required for ' + (FACILITY_NAME || FACILITY_ID);
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#ef4444">Authentication required. Please sign in.</td></tr>';
+    if (diag) diag.textContent = 'API: inventory/search-by-paging, facility: ' + FACILITY_ID + ', auth: missing';
+    return;
+  }
+
+  const d = resp.data || resp;
+  const list = d.list || d.records || [];
+  const total = d.totalCount || d.total || list.length;
+
+  if (list.length === 0) {
+    if (facLabel) facLabel.textContent = 'No inventory records found for ' + (FACILITY_NAME || FACILITY_ID);
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#9ca3af">No inventory data available for ' + esc(FACILITY_NAME || FACILITY_ID) + '. The warehouse may have no active inventory or API access may be restricted.</td></tr>';
+    if (diag) diag.textContent = 'Facility: ' + FACILITY_ID + ' | API responded with 0 records | Total reported: ' + total;
+    return;
+  }
+
+  INV_DATA = list.map(inv => ({
+    locationName: inv.locationName || inv.locationId || '—',
+    itemName: inv.itemName || inv.description || inv.shortDescription || inv.itemId || '—',
+    itemId: inv.itemId || '',
+    customerName: inv.customerName || inv.customerId || '—',
+    qty: parseFloat(inv.qty || inv.baseQty || 0),
+    uom: inv.uomName || inv.baseUomName || 'EA',
+    status: inv.status || '—',
+    supportPickType: inv.supportPickType || '—',
+  }));
+
+  // KPIs
+  const uniqueLocs = new Set(INV_DATA.map(r => r.locationName));
+  const uniqueItems = new Set(INV_DATA.map(r => r.itemId).filter(Boolean));
+  const uniqueCusts = new Set(INV_DATA.map(r => r.customerName));
+  document.getElementById('inv-kpi-total').textContent = total.toLocaleString();
+  document.getElementById('inv-kpi-total-sub').textContent = 'showing ' + INV_DATA.length + ' of ' + total;
+  document.getElementById('inv-kpi-locs').textContent = uniqueLocs.size.toLocaleString();
+  document.getElementById('inv-kpi-items').textContent = uniqueItems.size.toLocaleString();
+  document.getElementById('inv-kpi-custs').textContent = uniqueCusts.size.toLocaleString();
+
+  if (facLabel) facLabel.textContent = 'Showing live inventory for ' + (FACILITY_NAME || FACILITY_ID) + ' (' + FACILITY_ID + ')';
+  if (diag) diag.textContent = 'Facility: ' + FACILITY_ID + ' | ' + INV_DATA.length + ' records loaded | Total available: ' + total;
+
+  invRenderTable();
+}
+
+function invRenderTable() {
+  const tbody = document.getElementById('inv-tbody');
+  if (!tbody) return;
+  const q = (document.getElementById('inv-search') || {}).value.toLowerCase().trim();
+  const filtered = q ? INV_DATA.filter(r => [r.locationName, r.itemName, r.customerName, r.status, r.supportPickType].join(' ').toLowerCase().includes(q)) : INV_DATA;
+
+  document.getElementById('inv-sub-title').textContent = filtered.length + ' inventory record(s)' + (q ? ' matching "' + q + '"' : '');
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#9ca3af">No records match the filter.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.slice(0, 200).map(r => {
+    const pickLabel = {PALLET_PICK:'Pallet', CASE_PICK:'Case', PIECE_PICK:'Piece', BULK_PICK:'Bulk'}[r.supportPickType] || r.supportPickType || '—';
+    return '<tr>' +
+      '<td style="font-family:monospace;font-size:11px;color:#753BBD">' + esc(r.locationName) + '</td>' +
+      '<td style="font-size:12px" title="' + escAttr(r.itemId) + '">' + esc(String(r.itemName).slice(0,35)) + '</td>' +
+      '<td style="font-size:11px">' + esc(String(r.customerName).slice(0,25)) + '</td>' +
+      '<td style="font-weight:600">' + r.qty + '</td>' +
+      '<td style="font-size:11px;color:#6b7280">' + esc(r.uom) + '</td>' +
+      '<td><span class="badge ' + (r.status === 'USABLE' ? 'ok' : 'idle') + '">' + esc(r.status) + '</span></td>' +
+      '<td style="font-size:11px">' + esc(pickLabel) + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function invFilterTable() { invRenderTable(); }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════════════════
