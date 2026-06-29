@@ -2431,6 +2431,10 @@ function switchFacility(newId) {
   } else if (activeName === 'scheduler') {
     loadExistingSchedules();
     renderTasksPanel();
+  } else if (activeName === 'inventory') {
+    // Inventory is now live and facility-scoped; refresh it immediately when
+    // the warehouse changes so the table never shows another facility's data.
+    loadLiveInventory();
   }
 
   setLiveStatus(false);
@@ -17184,8 +17188,13 @@ async function loadLiveInventory() {
   if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
   if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#9ca3af"><span class="spinner"></span> Fetching live inventory for ' + esc(FACILITY_NAME || FACILITY_ID) + '…</td></tr>';
 
-  if (!WISE_TOKEN) {
-    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#ef4444">Please sign in to view live inventory.</td></tr>';
+  // Use the same session flow as the rest of the WMS dashboard. The access
+  // token may not be present yet even when a refresh token exists, so try the
+  // shared silent-renew path before deciding the user must sign in again.
+  const hasSession = await ensureWiseToken(false);
+  if (!hasSession) {
+    if (facLabel) facLabel.textContent = 'Sign in to view live inventory for ' + (FACILITY_NAME || FACILITY_ID);
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#ef4444">Please sign in again to view live inventory.</td></tr>';
     if (btn) { btn.disabled = false; btn.textContent = 'Load Live Inventory'; }
     return;
   }
