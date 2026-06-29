@@ -844,7 +844,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
             </table>
           </div>
         </div>
-        <div style="font-size:10px;color:#9ca3af;margin-top:8px" id="inv-diag"></div>
+        <!-- diagnostics removed from UI -->
       </div>
 
       <!-- ════ VIEW: TASKS ════ -->
@@ -17179,7 +17179,7 @@ async function loadLiveInventory() {
   const btn = document.getElementById('inv-refresh-btn');
   const tbody = document.getElementById('inv-tbody');
   const facLabel = document.getElementById('inv-facility-label');
-  const diag = document.getElementById('inv-diag');
+  // diagnostics moved to console only
   if (facLabel) facLabel.textContent = 'Loading inventory for ' + (FACILITY_NAME || FACILITY_ID) + '…';
   if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
   if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#9ca3af"><span class="spinner"></span> Fetching live inventory for ' + esc(FACILITY_NAME || FACILITY_ID) + '…</td></tr>';
@@ -17200,9 +17200,12 @@ async function loadLiveInventory() {
   if (btn) { btn.disabled = false; btn.textContent = 'Load Live Inventory'; }
 
   if (!resp || resp._needsAuth) {
-    if (facLabel) facLabel.textContent = 'Authentication required for ' + (FACILITY_NAME || FACILITY_ID);
-    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#ef4444">Authentication required. Please sign in.</td></tr>';
-    if (diag) diag.textContent = 'API: inventory/search-by-paging, facility: ' + FACILITY_ID + ', auth: missing';
+    if (facLabel) facLabel.textContent = '';
+    if (!WISE_TOKEN) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#ef4444">Please sign in again to view live inventory.</td></tr>';
+    } else {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#d97706">Inventory data is currently unavailable. Your session may need to be refreshed — try signing in again.</td></tr>';
+    }
     return;
   }
 
@@ -17213,7 +17216,6 @@ async function loadLiveInventory() {
   if (list.length === 0) {
     if (facLabel) facLabel.textContent = 'No inventory records found for ' + (FACILITY_NAME || FACILITY_ID);
     if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#9ca3af">No inventory data available for ' + esc(FACILITY_NAME || FACILITY_ID) + '. The warehouse may have no active inventory or API access may be restricted.</td></tr>';
-    if (diag) diag.textContent = 'Facility: ' + FACILITY_ID + ' | API responded with 0 records | Total reported: ' + total;
     return;
   }
 
@@ -17238,8 +17240,7 @@ async function loadLiveInventory() {
   document.getElementById('inv-kpi-items').textContent = uniqueItems.size.toLocaleString();
   document.getElementById('inv-kpi-custs').textContent = uniqueCusts.size.toLocaleString();
 
-  if (facLabel) facLabel.textContent = 'Showing live inventory for ' + (FACILITY_NAME || FACILITY_ID) + ' (' + FACILITY_ID + ')';
-  if (diag) diag.textContent = 'Facility: ' + FACILITY_ID + ' | ' + INV_DATA.length + ' records loaded | Total available: ' + total;
+  if (facLabel) facLabel.textContent = 'Live inventory for ' + (FACILITY_NAME || FACILITY_ID);
 
   invRenderTable();
 }
