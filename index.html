@@ -2482,7 +2482,7 @@ async function fetchFacilityCustomersFromAPI() {
 
     const d = resp.data || resp;
     const rows = (d.list || d.records || []).map(c => ({
-      id: c.id || c.orgId || c.customerId,
+      id: c.orgId || c.id || c.customerId,
       name: c.name || c.customerName || c.orgName || c.id,
       code: c.code || c.customerCode || '',
       count: 0,
