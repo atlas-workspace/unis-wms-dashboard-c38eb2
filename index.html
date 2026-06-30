@@ -11506,7 +11506,7 @@ async function populateCounterDatalist() {
   const resp = await safeFetch(WMS_BASE + '/api/wms-bam/user/facility/search-by-paging', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({currentPage:1, pageSize:200}),
+    body: JSON.stringify({currentPage:1, pageSize:200, facilityId: FACILITY_ID, warehouseId: FACILITY_ID})
   });
   let users = [];
   if (resp && !resp._needsAuth && resp.success !== false) {
