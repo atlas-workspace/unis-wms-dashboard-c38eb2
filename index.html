@@ -11088,9 +11088,12 @@ async function previewCustomerLocationCount(customerOrgId) {
     body: JSON.stringify({currentPage:1, pageSize:1, facilityId: FACILITY_ID, warehouseId: FACILITY_ID, customerIds:[customerOrgId]})
   });
   let total = null;
-  if (data && data.success !== false) {
+  if (data && data.success !== false && !data._needsAuth) {
     const payload = data.data || data;
-    total = payload.totalCount ?? payload.total ?? null;
+    total = payload.totalCount ?? payload.total ?? payload.count ?? (payload.list ? payload.list.length : null) ?? (payload.records ? payload.records.length : null) ?? null;
+    console.log("[loc-preview] facility:", FACILITY_ID, "customer:", customerOrgId, "total:", total, "code:", data.code);
+  } else {
+    console.warn("[loc-preview] API failed for", FACILITY_ID, customerOrgId, "resp:", data ? (data.code || data.msg || "no data") : "null");
   }
   if (total == null) {
     // Live call failed — show cached snapshot size from the per-facility map.
