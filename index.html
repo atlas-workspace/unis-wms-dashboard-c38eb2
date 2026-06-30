@@ -11501,33 +11501,66 @@ let COUNTER_CACHE = {};
 async function populateCounterDatalist() {
   const dl = document.getElementById('cc-counter-list');
   if (!dl) return;
-  // Try live facility user search first
+  // Use cache if already loaded for this facility
   if (COUNTER_CACHE[FACILITY_ID]) {
-    dl.innerHTML = COUNTER_CACHE[FACILITY_ID].map(c => '<option value="' + (c.name + ' (' + c.user + ')').replace(/"/g,'&quot;') + '"></option>').join('');
+    const cached = COUNTER_CACHE[FACILITY_ID];
+    dl.innerHTML = cached.map(c => '<option value="' + (c.name + ' (' + c.user + ')').replace(/"/g,'&quot;') + '"></option>').join('');
+    const help = document.getElementById('cc-counter-help');
+    if (help) help.textContent = cached.length + ' user(s) available for ' + (FACILITY_NAME || FACILITY_ID);
     return;
   }
-  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/user/facility/search-by-paging', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({currentPage:1, pageSize:200, facilityId: FACILITY_ID, warehouseId: FACILITY_ID})
-  });
-  let users = [];
-  if (resp && !resp._needsAuth && resp.success !== false) {
+
+  const help = document.getElementById('cc-counter-help');
+  if (help) help.textContent = 'Loading users for ' + (FACILITY_NAME || FACILITY_ID) + '…';
+
+  // Paginate through all facility users
+  let allUsers = [];
+  let page = 1;
+  const pageSize = 200;
+  let hasMore = true;
+
+  while (hasMore) {
+    const resp = await safeFetch(WMS_BASE + '/api/wms-bam/user/facility/search-by-paging', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({currentPage: page, pageSize: pageSize, facilityId: FACILITY_ID, warehouseId: FACILITY_ID}),
+    });
+
+    if (!resp || resp._needsAuth || resp.success === false) {
+      if (page === 1) console.warn('[counter] User API failed for', FACILITY_ID);
+      break;
+    }
+
     const d = resp.data || resp;
     const list = d.list || d.records || [];
-    users = list.map(u => ({
+    const rows = list.map(u => ({
       id: u.id || u.userId || '',
       user: u.userName || u.username || u.user || u.id || '',
       name: u.fullName || u.name || u.displayName || u.userName || '',
     })).filter(u => u.user);
+
+    allUsers = allUsers.concat(rows);
+    const total = d.totalCount || d.total || 0;
+    if (rows.length < pageSize || (total > 0 && allUsers.length >= total)) hasMore = false;
+    else ;
+    // Safety cap
+    if (page > 20) break;
   }
-  if (users.length === 0 && typeof VV_COUNTERS !== 'undefined' && VV_COUNTERS.length > 0) {
-    users = VV_COUNTERS;
+
+  // Fallback to static Valley View users only if API returned nothing
+  if (allUsers.length === 0 && typeof VV_COUNTERS !== 'undefined' && VV_COUNTERS.length > 0 && FACILITY_ID === 'LT_F1') {
+    allUsers = VV_COUNTERS;
   }
-  if (users.length > 0) COUNTER_CACHE[FACILITY_ID] = users;
-  dl.innerHTML = users.map(c => '<option value="' + ((c.name || '') + ' (' + c.user + ')').replace(/"/g,'&quot;') + '"></option>').join('');
-  const help = document.getElementById('cc-counter-help');
-  if (help && users.length > 0) help.textContent = users.length + ' user(s) available for ' + (FACILITY_NAME || FACILITY_ID);
+
+  // Sort alphabetically by name
+  allUsers.sort((a, b) => (a.name || a.user).localeCompare(b.name || b.user));
+
+  // Cache for this facility
+  if (allUsers.length > 0) COUNTER_CACHE[FACILITY_ID] = allUsers;
+
+  dl.innerHTML = allUsers.map(c => '<option value="' + ((c.name || '') + ' (' + c.user + ')').replace(/"/g,'&quot;') + '"></option>').join('');
+  if (help) help.textContent = allUsers.length > 0 ? allUsers.length + ' user(s) available for ' + (FACILITY_NAME || FACILITY_ID) : 'No users found for this warehouse';
+  console.log('[counter] Loaded', allUsers.length, 'users for', FACILITY_ID);
 }
 
 // Resolve the typed Counter value back to a {userId, userName, fullName}
