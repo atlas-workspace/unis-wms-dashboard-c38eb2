@@ -11520,10 +11520,10 @@ async function populateCounterDatalist() {
   let hasMore = true;
 
   while (hasMore) {
-    const resp = await safeFetch(WMS_BASE + '/api/wms-bam/user/facility/search-by-paging', {
+    const resp = await safeFetch(WMS_BASE + '/api/wms-bam/user/search-by-paging', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({currentPage: page, pageSize: pageSize, facilityId: FACILITY_ID, warehouseId: FACILITY_ID, includeInactive: true}),
+      body: JSON.stringify({currentPage: page, pageSize: pageSize, facilityIds: [FACILITY_ID]}),
     });
 
     if (!resp || resp._needsAuth || resp.success === false) {
