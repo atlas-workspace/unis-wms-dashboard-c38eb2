@@ -11081,11 +11081,11 @@ async function previewCustomerLocationCount(customerOrgId) {
   const meta = document.getElementById('cc-cust-meta');
   if (!meta) return;
   if (!customerOrgId) { meta.innerHTML = ''; return; }
-  meta.innerHTML = '<span class="spinner"></span>Checking Wise for locations…';
+  meta.innerHTML = '<span class="spinner"></span>Checking locations…';
   const data = await safeFetch(API.locSearch, {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({currentPage:1, pageSize:1, customerIds:[customerOrgId]})
+    body: JSON.stringify({currentPage:1, pageSize:1, facilityId: FACILITY_ID, warehouseId: FACILITY_ID, customerIds:[customerOrgId]})
   });
   let total = null;
   if (data && data.success !== false) {
@@ -11493,22 +11493,45 @@ function resetCycleForm() {
   renderTasksPanel();
 }
 
-// Populate the <datalist> for the Counter autocomplete from VV_COUNTERS.
-function populateCounterDatalist() {
+// Populate the <datalist> for the Counter autocomplete from live WMS or fallback.
+let COUNTER_CACHE = {};
+async function populateCounterDatalist() {
   const dl = document.getElementById('cc-counter-list');
   if (!dl) return;
-  const counters = (typeof VV_COUNTERS !== 'undefined') ? VV_COUNTERS : [];
-  dl.innerHTML = counters.map(c => {
-    const label = (c.name || '') + ' (' + c.user + ')';
-    return '<option value="' + label.replace(/"/g,'&quot;') + '"></option>';
-  }).join('');
+  // Try live facility user search first
+  if (COUNTER_CACHE[FACILITY_ID]) {
+    dl.innerHTML = COUNTER_CACHE[FACILITY_ID].map(c => '<option value="' + (c.name + ' (' + c.user + ')').replace(/"/g,'&quot;') + '"></option>').join('');
+    return;
+  }
+  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/user/facility/search-by-paging', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({currentPage:1, pageSize:200}),
+  });
+  let users = [];
+  if (resp && !resp._needsAuth && resp.success !== false) {
+    const d = resp.data || resp;
+    const list = d.list || d.records || [];
+    users = list.map(u => ({
+      id: u.id || u.userId || '',
+      user: u.userName || u.username || u.user || u.id || '',
+      name: u.fullName || u.name || u.displayName || u.userName || '',
+    })).filter(u => u.user);
+  }
+  if (users.length === 0 && typeof VV_COUNTERS !== 'undefined' && VV_COUNTERS.length > 0) {
+    users = VV_COUNTERS;
+  }
+  if (users.length > 0) COUNTER_CACHE[FACILITY_ID] = users;
+  dl.innerHTML = users.map(c => '<option value="' + ((c.name || '') + ' (' + c.user + ')').replace(/"/g,'&quot;') + '"></option>').join('');
+  const help = document.getElementById('cc-counter-help');
+  if (help && users.length > 0) help.textContent = users.length + ' user(s) available for ' + (FACILITY_NAME || FACILITY_ID);
 }
 
 // Resolve the typed Counter value back to a {userId, userName, fullName}
 // — accepts the "Name (user)" label, a bare username, or a userId.
 function resolveCounter(raw) {
   if (!raw) return null;
-  const counters = (typeof VV_COUNTERS !== 'undefined') ? VV_COUNTERS : [];
+  const counters = COUNTER_CACHE[FACILITY_ID] || (typeof VV_COUNTERS !== 'undefined' ? VV_COUNTERS : []);
   const txt = raw.trim();
   const m = txt.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
   if (m) {
