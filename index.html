@@ -2385,7 +2385,7 @@ function updateSchedulerFacilityHelp(fac) {
   const customers = FACILITY_CUSTOMERS[fac.id] || [];
   const locCount = customers.reduce((s,c)=>s+(c.count||0),0);
   if (customers.length === 0) {
-    help.innerHTML = 'Facility: <strong>' + fac.name + '</strong> (' + fac.id + ') · <span style="color:#9ca3af">No locations in Wise for this facility</span>';
+    help.innerHTML = 'Facility: <strong>' + esc(fac.name) + '</strong> (' + fac.id + ') · <span style="color:#9ca3af">No cached location data. Use Add Count Line to search live WMS locations.</span>';
   } else if (fac.id === 'LT_F1') {
     help.innerHTML = 'Facility: <strong>' + fac.name + '</strong> · ' + customers.length + ' customers · ' + locCount.toLocaleString() + ' locations cached · Real Wise snapshot 2026-05-27';
   } else {
@@ -11093,24 +11093,21 @@ async function previewCustomerLocationCount(customerOrgId) {
     total = payload.totalCount ?? payload.total ?? null;
   }
   if (total == null) {
-    // CSP blocked live call — show baked snapshot size from the per-facility map.
-    // Show the actual USABLE total (from FACILITY_CUSTOMERS .count) so the user
-    // sees the real Wise number, even if the cached row count is capped.
+    // Live call failed — show cached snapshot size from the per-facility map.
     const facCusts = FACILITY_CUSTOMERS[FACILITY_ID] || [];
     const meta_cust = facCusts.find(c => c.id === customerOrgId);
     const fcl = FACILITY_CUSTOMER_LOCATIONS[FACILITY_ID] || {};
     const cachedRows = (fcl[customerOrgId] || []).length;
     const realTotal = meta_cust ? meta_cust.count : cachedRows;
     if (realTotal > 0) {
-      let note = '<strong>' + realTotal.toLocaleString() + '</strong> USABLE location' + (realTotal===1?'':'s') + ' at <strong>' + FACILITY_NAME + '</strong>';
+      let note = '<strong>' + realTotal.toLocaleString() + '</strong> USABLE location' + (realTotal===1?'':'s') + ' at <strong>' + esc(FACILITY_NAME) + '</strong>';
       if (cachedRows < realTotal) note += ' · <span style="color:#f59e0b">first ' + cachedRows.toLocaleString() + ' cached</span>';
-      else note += ' · Wise snapshot 2026-05-27';
       meta.innerHTML = note;
     } else {
-      meta.innerHTML = '<span style="color:#9ca3af">No USABLE locations for this customer at ' + FACILITY_NAME + '</span>';
+      meta.innerHTML = '<span style="color:#9ca3af">No cached locations for this customer at ' + esc(FACILITY_NAME) + '. Use Add Count Line to search live WMS locations.</span>';
     }
   } else {
-    meta.innerHTML = '<strong>' + total.toLocaleString() + '</strong> location' + (total===1?'':'s') + ' assigned at Valley View';
+    meta.innerHTML = '<strong>' + total.toLocaleString() + '</strong> location' + (total===1?'':'s') + ' assigned at <strong>' + esc(FACILITY_NAME) + '</strong>';
   }
 }
 
