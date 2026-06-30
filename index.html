@@ -11542,7 +11542,7 @@ async function populateCounterDatalist() {
     allUsers = allUsers.concat(rows);
     const total = d.totalCount || d.total || 0;
     if (rows.length < pageSize || (total > 0 && allUsers.length >= total)) hasMore = false;
-    else ;
+    else page++;
     // Safety cap
     if (page > 20) break;
   }
