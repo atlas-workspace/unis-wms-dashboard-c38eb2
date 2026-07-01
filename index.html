@@ -16575,12 +16575,18 @@ async function ltrLoadTeamsForDept(deptId) {
   sel.innerHTML = '<option value="">Loading teams…</option>';
   if (status) status.textContent = 'Loading teams for selected department…';
   if (!deptId) { sel.innerHTML = '<option value="">— No team —</option>'; if (status) status.textContent = 'Select a department first'; return; }
+
+  // Known verified teams as fallback when staff API is unavailable
+  const KNOWN_TEAMS = [
+    {id:'336699888571584512', name:'UF Buena Park Inventory', departmentId:'336664760841621504'},
+  ];
+
   try {
     const resp = await safeFetch('/api/proxy/auth/ticket-staff/teams/page', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({page:1, size:100, input:{departmentId: deptId}}),
     });
-    sel.innerHTML = '<option value="">— No team —</option>';
+    sel.innerHTML = '<option value="">— No team (assign later) —</option>';
     if (resp && (resp.data || resp.list || resp.records) && !resp._needsAuth) {
       const d = resp.data || resp;
       const teams = d.list || d.records || d.content || (Array.isArray(d) ? d : []);
@@ -16592,10 +16598,18 @@ async function ltrLoadTeamsForDept(deptId) {
         return;
       }
     }
-    if (status) status.innerHTML = '<span style="color:#d97706">Team list unavailable — ticket will be created without team assignment.</span>';
-  } catch(_) {
-    sel.innerHTML = '<option value="">— No team —</option>';
-    if (status) status.innerHTML = '<span style="color:#d97706">Team list unavailable.</span>';
+  } catch(_) {}
+
+  // API unavailable or returned empty — add known verified teams for this department
+  sel.innerHTML = '<option value="">— No team (assign later) —</option>';
+  const deptTeams = KNOWN_TEAMS.filter(t => t.departmentId === deptId);
+  if (deptTeams.length > 0) {
+    deptTeams.forEach(t => {
+      sel.innerHTML += '<option value="' + escAttr(t.id) + '">' + esc(t.name) + '</option>';
+    });
+    if (status) status.innerHTML = '<span style="color:#059669">' + deptTeams.length + ' team(s) available</span>';
+  } else {
+    if (status) status.innerHTML = '<span style="color:#9ca3af">No teams configured for this department. Ticket will be created without team assignment.</span>';
   }
 }
 
