@@ -1431,9 +1431,36 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
             <div id="rpt-email-msg" style="font-size:11px;margin-top:6px;display:none"></div>
           </div>
         </div>
-      </div>
 
-      <!-- ════ VIEW: ALERTS ════ -->
+        <!-- ═══ INVENTORY MONTH-END COMPARISON ═══ -->
+        <div class="card" style="margin-top:20px;padding:20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+            <div>
+              <div style="font-size:15px;font-weight:700;color:#1f2937">Inventory Month-End Comparison</div>
+              <div style="font-size:12px;color:#6b7280" id="eom-subtitle">Compare total ILP by customer between two month-end dates</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+              <div class="cc-field" style="margin:0"><label class="cc-label">Date A (prior month-end)</label><input type="date" class="cc-input" id="eom-date-a" style="font-size:11px"/></div>
+              <div class="cc-field" style="margin:0"><label class="cc-label">Date B (current month-end)</label><input type="date" class="cc-input" id="eom-date-b" style="font-size:11px"/></div>
+              <button class="btn btn-primary" onclick="eomCompare()" style="font-size:12px;padding:6px 14px">Compare</button>
+              <button class="btn btn-secondary" onclick="eomExportCSV()" style="font-size:12px;padding:6px 14px">Export CSV</button>
+            </div>
+          </div>
+          <div id="eom-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
+            <div style="padding:10px;background:#f9fafb;border-radius:8px;text-align:center"><div style="font-solor:#6b7280">Date A Total ILP</div><div style="font-size:18px;font-weight:700;color:#1f2937" id="eom-total-a">—</div></div>
+            <div style="padding:10px;background:#f9fafb;border-radius:8px;text-align:center"><div style="font-size:11px;color:#6b7280">Date B Total ILP</div><div style="font-size:18px;font-weight:700;color:#1f2937" id="eom-total-b">—</div></div>
+            <div style="padding:10px;background:#f9fafb;border-radius:8px;text-align:center"><div style="font-size:11px;color:#6b7280">Variance</div><div style="font-size:18px;font-weight:700" id="eom-variance">—</div></div>
+            <div style="padding:10px;background:#f9fafb;border-radius:8px;text-align:center"><div style="font-size:11px;color:#6b7280">Variance %</div><div style="font-size:18px;font-weight:700" id="eom-variance-pct">—</div></div>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="tbl" style="margin:0;font-size:12px">
+              <thead><tr><th>Customer</th><th>Date A ILP</th><th>Date B ILP</th><th>Variance</th><th>Variance %</th></tr></thead>
+              <tbody id="eom-tbody"><tr><td colspan="5" style="text-align:center;padding:32px;color:#9ca3af">Select dates and click Compare to generate month-end inventory comparison.</td></tr></tbody>
+            </table>
+          </div>
+          <div style="font-size:10px;color:#9ca3af;margin-top:8px" id="eom-note"></div>
+        </div>
+      </div>
       <div class="view" id="view-alerts">
         <div class="kpi-grid">
           <div class="kpi"><div class="kpi-ico red"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg></div><div><div class="kpi-lbl">Critical Alerts</div><div class="kpi-val">3</div><div class="kpi-chg down">Action required</div></div></div>
@@ -17338,6 +17365,116 @@ function invRenderTable() {
 }
 
 function invFilterTable() { invRenderTable(); }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INVENTORY MONTH-END COMPARISON
+// ═══════════════════════════════════════════════════════════════════════════
+
+let EOM_DATA = [];
+
+function eomInit() {
+  const nowLA = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}));
+  const lastDayThisMonth = new Date(nowLA.getFullYear(), nowLA.getMonth() + 1, 0);
+  const lastDayPrevMonth = new Date(nowLA.getFullYear(), nowLA.getMonth(), 0);
+  const fmt = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  const a = document.getElementById('eom-date-a');
+  const b = document.getElementById('eom-date-b');
+  if (a && !a.value) a.value = fmt(lastDayPrevMonth);
+  if (b && !b.value) b.value = fmt(lastDayThisMonth);
+}
+// Init dates when reports view loads
+setTimeout(eomInit, 500);
+
+async function eomFetchInventoryByCustomer() {
+  const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
+  if (customers.length === 0) await fetchFacilityCustomersFromAPI();
+  const custs = FACILITY_CUSTOMERS[FACILITY_ID] || [];
+  const result = {};
+  // Fetch inventory totals per customer (use page 1 with pageSize 1 to get totalCount)
+  for (const c of custs.slice(0, 100)) {
+    const resp = await safeFetch(WMS_BASE + '/api/wms-bam/inventory/search-by-paging', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({currentPage:1, pageSize:1, facilityId: FACILITY_ID, warehouseId: FACILITY_ID, customerIds:[c.id]}),
+    });
+    if (resp && !resp._needsAuth && resp.success !== false) {
+      const d = resp.data || resp;
+      const total = d.totalCount || d.total || d.count || (d.list ? d.list.length : 0);
+      result[c.id] = {name: c.name, total: total};
+    } else {
+      result[c.id] = {name: c.name, total: 0};
+    }
+  }
+  return result;
+}
+
+async function eomCompare() {
+  const tbody = document.getElementById('eom-tbody');
+  const note = document.getElementById('eom-note');
+  const dateA = (document.getElementById('eom-date-a') || {}).value || '';
+  const dateB = (document.getElementById('eom-date-b') || {}).value || '';
+
+  if (!dateA || !dateB) { alert('Please select both Date A and Date B.'); return; }
+
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:32px;color:#9ca3af"><span class="spinner"></span> Loading inventory totals for ' + esc(FACILITY_NAME || FACILITY_ID) + '…</td></tr>';
+
+  // Note: WMS inventory/search-by-paging returns CURRENT live inventory, not historical snapshots.
+  // True month-end comparison requires a snapshot/report API with as-of-date filtering.
+  // Current implementation: loads live current inventory as "Date B" (today/current) and
+  // shows Date A as unavailable unless the API supports date filtering.
+
+  const currentData = await eomFetchInventoryByCustomer();
+
+  EOM_DATA = Object.entries(currentData).map(([id, v]) => ({
+    customerId: id,
+    customerName: v.name,
+    totalB: v.total,
+    totalA: null, // Historical snapshot not available from live API
+  })).filter(r => r.totalB > 0).sort((a,b) => b.totalB - a.totalB);
+
+  // KPIs
+  const grandTotalB = EOM_DATA.reduce((s,r) => s + r.totalB, 0);
+  document.getElementById('eom-total-a').textContent = 'N/A';
+  document.getElementById('eom-total-b').textContent = grandTotalB.toLocaleString();
+  document.getElementById('eom-variance').textContent = '—';
+  document.getElementById('eom-variance-pct').textContent = '—';
+
+  if (EOM_DATA.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:32px;color:#9ca3af">No inventory records found for ' + esc(FACILITY_NAME || FACILITY_ID) + '.</td></tr>';
+    if (note) note.textContent = '';
+    return;
+  }
+
+  tbody.innerHTML = EOM_DATA.map(r => {
+    return '<tr>' +
+      '<td style="font-size:12px">' + esc(String(r.customerName).slice(0,30)) + '</td>' +
+      '<td style="font-size:12px;color:#9ca3af;font-style:italic">Historical snapshot unavailable</td>' +
+      '<td style="font-size:12px;font-weight:600">' + r.totalB.toLocaleString() + '</td>' +
+      '<td style="color:#9ca3af">—</td>' +
+      '<td style="color:#9ca3af">—</td>' +
+      '</tr>';
+  }).join('');
+
+  if (note) note.textContent = 'Showing current live ILP totals as Date B (' + dateB + '). Date A historical comparison requires a month-end inventory snapshot API or stored report. Current WMS inventory API returns live state only. Facility: ' + FACILITY_ID + ' | ' + EOM_DATA.length + ' customer(s) with inventory.';
+  document.getElementById('eom-subtitle').textContent = 'Live inventory totals by customer at ' + (FACILITY_NAME || FACILITY_ID) + ' — historical comparison pending snapshot integration';
+}
+
+function eomExportCSV() {
+  if (EOM_DATA.length === 0) { alert('No data to export. Run Compare first.'); return; }
+  const dateA = (document.getElementById('eom-date-a') || {}).value || '';
+  const dateB = (document.getElementById('eom-date-b') || {}).value || '';
+  const rows = [['Inventory Month-End Comparison'], ['Facility', FACILITY_NAME || FACILITY_ID, FACILITY_ID], ['Date A', dateA], ['Date B', dateB], ['Generated', new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'})], [], ['Customer','Date A ILP','Date B ILP (Current)','Variance','Variance %']];
+  EOM_DATA.forEach(r => { rows.push([r.customerName, r.totalA != null ? String(r.totalA) : 'N/A', String(r.totalB), '—', '—']); });
+  const grandB = EOM_DATA.reduce((s,r) => s + r.totalB, 0);
+  rows.push(['TOTAL', 'N/A', String(grandB), '—', '—']);
+  const csv = rows.map(row => row.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\r\n');
+  const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'Inventory_EOM_Comparison_' + FACILITY_ID + '_' + dateB + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════════════════
