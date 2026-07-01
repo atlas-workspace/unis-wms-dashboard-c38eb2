@@ -16467,7 +16467,7 @@ function ltrRenderList() {
       const newDisplay = k === 'customerIds' ? ltrResolveCustomerNames(String(v)) : String(v).slice(0,20);
       return '<span style="color:#6b7280">' + esc(label) + ':</span> <span style="text-decoration:line-through;color:#9ca3af">' + esc(curDisplay) + '</span> → <strong style="color:#059669">' + esc(newDisplay) + '</strong>';
     }).join('<br>') + (changeEntries.length > 3 ? '<br><span style="color:#9ca3af">+' + (changeEntries.length - 3) + ' more</span>' : '');
-    const notifyInfo = r.ticketNumber ? '<span style="font-size:9px;color:#059669;font-weight:600" title="Ticket ' + escAttr(r.ticketNumber) + '">🎫 ' + esc(r.ticketNumber) + '</span>' : r.ticketStatus === 'TICKET_FAILED' ? '<span style="font-size:9px;color:#dc2626" title="' + escAttr(r.ticketMessage||'') + '">🎫 failed</span>' : r.ticketStatus === 'PENDING' ? '<span style="font-size:9px;color:#6b7280">🎫 pending</span>' : '';
+    const notifyInfo = r.ticketNumber ? '<span style="font-size:9px;color:#059669;font-weight:600" title="Ticket ' + escAttr(r.ticketNumber) + '">🎫 ' + esc(r.ticketNumber) + '</span>' : r.ticketStatus === 'TICKET_FAILED' ? '<span style="font-size:9px;color:#dc2626" title="' + escAttr(r.ticketMessage || 'Ticket was not created. Open the request to review and resubmit.') + '">Ticket not created</span>' : r.ticketStatus === 'PENDING' ? '<span style="font-size:9px;color:#6b7280">Ticket pending</span>' : '';
     const isApplied = r.status === 'APPLIED';
     const isEditable = !isApplied;
     let actions = '';
@@ -16572,44 +16572,56 @@ async function ltrLoadTeamsForDept(deptId) {
   const sel = document.getElementById('ltr-ticket-queue');
   const status = document.getElementById('ltr-ticket-queue-status');
   if (!sel) return;
+
+  const setNoTeamOnly = (message) => {
+    sel.innerHTML = '<option value="">— No team (assign later) —</option>';
+    if (status) status.innerHTML = '<span style="color:#6b7280">' + esc(message) + '</span>';
+  };
+  const addTeams = (teams) => {
+    teams.forEach(t => {
+      const id = t.id || t.teamId || '';
+      const name = t.name || t.teamName || ('Team ' + id);
+      if (!id) return;
+      sel.innerHTML += '<option value="' + escAttr(String(id)) + '" data-name="' + escAttr(name) + '">' + esc(name) + '</option>';
+    });
+  };
+  const knownTeamsForDept = () => PICAL_TEAMS_KNOWN.filter(t => String(t.departmentId) === String(deptId));
+  const showKnownFallback = () => {
+    const known = knownTeamsForDept();
+    sel.innerHTML = '<option value="">— No team (assign later) —</option>';
+    if (known.length > 0) {
+      addTeams(known);
+      if (status) status.innerHTML = '<span style="color:#059669">' + known.length + ' team available</span><div style="color:#6b7280;margin-top:2px">Some team options may be limited by your ticket permissions. Showing verified available teams.</div>';
+      return true;
+    }
+    setNoTeamOnly('No teams available for this department. Ticket can still be submitted without team assignment.');
+    return false;
+  };
+
   sel.innerHTML = '<option value="">Loading teams…</option>';
   if (status) status.textContent = 'Loading teams for selected department…';
-  if (!deptId) { sel.innerHTML = '<option value="">— No team —</option>'; if (status) status.textContent = 'Select a department first'; return; }
-
-  // Known verified teams as fallback when staff API is unavailable
-  const KNOWN_TEAMS = [
-    {id:'336699888571584512', name:'UF Buena Park Inventory', departmentId:'336664760841621504'},
-  ];
+  if (!deptId) { setNoTeamOnly('Select a department first.'); return; }
 
   try {
     const resp = await safeFetch('/api/proxy/auth/ticket-staff/teams/page', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({page:1, size:100, input:{departmentId: deptId}}),
     });
-    sel.innerHTML = '<option value="">— No team (assign later) —</option>';
     if (resp && (resp.data || resp.list || resp.records) && !resp._needsAuth) {
       const d = resp.data || resp;
       const teams = d.list || d.records || d.content || (Array.isArray(d) ? d : []);
       if (teams.length > 0) {
-        teams.forEach(t => {
-          sel.innerHTML += '<option value="' + escAttr(String(t.id || '')) + '" data-name="' + escAttr(t.name || '') + '">' + esc(t.name || t.id) + '</option>';
-        });
+        sel.innerHTML = '<option value="">— No team (assign later) —</option>';
+        addTeams(teams);
         if (status) status.innerHTML = '<span style="color:#059669">' + teams.length + ' team(s) available</span>';
         return;
       }
     }
-  } catch(_) {}
-
-  // API unavailable or returned empty — add known verified teams for this department
-  sel.innerHTML = '<option value="">— No team (assign later) —</option>';
-  const deptTeams = KNOWN_TEAMS.filter(t => t.departmentId === deptId);
-  if (deptTeams.length > 0) {
-    deptTeams.forEach(t => {
-      sel.innerHTML += '<option value="' + escAttr(t.id) + '">' + esc(t.name) + '</option>';
-    });
-    if (status) status.innerHTML = '<span style="color:#059669">' + deptTeams.length + ' team(s) available</span>';
-  } else {
-    if (status) status.innerHTML = '<span style="color:#9ca3af">No teams configured for this department. Ticket will be created without team assignment.</span>';
+    console.log('[ltr-teams] Staff team list unavailable or empty; using verified team options when available.');
+    showKnownFallback();
+  } catch(e) {
+    console.log('[ltr-teams] Staff team list could not be loaded; using verified team options when available.');
+    showKnownFallback();
   }
 }
 
