@@ -17077,33 +17077,67 @@ async function ltrApprove(idx, retryMode) {
 
   let locationOk = true;
   if (appliedFields.length > 0) {
-    const resp = await safeFetch(WMS_BASE + '/api/wms/wms-location', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    let updatePayload = payload;
+    try {
+      const detailResp = await safeFetch(WMS_BASE + '/api/wms/wms-location/' + encodeURIComponent(r.locationId), {method:'GET', headers:{'Accept':'application/json'}});
+      const detail = detailResp && !detailResp._needsAuth ? (detailResp.data || detailResp) : null;
+      if (detail && detail.id) updatePayload = Object.assign({}, detail, payload);
+    } catch(detailErr) {
+      console.log('[ltr-location] location detail unavailable; using prepared update payload.');
+    }
+
+    const resp = await safeFetch(WMS_BASE + '/api/wms/wms-location', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(updatePayload)});
     const respCode = resp ? (resp.code || '') : '';
     const respMsg = resp ? (resp.msg || resp.message || '') : 'No response';
-    if (resp && resp.success !== false && (String(respCode) === '0' || String(respCode) === '200' || resp.data || (!respMsg && resp.success !== false))) {
+    const markLocationApplied = (note) => {
       const list2 = ltrLoad();
       const r2 = list2[idx];
       if (r2) {
         r2.locationUpdateStatus = 'success';
         r2.appliedAt = new Date().toISOString();
-        r2.applyNote = 'Applied fields: ' + appliedFields.join(', ');
+        r2.applyNote = note || ('Applied fields: ' + appliedFields.join(', '));
         ltrSave(list2);
       }
+    };
+    if (resp && resp.success !== false && (String(respCode) === '0' || String(respCode) === '200' || resp.data || (!respMsg && resp.success !== false))) {
+      markLocationApplied();
     } else {
-      locationOk = false;
-      console.warn('[ltr-location] update rejected', {fields: appliedFields, code: respCode, msg: respMsg});
-      const list2 = ltrLoad();
-      const r2 = list2[idx];
-      if (r2) {
-        r2.status = 'APPROVED_BUT_FAILED';
-        r2.locationUpdateStatus = 'failed';
-        r2.errorMsg = 'Location update could not be applied. Please retry or contact a WMS administrator.';
-        r2.applyDiag = {fields: appliedFields, skipped: skippedFields, upstreamCode: String(respCode), upstreamMsg: respMsg};
-        ltrSave(list2);
+      let alreadyApplied = false;
+      try {
+        const verifyResp = await safeFetch(WMS_BASE + '/api/wms/wms-location/' + encodeURIComponent(r.locationId), {method:'GET', headers:{'Accept':'application/json'}});
+        const verify = verifyResp && !verifyResp._needsAuth ? (verifyResp.data || verifyResp) : null;
+        if (verify) {
+          alreadyApplied = true;
+          if (payload.customerIds) {
+            const got = (verify.customerIds || []).map(String).sort().join('|');
+            const want = payload.customerIds.map(String).sort().join('|');
+            alreadyApplied = alreadyApplied && got === want;
+          }
+          if ('disallowToMixItemOnSameLocation' in payload) {
+            alreadyApplied = alreadyApplied && Boolean(verify.disallowToMixItemOnSameLocation) === Boolean(payload.disallowToMixItemOnSameLocation);
+          }
+        }
+      } catch(verifyErr) {
+        console.log('[ltr-location] could not verify post-update location state.');
       }
-      ltrRenderList();
-      alert('Location update could not be applied. Please retry or contact a WMS administrator.');
-      return;
+      if (alreadyApplied) {
+        markLocationApplied('Location fields were already applied in WMS. Continuing with location tag update.');
+      } else {
+        locationOk = false;
+        console.warn('[ltr-location] update rejected', {fields: appliedFields, code: respCode, msg: respMsg});
+        const list2 = ltrLoad();
+        const r2 = list2[idx];
+        if (r2) {
+          r2.status = 'APPROVED_BUT_FAILED';
+          r2.locationUpdateStatus = 'failed';
+          r2.errorMsg = 'Location update could not be applied. Please retry or contact a WMS administrator.';
+          r2.applyDiag = {fields: appliedFields, skipped: skippedFields, upstreamCode: String(respCode), upstreamMsg: respMsg};
+          ltrSave(list2);
+        }
+        ltrRenderList();
+        alert('Location update could not be applied. Please retry or contact a WMS administrator.');
+        return;
+      }
     }
   }
 
