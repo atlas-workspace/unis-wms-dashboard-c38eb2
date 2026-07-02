@@ -17506,27 +17506,37 @@ function eomInit() {
 // Init dates when reports view loads
 setTimeout(eomInit, 500);
 
-async function eomFetchInventoryByCustomer() {
-  const customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
-  if (customers.length === 0) await fetchFacilityCustomersFromAPI();
-  const custs = FACILITY_CUSTOMERS[FACILITY_ID] || [];
-  const result = {};
-  // Fetch inventory totals per customer (use page 1 with pageSize 1 to get totalCount)
-  for (const c of custs.slice(0, 100)) {
-    const resp = await safeFetch(WMS_BASE + '/api/wms-bam/inventory/search-by-paging', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({currentPage:1, pageSize:1, facilityId: FACILITY_ID, warehouseId: FACILITY_ID, customerIds:[c.id]}),
-    });
-    if (resp && !resp._needsAuth && resp.success !== false) {
-      const d = resp.data || resp;
-      const total = d.totalCount || d.total || d.count || (d.list ? d.list.length : 0);
-      result[c.id] = {name: c.name, total: total};
-    } else {
-      result[c.id] = {name: c.name, total: 0};
-    }
+async function eomFetchInventoryReportForCustomer(customerId, date) {
+  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/billing/get-inventory-report', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({customerId: customerId, date: date}),
+  });
+  if (!resp || resp._needsAuth || resp.success === false) {
+    const msg = resp ? (resp.msg || resp.message || (resp.data && resp.data.msg) || '') : '';
+    return {ok:false, ilp:0, rows:0, note: msg ? 'Report unavailable' : 'No report returned'};
   }
-  return result;
+  const d = resp.data || resp;
+  const list = Array.isArray(d.list) ? d.list : (Array.isArray(d.records) ? d.records : []);
+  const lpSet = new Set();
+  list.forEach(row => {
+    const lp = row.LPNo || row.lpNo || row.lpNumber || row.licensePlateNo || row.licensePlate || row.lp || '';
+    if (lp) lpSet.add(String(lp).trim());
+  });
+  return {ok:true, ilp:lpSet.size, rows:list.length, note:''};
+}
+
+async function eomLoadFacilityCustomers() {
+  if ((FACILITY_CUSTOMERS[FACILITY_ID] || []).length === 0) await fetchFacilityCustomersFromAPI();
+  return (FACILITY_CUSTOMERS[FACILITY_ID] || [])
+    .filter(c => c && c.id)
+    .map(c => ({id: String(c.id), name: c.name || c.customerName || c.id}))
+    .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+}
+
+function eomSetProgress(text) {
+  const note = document.getElementById('eom-note');
+  if (note) note.textContent = text || '';
 }
 
 async function eomCompare() {
@@ -17537,62 +17547,99 @@ async function eomCompare() {
 
   if (!dateA || !dateB) { alert('Please select both Date A and Date B.'); return; }
 
-  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:32px;color:#9ca3af"><span class="spinner"></span> Loading inventory totals for ' + esc(FACILITY_NAME || FACILITY_ID) + '…</td></tr>';
+  EOM_DATA = [];
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:32px;color:#9ca3af"><span class="spinner"></span> Loading month-end inventory reports for ' + esc(FACILITY_NAME || FACILITY_ID) + '…</td></tr>';
+  if (note) note.textContent = 'Preparing customer list…';
+  document.getElementById('eom-subtitle').textContent = 'Comparing month-end inventory report ILP totals by customer';
 
-  // Note: WMS inventory/search-by-paging returns CURRENT live inventory, not historical snapshots.
-  // True month-end comparison requires a snapshot/report API with as-of-date filtering.
-  // Current implementation: loads live current inventory as "Date B" (today/current) and
-  // shows Date A as unavailable unless the API supports date filtering.
+  const customers = await eomLoadFacilityCustomers();
+  if (customers.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:32px;color:#9ca3af">No customers found for ' + esc(FACILITY_NAME || FACILITY_ID) + '.</td></tr>';
+    if (note) note.textContent = '';
+    return;
+  }
 
-  const currentData = await eomFetchInventoryByCustomer();
+  const rows = [];
+  let unavailable = 0;
+  for (let i = 0; i < customers.length; i++) {
+    const c = customers[i];
+    eomSetProgress('Loading month-end reports… customer ' + (i + 1) + ' of ' + customers.length + ': ' + c.name);
+    const [a, b] = await Promise.all([
+      eomFetchInventoryReportForCustomer(c.id, dateA),
+      eomFetchInventoryReportForCustomer(c.id, dateB),
+    ]);
+    if (!a.ok || !b.ok) unavailable++;
+    const totalA = a.ilp || 0;
+    const totalB = b.ilp || 0;
+    const variance = totalB - totalA;
+    const variancePct = totalA ? (variance / totalA) * 100 : (totalB ? 100 : 0);
+    rows.push({
+      customerId: c.id,
+      customerName: c.name,
+      totalA,
+      totalB,
+      variance,
+      variancePct,
+      rowsA: a.rows || 0,
+      rowsB: b.rows || 0,
+      note: (!a.ok || !b.ok) ? 'One or both reports unavailable' : '',
+    });
+    if (i % 5 === 0) await new Promise(resolve => setTimeout(resolve, 0));
+  }
 
-  EOM_DATA = Object.entries(currentData).map(([id, v]) => ({
-    customerId: id,
-    customerName: v.name,
-    totalB: v.total,
-    totalA: null, // Historical snapshot not available from live API
-  })).filter(r => r.totalB > 0).sort((a,b) => b.totalB - a.totalB);
+  EOM_DATA = rows.sort((a,b) => (b.totalB + b.totalA) - (a.totalB + a.totalA) || (a.customerName || '').localeCompare(b.customerName || ''));
 
-  // KPIs
+  const grandTotalA = EOM_DATA.reduce((s,r) => s + r.totalA, 0);
   const grandTotalB = EOM_DATA.reduce((s,r) => s + r.totalB, 0);
-  document.getElementById('eom-total-a').textContent = 'N/A';
+  const grandVar = grandTotalB - grandTotalA;
+  const grandPct = grandTotalA ? (grandVar / grandTotalA) * 100 : (grandTotalB ? 100 : 0);
+  document.getElementById('eom-total-a').textContent = grandTotalA.toLocaleString();
   document.getElementById('eom-total-b').textContent = grandTotalB.toLocaleString();
-  document.getElementById('eom-variance').textContent = '—';
-  document.getElementById('eom-variance-pct').textContent = '—';
+  document.getElementById('eom-variance').textContent = (grandVar >= 0 ? '+' : '') + grandVar.toLocaleString();
+  document.getElementById('eom-variance').style.color = grandVar >= 0 ? '#059669' : '#dc2626';
+  document.getElementById('eom-variance-pct').textContent = (grandPct >= 0 ? '+' : '') + grandPct.toFixed(1) + '%';
+  document.getElementById('eom-variance-pct').style.color = grandPct >= 0 ? '#059669' : '#dc2626';
 
   if (EOM_DATA.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:32px;color:#9ca3af">No inventory records found for ' + esc(FACILITY_NAME || FACILITY_ID) + '.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:32px;color:#9ca3af">No month-end inventory report records found for ' + esc(FACILITY_NAME || FACILITY_ID) + '.</td></tr>';
     if (note) note.textContent = '';
     return;
   }
 
   tbody.innerHTML = EOM_DATA.map(r => {
-    return '<tr>' +
-      '<td style="font-size:12px">' + esc(String(r.customerName).slice(0,30)) + '</td>' +
-      '<td style="font-size:12px;color:#9ca3af;font-style:italic">Historical snapshot unavailable</td>' +
+    const varColor = r.variance > 0 ? '#059669' : (r.variance < 0 ? '#dc2626' : '#6b7280');
+    const pctText = (r.variancePct >= 0 ? '+' : '') + r.variancePct.toFixed(1) + '%';
+    const noteAttr = r.note ? ' title="' + escAttr(r.note) + '"' : '';
+    return '<tr' + noteAttr + '>' +
+      '<td style="font-size:12px">' + esc(String(r.customerName).slice(0,36)) + '</td>' +
+      '<td style="font-size:12px;font-weight:600">' + r.totalA.toLocaleString() + '</td>' +
       '<td style="font-size:12px;font-weight:600">' + r.totalB.toLocaleString() + '</td>' +
-      '<td style="color:#9ca3af">—</td>' +
-      '<td style="color:#9ca3af">—</td>' +
+      '<td style="font-weight:600;color:' + varColor + '">' + (r.variance >= 0 ? '+' : '') + r.variance.toLocaleString() + '</td>' +
+      '<td style="font-weight:600;color:' + varColor + '">' + pctText + '</td>' +
       '</tr>';
   }).join('');
 
-  if (note) note.textContent = 'Showing current live ILP totals as Date B (' + dateB + '). Date A historical comparison requires a month-end inventory snapshot API or stored report. Current WMS inventory API returns live state only. Facility: ' + FACILITY_ID + ' | ' + EOM_DATA.length + ' customer(s) with inventory.';
-  document.getElementById('eom-subtitle').textContent = 'Live inventory totals by customer at ' + (FACILITY_NAME || FACILITY_ID) + ' — historical comparison pending snapshot integration';
+  if (note) note.textContent = 'Compared month-end inventory report ILP totals using distinct LP No by customer. Facility: ' + FACILITY_ID + ' | Date A: ' + dateA + ' | Date B: ' + dateB + ' | Customers: ' + EOM_DATA.length + (unavailable ? ' | ' + unavailable + ' customer report(s) unavailable or empty.' : '');
 }
 
 function eomExportCSV() {
   if (EOM_DATA.length === 0) { alert('No data to export. Run Compare first.'); return; }
   const dateA = (document.getElementById('eom-date-a') || {}).value || '';
   const dateB = (document.getElementById('eom-date-b') || {}).value || '';
-  const rows = [['Inventory Month-End Comparison'], ['Facility', FACILITY_NAME || FACILITY_ID, FACILITY_ID], ['Date A', dateA], ['Date B', dateB], ['Generated', new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'})], [], ['Customer','Date A ILP','Date B ILP (Current)','Variance','Variance %']];
-  EOM_DATA.forEach(r => { rows.push([r.customerName, r.totalA != null ? String(r.totalA) : 'N/A', String(r.totalB), '—', '—']); });
+  const rows = [['Inventory Month-End Comparison'], ['Facility', FACILITY_NAME || FACILITY_ID, FACILITY_ID], ['Date A', dateA], ['Date B', dateB], ['Generated', new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'})], ['Metric', 'Distinct LP No count from month-end inventory report'], [], ['Customer','Customer ID','Date A ILP','Date B ILP','Variance','Variance %','Date A Rows','Date B Rows','Note']];
+  EOM_DATA.forEach(r => {
+    rows.push([r.customerName, r.customerId, String(r.totalA), String(r.totalB), String(r.variance), r.variancePct.toFixed(1) + '%', String(r.rowsA || 0), String(r.rowsB || 0), r.note || '']);
+  });
+  const grandA = EOM_DATA.reduce((s,r) => s + r.totalA, 0);
   const grandB = EOM_DATA.reduce((s,r) => s + r.totalB, 0);
-  rows.push(['TOTAL', 'N/A', String(grandB), '—', '—']);
+  const grandVar = grandB - grandA;
+  const grandPct = grandA ? (grandVar / grandA) * 100 : (grandB ? 100 : 0);
+  rows.push(['TOTAL', '', String(grandA), String(grandB), String(grandVar), grandPct.toFixed(1) + '%', '', '', '']);
   const csv = rows.map(row => row.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\r\n');
   const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = 'Inventory_EOM_Comparison_' + FACILITY_ID + '_' + dateB + '.csv';
+  a.href = url; a.download = 'Inventory_EOM_Comparison_' + FACILITY_ID + '_' + dateA + '_vs_' + dateB + '.csv';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
