@@ -12382,6 +12382,85 @@ function approvalFilters() {
     pageSize:parseInt((document.getElementById('cra-page-size')||{}).value,10) || 10,
   };
 }
+
+function craUnique(values) {
+  return [...new Set((values || []).map(v => v == null ? '' : String(v).trim()).filter(Boolean))];
+}
+async function craFetchLocationMap(ids) {
+  const map = {};
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
+  for (const chunk of chunks) {
+    try {
+      const resp = await safeFetch(WMS_BASE + '/api/wms-bam/wms-location/search-by-paging', {
+        method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'},
+        body: JSON.stringify({currentPage:1, pageSize:Math.max(100, chunk.length), ids:chunk}),
+      });
+      if (resp && !resp._needsAuth && resp.success !== false) {
+        const d = resp.data || resp;
+        const rows = d.list || d.records || d.items || [];
+        rows.forEach(loc => {
+          const id = String(loc.id || loc.locationId || '').trim();
+          if (id) map[id] = loc;
+        });
+      }
+    } catch(e) { console.log('[count-approval] location enrichment unavailable'); }
+  }
+  return map;
+}
+async function craFetchItemMap(ids) {
+  const map = {};
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
+  for (const chunk of chunks) {
+    try {
+      const resp = await safeFetch(WMS_BASE + '/api/wms-bam/item/search-by-paging', {
+        method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'},
+        body: JSON.stringify({currentPage:1, pageSize:Math.max(100, chunk.length), itemIds:chunk}),
+      });
+      if (resp && !resp._needsAuth && resp.success !== false) {
+        const d = resp.data || resp;
+        const rows = d.list || d.records || d.items || [];
+        rows.forEach(item => {
+          const candidates = [item.id, item.itemId, item.itemNo, item.itemCode, item.code, item.name].map(v => v == null ? '' : String(v).trim()).filter(Boolean);
+          candidates.forEach(id => { if (!map[id]) map[id] = item; });
+        });
+      }
+    } catch(e) { console.log('[count-approval] item enrichment unavailable'); }
+  }
+  return map;
+}
+function craDisplayLocation(row) {
+  const raw = String(row.locationId || row.systemLocationId || row.locationName || '').trim();
+  const loc = row._location || null;
+  const name = (loc && (loc.name || loc.locationName)) || row.locationName || raw || '—';
+  if (raw && name && raw !== name) return '<div style="font-weight:600;color:#1f2937">' + esc(name) + '</div><div style="font-size:10px;color:#9ca3af">ID ' + esc(raw) + '</div>';
+  return esc(name || '—');
+}
+function craDisplayItem(row) {
+  const raw = String(row.itemId || row.itemCode || row.itemName || '').trim();
+  const item = row._item || null;
+  const code = (item && (item.code || item.itemCode || item.itemNo || item.name)) || row.itemCode || row.itemName || raw || '—';
+  const desc = item && (item.description || item.shortDescription || item.desc || item.itemDescription || '');
+  const uom = item && (item.uom || item.unit || item.baseUom || '');
+  let html = '<div style="font-weight:600;color:#1f2937">' + esc(code) + '</div>';
+  if (desc) html += '<div style="font-size:10px;color:#6b7280;max-width:220px;white-space:normal;line-height:1.25">' + esc(desc) + (uom ? ' · ' + esc(uom) : '') + '</div>';
+  if (raw && raw !== code) html += '<div style="font-size:10px;color:#9ca3af">' + esc(raw) + '</div>';
+  return html;
+}
+function craLocationText(row) {
+  const raw = String(row.locationId || row.systemLocationId || row.locationName || '').trim();
+  const loc = row._location || null;
+  return (loc && (loc.name || loc.locationName)) || row.locationName || raw || '';
+}
+function craItemText(row) {
+  const raw = String(row.itemId || row.itemCode || row.itemName || '').trim();
+  const item = row._item || null;
+  const code = (item && (item.code || item.itemCode || item.itemNo || item.name)) || row.itemCode || row.itemName || raw || '';
+  const desc = item && (item.description || item.shortDescription || item.desc || item.itemDescription || '');
+  return desc ? (code + ' - ' + desc) : code;
+}
+
 async function loadCountApprovalView() {
   const body = document.getElementById('cra-body');
   if (body) body.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:32px;color:#9ca3af">Loading count results…</td></tr>';
@@ -12403,20 +12482,31 @@ async function loadCountApprovalView() {
   let rows = payload.list || payload.records || payload.results || payload.items || [];
   if (f.status && f.status !== 'ALL') rows = rows.filter(r => String(r.status||'').toUpperCase() === f.status);
   if (f.type) rows = rows.filter(r => String(r.type||'').toUpperCase() === f.type);
-  COUNT_APPROVAL_ROWS = rows;
   const shown = rows.slice(0, f.pageSize);
   document.getElementById('cra-results-count').textContent = rows.length + ' Results';
-  if (!shown.length) { body.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:32px;color:#9ca3af">No Data</td></tr>'; return; }
+  if (!shown.length) { body.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:32px;color:#9ca3af">No Data</td></tr>'; COUNT_APPROVAL_ROWS = []; return; }
+
+  body.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:24px;color:#9ca3af">Loading location and item details…</td></tr>';
+  const locationIds = craUnique(shown.flatMap(r => [r.locationId, r.systemLocationId]));
+  const itemIds = craUnique(shown.map(r => r.itemId || r.itemCode || r.itemName));
+  const [locationMap, itemMap] = await Promise.all([craFetchLocationMap(locationIds), craFetchItemMap(itemIds)]);
+  rows.forEach(r => {
+    const locKey = String(r.locationId || r.systemLocationId || '').trim();
+    const itemKey = String(r.itemId || r.itemCode || r.itemName || '').trim();
+    r._location = locationMap[locKey] || null;
+    r._item = itemMap[itemKey] || null;
+  });
+  COUNT_APPROVAL_ROWS = rows;
+
   body.innerHTML = shown.map((r,i) => {
     const id = r.id || r.resultId || (r.ticketId + '-' + i);
-    const loc = r.locationName || r.locationId || r.systemLocationId || '—';
-    const item = r.itemName || r.itemCode || r.itemId || '—';
     const countQty = r.countItemQty ?? r.countBaseQty ?? '—';
     const sysQty = r.systemItemQty ?? r.systemBaseQty ?? r.systemUomQty ?? '—';
     const diff = r.itemDiffBaseQty ?? r.diffBaseQty ?? r.qtyDiff ?? '—';
     return '<tr>'+
-      '<td><input type="checkbox" class="cra-row" value="'+escAttr(id)+'"/></td>'+ '<td>'+esc(r.taskId||'—')+'</td>'+ '<td>'+esc(r.ticketId||'—')+'</td>'+ '<td>'+esc(loc)+'</td>'+ '<td>'+esc(r.status||'—')+'</td>'+ '<td>'+esc(r.countTicketType||r.countType||'—')+'</td>'+ '<td>'+esc(r.type||'—')+'</td>'+ '<td>'+esc(r.adjustmentId||'—')+'</td>'+ '<td>'+esc(item)+'</td>'+ '<td>'+esc(countQty)+'</td>'+ '<td>'+esc(sysQty)+'</td>'+ '<td>'+esc(diff)+'</td></tr>';
+      '<td><input type="checkbox" class="cra-row" value="'+escAttr(id)+'"/></td>'+ '<td>'+esc(r.taskId||'—')+'</td>'+ '<td>'+esc(r.ticketId||'—')+'</td>'+ '<td>'+craDisplayLocation(r)+'</td>'+ '<td>'+esc(r.status||'—')+'</td>'+ '<td>'+esc(r.countTicketType||r.countType||'—')+'</td>'+ '<td>'+esc(r.type||'—')+'</td>'+ '<td>'+esc(r.adjustmentId||'—')+'</td>'+ '<td>'+craDisplayItem(r)+'</td>'+ '<td>'+esc(countQty)+'</td>'+ '<td>'+esc(sysQty)+'</td>'+ '<td>'+esc(diff)+'</td></tr>';
   }).join('');
+
 }
 function toggleAllApprovalRows(checked) { document.querySelectorAll('.cra-row').forEach(cb => cb.checked = checked); }
 async function updateSelectedCountResults(status) {
@@ -12461,8 +12551,8 @@ function batchApproveCountResults() { updateSelectedCountResults('CLOSED'); }
 function batchRejectCountResults() { updateSelectedCountResults('REJECTED'); }
 function exportCountApprovalCsv() {
   const rows = COUNT_APPROVAL_ROWS || [];
-  const header = ['Task','Ticket','Location','Status','Count Type','Type','Adjustment ID','Item','Count Qty','System Qty','Diff'];
-  const csv = [header].concat(rows.map(r => [r.taskId||'',r.ticketId||'',r.locationName||r.locationId||'',r.status||'',r.countTicketType||'',r.type||'',r.adjustmentId||'',r.itemName||r.itemCode||r.itemId||'',r.countItemQty??'',r.systemItemQty??'',r.itemDiffBaseQty??''])).map(a => a.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const header = ['Task','Ticket','Location','Location ID','Status','Count Type','Type','Adjustment ID','Item','Raw Item ID','Count Qty','System Qty','Diff'];
+  const csv = [header].concat(rows.map(r => [r.taskId||'',r.ticketId||'',craLocationText(r),r.locationId||r.systemLocationId||'',r.status||'',r.countTicketType||'',r.type||'',r.adjustmentId||'',craItemText(r),r.itemId||'',r.countItemQty??'',r.systemItemQty??'',r.itemDiffBaseQty??''])).map(a => a.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
   const blob = new Blob([csv], {type:'text/csv'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='count-result-approval.csv'; a.click(); URL.revokeObjectURL(url);
 }
 
