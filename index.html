@@ -16751,7 +16751,7 @@ async function ltrSearchLocation() {
     body.currentPage = page;
     body.pageSize = pageSize;
     const resp = await safeFetch(WMS_BASE + '/api/wms-bam/wms-location/search-by-paging', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-    if (!resp || resp._needsAuth) { el.innerHTML='<span style="color:#ef4444">Authentication required. Please sign in.</span>'; return; }
+    if (!resp || resp._needsAuth) { el.innerHTML='<div style="color:#dc2626;font-weight:600;margin-bottom:8px">Your WMS session needs to be refreshed before locations can load.</div><button class="btn btn-primary" onclick="showReconnect()" style="font-size:12px;padding:6px 14px">Reconnect WMS Session</button><span style="font-size:11px;color:#6b7280;margin-left:8px">After reconnecting, click Search again.</span>'; return; }
     if (resp.success === false) { el.innerHTML='<span style="color:#d97706">Could not load locations for the selected filters. Please retry.</span>'; return; }
     const d = resp.data || resp;
     const rows = d.list || d.records || [];
