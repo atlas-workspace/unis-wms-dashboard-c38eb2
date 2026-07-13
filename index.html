@@ -11520,6 +11520,100 @@ function resetCycleForm() {
   if (help) help.textContent = 'How many locations should be counted in each window.';
   // Return submit button to create mode + hide cancel-edit button
   CC.editingTaskId = null;
+
+function normalizeWmsCountTicketToSavedTask(row, facilityId) {
+  const lines = row.countLines || row.countTaskLineDtos || row.taskLines || [];
+  return {
+    id: 'wms-' + String(row.id || row.ticketId || row.countTicketId || row.no || Math.random()).replace(/[^A-Za-z0-9_-]/g, '_'),
+    ticketId: row.id || row.ticketId || row.countTicketId || row.no || '',
+    name: row.name || row.title || row.countName || row.ticketName || ('Cycle Count ' + (row.id || row.ticketId || '')),
+    customerId: row.customerId || row.customerOrgId || '',
+    customerName: row.customerName || row.customer || '',
+    scheduleDate: row.scheduleDate || row.startTime || row.createdTime || '',
+    targetCompletionDate: row.targetCompletionDate || row.endTime || '',
+    recurrence: row.recurrenceType || row.recurrence || 'NONE',
+    type: row.type || row.countTicketType || '',
+    countMethod: row.countMethod || row.method || '',
+    countLines: lines,
+    facilityId: facilityId || FACILITY_ID,
+    warehouseId: facilityId || FACILITY_ID,
+    wiseStatus: row.status || row.ticketStatus || 'OPEN',
+    createdAt: row.createdTime ? new Date(row.createdTime).getTime() : Date.now(),
+    _wmsOnly: true,
+  };
+}
+
+async function fetchWmsSavedCycleCountTasksForFacility(facilityId) {
+  const url = WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging';
+  const out = [];
+  const pageSize = 100;
+  let page = 1;
+  const maxPages = 12;
+  while (page <= maxPages) {
+    const resp = await safeFetch(url, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify({currentPage:page, pageSize:pageSize, facilityId:facilityId, warehouseId:facilityId, withCountLines:true}),
+    });
+    if (!resp || resp._needsAuth) return {needsAuth:true, rows:out};
+    if (resp.success === false) return {error:true, rows:out, msg: resp.msg || resp.message || ''};
+    const d = resp.data || resp;
+    const rows = d.list || d.records || [];
+    out.push(...rows);
+    const total = Number(d.totalCount || d.total || 0);
+    const totalPage = Number(d.totalPage || d.pages || 0);
+    if (rows.length < pageSize) break;
+    if (total && out.length >= total) break;
+    if (totalPage && page >= totalPage) break;
+    page++;
+  }
+  return {rows: out};
+}
+
+async function loadWmsSavedCycleCountsPanel(facilityId, facilityName, localTasks) {
+  const host = document.getElementById('tasks-host');
+  const cnt = document.getElementById('tasks-count');
+  if (!host) return;
+  const selected = (document.getElementById('facility-switcher') || {}).value || FACILITY_ID;
+  if (selected !== facilityId) return;
+  const resp = await fetchWmsSavedCycleCountTasksForFacility(facilityId);
+  const stillSelected = (document.getElementById('facility-switcher') || {}).value || FACILITY_ID;
+  if (stillSelected !== facilityId) return;
+  if (resp.needsAuth) {
+    host.innerHTML = '<div class="tasks-empty">Reconnect your WMS session to load saved cycle counts for <strong>' + esc(facilityName || facilityId) + '</strong>. <button class="btn btn-primary" onclick="showReconnect()" style="margin-left:8px;font-size:12px;padding:6px 12px">Reconnect</button></div>';
+    if (cnt) cnt.textContent = '(0)';
+    return;
+  }
+  if (resp.error) {
+    host.innerHTML = '<div class="tasks-empty">Saved cycle counts could not be loaded for <strong>' + esc(facilityName || facilityId) + '</strong>. Please refresh and try again.</div>';
+    if (cnt) cnt.textContent = '(0)';
+    return;
+  }
+  const wmsTasks = (resp.rows || []).map(r => normalizeWmsCountTicketToSavedTask(r, facilityId));
+  const local = localTasks || [];
+  const byKey = new Map();
+  wmsTasks.concat(local).forEach(t => {
+    const key = String(t.ticketId || t.id || '').trim() || ('local-' + Math.random());
+    if (!byKey.has(key)) byKey.set(key, t);
+  });
+  const merged = Array.from(byKey.values()).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
+  CC.tasks = merged;
+  if (cnt) cnt.textContent = '(' + merged.length + ')';
+  if (!merged.length) {
+    host.innerHTML = '<div class="tasks-empty">No saved cycle counts found at <strong>' + esc(facilityName || facilityId) + '</strong>.</div>';
+    return;
+  }
+  const custLookup = {};
+  (FACILITY_CUSTOMERS[facilityId] || []).forEach(c => custLookup[c.id] = c.name);
+  const groups = [];
+  const groupByKey = new Map();
+  merged.forEach(t => {
+    const key = t.scheduleId || ('solo:' + t.id);
+    if (!groupByKey.has(key)) { const g = {key, tasks: []}; groupByKey.set(key, g); groups.push(g); }
+    groupByKey.get(key).tasks.push(t);
+  });
+  host.innerHTML = groups.map(g => renderTaskGroupCard(g, custLookup)).join('');
+}
   const sb = document.getElementById('cc-submit-btn');
   if (sb) { sb.textContent = 'Schedule Cycle Count'; sb.disabled = true; }
   const cb = document.getElementById('cc-cancel-edit-btn');
@@ -11656,6 +11750,100 @@ function persistSavedTasks(list, facilityId) {
 CC.tasks = loadSavedTasks();
 CC.editingTaskId = null;
 
+function normalizeWmsCountTicketToSavedTask(row, facilityId) {
+  const lines = row.countLines || row.countTaskLineDtos || row.taskLines || [];
+  return {
+    id: 'wms-' + String(row.id || row.ticketId || row.countTicketId || row.no || Math.random()).replace(/[^A-Za-z0-9_-]/g, '_'),
+    ticketId: row.id || row.ticketId || row.countTicketId || row.no || '',
+    name: row.name || row.title || row.countName || row.ticketName || ('Cycle Count ' + (row.id || row.ticketId || '')),
+    customerId: row.customerId || row.customerOrgId || '',
+    customerName: row.customerName || row.customer || '',
+    scheduleDate: row.scheduleDate || row.startTime || row.createdTime || '',
+    targetCompletionDate: row.targetCompletionDate || row.endTime || '',
+    recurrence: row.recurrenceType || row.recurrence || 'NONE',
+    type: row.type || row.countTicketType || '',
+    countMethod: row.countMethod || row.method || '',
+    countLines: lines,
+    facilityId: facilityId || FACILITY_ID,
+    warehouseId: facilityId || FACILITY_ID,
+    wiseStatus: row.status || row.ticketStatus || 'OPEN',
+    createdAt: row.createdTime ? new Date(row.createdTime).getTime() : Date.now(),
+    _wmsOnly: true,
+  };
+}
+
+async function fetchWmsSavedCycleCountTasksForFacility(facilityId) {
+  const url = WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging';
+  const out = [];
+  const pageSize = 100;
+  let page = 1;
+  const maxPages = 12;
+  while (page <= maxPages) {
+    const resp = await safeFetch(url, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify({currentPage:page, pageSize:pageSize, facilityId:facilityId, warehouseId:facilityId, withCountLines:true}),
+    });
+    if (!resp || resp._needsAuth) return {needsAuth:true, rows:out};
+    if (resp.success === false) return {error:true, rows:out, msg: resp.msg || resp.message || ''};
+    const d = resp.data || resp;
+    const rows = d.list || d.records || [];
+    out.push(...rows);
+    const total = Number(d.totalCount || d.total || 0);
+    const totalPage = Number(d.totalPage || d.pages || 0);
+    if (rows.length < pageSize) break;
+    if (total && out.length >= total) break;
+    if (totalPage && page >= totalPage) break;
+    page++;
+  }
+  return {rows: out};
+}
+
+async function loadWmsSavedCycleCountsPanel(facilityId, facilityName, localTasks) {
+  const host = document.getElementById('tasks-host');
+  const cnt = document.getElementById('tasks-count');
+  if (!host) return;
+  const selected = (document.getElementById('facility-switcher') || {}).value || FACILITY_ID;
+  if (selected !== facilityId) return;
+  const resp = await fetchWmsSavedCycleCountTasksForFacility(facilityId);
+  const stillSelected = (document.getElementById('facility-switcher') || {}).value || FACILITY_ID;
+  if (stillSelected !== facilityId) return;
+  if (resp.needsAuth) {
+    host.innerHTML = '<div class="tasks-empty">Reconnect your WMS session to load saved cycle counts for <strong>' + esc(facilityName || facilityId) + '</strong>. <button class="btn btn-primary" onclick="showReconnect()" style="margin-left:8px;font-size:12px;padding:6px 12px">Reconnect</button></div>';
+    if (cnt) cnt.textContent = '(0)';
+    return;
+  }
+  if (resp.error) {
+    host.innerHTML = '<div class="tasks-empty">Saved cycle counts could not be loaded for <strong>' + esc(facilityName || facilityId) + '</strong>. Please refresh and try again.</div>';
+    if (cnt) cnt.textContent = '(0)';
+    return;
+  }
+  const wmsTasks = (resp.rows || []).map(r => normalizeWmsCountTicketToSavedTask(r, facilityId));
+  const local = localTasks || [];
+  const byKey = new Map();
+  wmsTasks.concat(local).forEach(t => {
+    const key = String(t.ticketId || t.id || '').trim() || ('local-' + Math.random());
+    if (!byKey.has(key)) byKey.set(key, t);
+  });
+  const merged = Array.from(byKey.values()).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
+  CC.tasks = merged;
+  if (cnt) cnt.textContent = '(' + merged.length + ')';
+  if (!merged.length) {
+    host.innerHTML = '<div class="tasks-empty">No saved cycle counts found at <strong>' + esc(facilityName || facilityId) + '</strong>.</div>';
+    return;
+  }
+  const custLookup = {};
+  (FACILITY_CUSTOMERS[facilityId] || []).forEach(c => custLookup[c.id] = c.name);
+  const groups = [];
+  const groupByKey = new Map();
+  merged.forEach(t => {
+    const key = t.scheduleId || ('solo:' + t.id);
+    if (!groupByKey.has(key)) { const g = {key, tasks: []}; groupByKey.set(key, g); groups.push(g); }
+    groupByKey.get(key).tasks.push(t);
+  });
+  host.innerHTML = groups.map(g => renderTaskGroupCard(g, custLookup)).join('');
+}
+
 function renderTasksPanel() {
   const host = document.getElementById('tasks-host');
   const cnt = document.getElementById('tasks-count');
@@ -11682,7 +11870,9 @@ function renderTasksPanel() {
   });
   if (cnt) cnt.textContent = '(' + visibleTasks.length + ')';
   if (visibleTasks.length === 0) {
-    host.innerHTML = '<div class="tasks-empty">No saved cycle counts at <strong>' + esc(activeFacility.name || activeFacilityId) + '</strong> yet.</div>';
+    host.innerHTML = '<div class="tasks-empty"><span class="spinner"></span> Loading saved cycle counts for <strong>' + esc(activeFacility.name || activeFacilityId) + '</strong>…</div>';
+    if (cnt) cnt.textContent = '(loading)';
+    loadWmsSavedCycleCountsPanel(activeFacilityId, activeFacility.name || activeFacilityId, []);
     return;
   }
   // Group tasks by scheduleId — tasks that share a scheduleId came from one
@@ -11705,6 +11895,7 @@ function renderTasksPanel() {
   (FACILITY_CUSTOMERS[FACILITY_ID] || []).forEach(c => custLookup[c.id] = c.name);
 
   host.innerHTML = groups.map(g => renderTaskGroupCard(g, custLookup)).join('');
+  loadWmsSavedCycleCountsPanel(activeFacilityId, activeFacility.name || activeFacilityId, visibleTasks);
 
   // Sync live WMS statuses in background (non-blocking)
   if (!CC._statusSyncInFlight) {
@@ -11955,6 +12146,100 @@ function editTask(id) {
 
 function cancelEditTask() {
   CC.editingTaskId = null;
+
+function normalizeWmsCountTicketToSavedTask(row, facilityId) {
+  const lines = row.countLines || row.countTaskLineDtos || row.taskLines || [];
+  return {
+    id: 'wms-' + String(row.id || row.ticketId || row.countTicketId || row.no || Math.random()).replace(/[^A-Za-z0-9_-]/g, '_'),
+    ticketId: row.id || row.ticketId || row.countTicketId || row.no || '',
+    name: row.name || row.title || row.countName || row.ticketName || ('Cycle Count ' + (row.id || row.ticketId || '')),
+    customerId: row.customerId || row.customerOrgId || '',
+    customerName: row.customerName || row.customer || '',
+    scheduleDate: row.scheduleDate || row.startTime || row.createdTime || '',
+    targetCompletionDate: row.targetCompletionDate || row.endTime || '',
+    recurrence: row.recurrenceType || row.recurrence || 'NONE',
+    type: row.type || row.countTicketType || '',
+    countMethod: row.countMethod || row.method || '',
+    countLines: lines,
+    facilityId: facilityId || FACILITY_ID,
+    warehouseId: facilityId || FACILITY_ID,
+    wiseStatus: row.status || row.ticketStatus || 'OPEN',
+    createdAt: row.createdTime ? new Date(row.createdTime).getTime() : Date.now(),
+    _wmsOnly: true,
+  };
+}
+
+async function fetchWmsSavedCycleCountTasksForFacility(facilityId) {
+  const url = WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging';
+  const out = [];
+  const pageSize = 100;
+  let page = 1;
+  const maxPages = 12;
+  while (page <= maxPages) {
+    const resp = await safeFetch(url, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify({currentPage:page, pageSize:pageSize, facilityId:facilityId, warehouseId:facilityId, withCountLines:true}),
+    });
+    if (!resp || resp._needsAuth) return {needsAuth:true, rows:out};
+    if (resp.success === false) return {error:true, rows:out, msg: resp.msg || resp.message || ''};
+    const d = resp.data || resp;
+    const rows = d.list || d.records || [];
+    out.push(...rows);
+    const total = Number(d.totalCount || d.total || 0);
+    const totalPage = Number(d.totalPage || d.pages || 0);
+    if (rows.length < pageSize) break;
+    if (total && out.length >= total) break;
+    if (totalPage && page >= totalPage) break;
+    page++;
+  }
+  return {rows: out};
+}
+
+async function loadWmsSavedCycleCountsPanel(facilityId, facilityName, localTasks) {
+  const host = document.getElementById('tasks-host');
+  const cnt = document.getElementById('tasks-count');
+  if (!host) return;
+  const selected = (document.getElementById('facility-switcher') || {}).value || FACILITY_ID;
+  if (selected !== facilityId) return;
+  const resp = await fetchWmsSavedCycleCountTasksForFacility(facilityId);
+  const stillSelected = (document.getElementById('facility-switcher') || {}).value || FACILITY_ID;
+  if (stillSelected !== facilityId) return;
+  if (resp.needsAuth) {
+    host.innerHTML = '<div class="tasks-empty">Reconnect your WMS session to load saved cycle counts for <strong>' + esc(facilityName || facilityId) + '</strong>. <button class="btn btn-primary" onclick="showReconnect()" style="margin-left:8px;font-size:12px;padding:6px 12px">Reconnect</button></div>';
+    if (cnt) cnt.textContent = '(0)';
+    return;
+  }
+  if (resp.error) {
+    host.innerHTML = '<div class="tasks-empty">Saved cycle counts could not be loaded for <strong>' + esc(facilityName || facilityId) + '</strong>. Please refresh and try again.</div>';
+    if (cnt) cnt.textContent = '(0)';
+    return;
+  }
+  const wmsTasks = (resp.rows || []).map(r => normalizeWmsCountTicketToSavedTask(r, facilityId));
+  const local = localTasks || [];
+  const byKey = new Map();
+  wmsTasks.concat(local).forEach(t => {
+    const key = String(t.ticketId || t.id || '').trim() || ('local-' + Math.random());
+    if (!byKey.has(key)) byKey.set(key, t);
+  });
+  const merged = Array.from(byKey.values()).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
+  CC.tasks = merged;
+  if (cnt) cnt.textContent = '(' + merged.length + ')';
+  if (!merged.length) {
+    host.innerHTML = '<div class="tasks-empty">No saved cycle counts found at <strong>' + esc(facilityName || facilityId) + '</strong>.</div>';
+    return;
+  }
+  const custLookup = {};
+  (FACILITY_CUSTOMERS[facilityId] || []).forEach(c => custLookup[c.id] = c.name);
+  const groups = [];
+  const groupByKey = new Map();
+  merged.forEach(t => {
+    const key = t.scheduleId || ('solo:' + t.id);
+    if (!groupByKey.has(key)) { const g = {key, tasks: []}; groupByKey.set(key, g); groups.push(g); }
+    groupByKey.get(key).tasks.push(t);
+  });
+  host.innerHTML = groups.map(g => renderTaskGroupCard(g, custLookup)).join('');
+}
   resetCycleForm();
   renderTasksPanel();
 }
@@ -13375,6 +13660,100 @@ async function submitCycleCount() {
 
   // Reset form for a fresh new task
   CC.editingTaskId = null;
+
+function normalizeWmsCountTicketToSavedTask(row, facilityId) {
+  const lines = row.countLines || row.countTaskLineDtos || row.taskLines || [];
+  return {
+    id: 'wms-' + String(row.id || row.ticketId || row.countTicketId || row.no || Math.random()).replace(/[^A-Za-z0-9_-]/g, '_'),
+    ticketId: row.id || row.ticketId || row.countTicketId || row.no || '',
+    name: row.name || row.title || row.countName || row.ticketName || ('Cycle Count ' + (row.id || row.ticketId || '')),
+    customerId: row.customerId || row.customerOrgId || '',
+    customerName: row.customerName || row.customer || '',
+    scheduleDate: row.scheduleDate || row.startTime || row.createdTime || '',
+    targetCompletionDate: row.targetCompletionDate || row.endTime || '',
+    recurrence: row.recurrenceType || row.recurrence || 'NONE',
+    type: row.type || row.countTicketType || '',
+    countMethod: row.countMethod || row.method || '',
+    countLines: lines,
+    facilityId: facilityId || FACILITY_ID,
+    warehouseId: facilityId || FACILITY_ID,
+    wiseStatus: row.status || row.ticketStatus || 'OPEN',
+    createdAt: row.createdTime ? new Date(row.createdTime).getTime() : Date.now(),
+    _wmsOnly: true,
+  };
+}
+
+async function fetchWmsSavedCycleCountTasksForFacility(facilityId) {
+  const url = WMS_BASE + '/api/cyclecount-app/cycle-count/count-ticket/search-by-paging';
+  const out = [];
+  const pageSize = 100;
+  let page = 1;
+  const maxPages = 12;
+  while (page <= maxPages) {
+    const resp = await safeFetch(url, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify({currentPage:page, pageSize:pageSize, facilityId:facilityId, warehouseId:facilityId, withCountLines:true}),
+    });
+    if (!resp || resp._needsAuth) return {needsAuth:true, rows:out};
+    if (resp.success === false) return {error:true, rows:out, msg: resp.msg || resp.message || ''};
+    const d = resp.data || resp;
+    const rows = d.list || d.records || [];
+    out.push(...rows);
+    const total = Number(d.totalCount || d.total || 0);
+    const totalPage = Number(d.totalPage || d.pages || 0);
+    if (rows.length < pageSize) break;
+    if (total && out.length >= total) break;
+    if (totalPage && page >= totalPage) break;
+    page++;
+  }
+  return {rows: out};
+}
+
+async function loadWmsSavedCycleCountsPanel(facilityId, facilityName, localTasks) {
+  const host = document.getElementById('tasks-host');
+  const cnt = document.getElementById('tasks-count');
+  if (!host) return;
+  const selected = (document.getElementById('facility-switcher') || {}).value || FACILITY_ID;
+  if (selected !== facilityId) return;
+  const resp = await fetchWmsSavedCycleCountTasksForFacility(facilityId);
+  const stillSelected = (document.getElementById('facility-switcher') || {}).value || FACILITY_ID;
+  if (stillSelected !== facilityId) return;
+  if (resp.needsAuth) {
+    host.innerHTML = '<div class="tasks-empty">Reconnect your WMS session to load saved cycle counts for <strong>' + esc(facilityName || facilityId) + '</strong>. <button class="btn btn-primary" onclick="showReconnect()" style="margin-left:8px;font-size:12px;padding:6px 12px">Reconnect</button></div>';
+    if (cnt) cnt.textContent = '(0)';
+    return;
+  }
+  if (resp.error) {
+    host.innerHTML = '<div class="tasks-empty">Saved cycle counts could not be loaded for <strong>' + esc(facilityName || facilityId) + '</strong>. Please refresh and try again.</div>';
+    if (cnt) cnt.textContent = '(0)';
+    return;
+  }
+  const wmsTasks = (resp.rows || []).map(r => normalizeWmsCountTicketToSavedTask(r, facilityId));
+  const local = localTasks || [];
+  const byKey = new Map();
+  wmsTasks.concat(local).forEach(t => {
+    const key = String(t.ticketId || t.id || '').trim() || ('local-' + Math.random());
+    if (!byKey.has(key)) byKey.set(key, t);
+  });
+  const merged = Array.from(byKey.values()).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
+  CC.tasks = merged;
+  if (cnt) cnt.textContent = '(' + merged.length + ')';
+  if (!merged.length) {
+    host.innerHTML = '<div class="tasks-empty">No saved cycle counts found at <strong>' + esc(facilityName || facilityId) + '</strong>.</div>';
+    return;
+  }
+  const custLookup = {};
+  (FACILITY_CUSTOMERS[facilityId] || []).forEach(c => custLookup[c.id] = c.name);
+  const groups = [];
+  const groupByKey = new Map();
+  merged.forEach(t => {
+    const key = t.scheduleId || ('solo:' + t.id);
+    if (!groupByKey.has(key)) { const g = {key, tasks: []}; groupByKey.set(key, g); groups.push(g); }
+    groupByKey.get(key).tasks.push(t);
+  });
+  host.innerHTML = groups.map(g => renderTaskGroupCard(g, custLookup)).join('');
+}
   resetCycleForm();
   renderTasksPanel();
 
