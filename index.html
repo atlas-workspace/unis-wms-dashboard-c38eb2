@@ -17687,6 +17687,32 @@ async function ltrApplyOneLocationForRequest(r, loc, changes, tagId) {
   }
 }
 
+
+async function ltrVerifyOneLocationForRequest(r, loc, changes, tagId) {
+  const current = loc || r.currentValues || {};
+  const locationId = current.id || current.locationId || r.locationId;
+  const detailResp = await safeFetch(WMS_BASE + '/api/wms/wms-location/' + encodeURIComponent(locationId), {method:'GET', headers:{'Accept':'application/json'}});
+  const detail = detailResp && !detailResp._needsAuth ? (detailResp.data || detailResp) : null;
+  if (!detail) return false;
+  if (changes.customerIds) {
+    const want = String(changes.customerIds).split(',').map(x => x.trim()).filter(Boolean).sort().join('|');
+    const got = (detail.customerIds || []).map(String).sort().join('|');
+    if (want !== got) return false;
+  }
+  if (changes.supportPickType && String(detail.supportPickType || '') !== String(changes.supportPickType)) return false;
+  if (changes.disallowToMixItemOnSameLocation !== undefined) {
+    const want = changes.disallowToMixItemOnSameLocation === 'TRUE' || changes.disallowToMixItemOnSameLocation === true;
+    if (Boolean(detail.disallowToMixItemOnSameLocation) !== want) return false;
+  }
+  if (changes.tagName && tagId) {
+    const tagResp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/' + encodeURIComponent(tagId), {method:'GET', headers:{'Accept':'application/json'}});
+    const tag = tagResp && !tagResp._needsAuth ? (tagResp.data || tagResp) : null;
+    const ids = tag ? ((tag.locationIds || (tag.locations || []).map(l => l.id || l) || []).map(String)) : [];
+    if (!ids.includes(String(locationId))) return false;
+  }
+  return true;
+}
+
 async function ltrApprove(idx, retryMode) {
   if (!ltrRequireApprovalPassword()) return;
   const list = ltrLoad();
@@ -17712,7 +17738,14 @@ async function ltrApprove(idx, retryMode) {
   const failures = [];
   let applied = 0;
   for (const loc of targetLocations) {
-    try { await ltrApplyOneLocationForRequest(r, loc, changes, r.tagId); applied++; }
+    try {
+      // If the prior retry actually updated WMS but the browser did not record it,
+      // verify first and mark this location complete without re-mutating it.
+      if (await ltrVerifyOneLocationForRequest(r, loc, changes, r.tagId)) { applied++; continue; }
+      await ltrApplyOneLocationForRequest(r, loc, changes, r.tagId);
+      if (!(await ltrVerifyOneLocationForRequest(r, loc, changes, r.tagId))) throw new Error('Verification failed after apply.');
+      applied++;
+    }
     catch(e) { console.warn('[ltr-apply] location failed', loc && (loc.name || loc.id), e && e.message ? e.message : e); failures.push((loc && (loc.name || loc.id)) || 'location'); }
   }
 
