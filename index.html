@@ -16874,10 +16874,37 @@ const LTR_ENUMS = {
 };
 
 function ltrGetKey() { return 'ltr_requests_' + FACILITY_ID; }
-function ltrLoad() { try { return JSON.parse(localStorage.getItem(ltrGetKey()) || '[]'); } catch(_) { return []; } }
-function ltrSave(list) { try { localStorage.setItem(ltrGetKey(), JSON.stringify(list)); } catch(_) {} }
+window.LTR_SHARED_CACHE = window.LTR_SHARED_CACHE || {};
+function ltrMergeRequests(a, b) {
+  const byId = new Map();
+  (a || []).concat(b || []).forEach(r => { if (r && r.id) byId.set(String(r.id), r); });
+  return Array.from(byId.values()).sort((x,y) => String(y.requestedAt||'').localeCompare(String(x.requestedAt||'')));
+}
+function ltrLoad() {
+  let local = [];
+  try { local = JSON.parse(localStorage.getItem(ltrGetKey()) || '[]'); } catch(_) {}
+  return ltrMergeRequests(window.LTR_SHARED_CACHE[FACILITY_ID] || [], local);
+}
+function ltrSave(list) {
+  try { localStorage.setItem(ltrGetKey(), JSON.stringify(list)); } catch(_) {}
+  window.LTR_SHARED_CACHE[FACILITY_ID] = list || [];
+  fetch('/api/location-tag-requests?facilityId=' + encodeURIComponent(FACILITY_ID), {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({list:list || []})
+  }).catch(() => {});
+}
+async function ltrSyncSharedRequests() {
+  try {
+    const r = await fetch('/api/location-tag-requests?facilityId=' + encodeURIComponent(FACILITY_ID), {cache:'no-store'});
+    const d = await r.json();
+    if (d && d.success && Array.isArray(d.list)) {
+      const merged = ltrMergeRequests(d.list, JSON.parse(localStorage.getItem(ltrGetKey()) || '[]'));
+      window.LTR_SHARED_CACHE[FACILITY_ID] = merged;
+      try { localStorage.setItem(ltrGetKey(), JSON.stringify(merged)); } catch(_) {}
+    }
+  } catch(_) {}
+}
 
-function ltrInit() { ltrRenderList(); }
+async function ltrInit() { await ltrSyncSharedRequests(); ltrRenderList(); }
 
 function ltrOpenNewRequest(evt) {
   if (evt && evt.preventDefault) evt.preventDefault();

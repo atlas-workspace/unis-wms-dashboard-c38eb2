@@ -52,6 +52,22 @@ function upstreamJson(method, host, pathname, body, query='') {
     req.end();
   });
 }
+
+function safeFacilityKey(v) {
+  return String(v || 'UNKNOWN').replace(/[^A-Za-z0-9_-]/g, '_');
+}
+function ltrStorePath(facilityId) {
+  const dir = path.join(ROOT, 'data');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, {recursive:true});
+  return path.join(dir, 'location_tag_requests_' + safeFacilityKey(facilityId) + '.json');
+}
+function readJsonFile(file, fallback) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch(_) { return fallback; }
+}
+function writeJsonFile(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
+
 function contentType(file) {
   const ext = path.extname(file).toLowerCase();
   return ({'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.ico':'image/x-icon'}[ext] || 'application/octet-stream');
@@ -119,6 +135,29 @@ async function handleApi(req, res, url) {
       }
       const out2 = await upstreamJson('POST', 'atlas.item.com', '/api/auth/refresh', raw);
       return send(res, out2.status, out2.json || out2.raw || {success:false,msg:'Refresh failed'});
+    }
+
+
+    // Shared Location Tag Requests store by facility so all users see the same request list.
+    if (url.pathname === '/api/location-tag-requests') {
+      const facilityId = safeFacilityKey(url.searchParams.get('facilityId') || 'LT_F1');
+      const file = ltrStorePath(facilityId);
+      if (req.method === 'GET') {
+        return send(res, 200, {success:true, facilityId, list: readJsonFile(file, [])});
+      }
+      if (req.method === 'POST') {
+        const raw = await readBody(req);
+        let body;
+        try { body = JSON.parse(raw); } catch(_) { body = {}; }
+        const incoming = Array.isArray(body.list) ? body.list : [];
+        const existing = readJsonFile(file, []);
+        const byId = new Map();
+        existing.concat(incoming).forEach(r => { if (r && r.id) byId.set(String(r.id), r); });
+        const merged = Array.from(byId.values()).sort((a,b) => String(b.requestedAt||'').localeCompare(String(a.requestedAt||'')));
+        writeJsonFile(file, merged);
+        return send(res, 200, {success:true, facilityId, count: merged.length, list: merged});
+      }
+      return send(res, 405, {success:false, msg:'Method not allowed'});
     }
 
     // Ticket API proxy routes
