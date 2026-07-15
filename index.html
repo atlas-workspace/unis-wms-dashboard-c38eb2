@@ -17428,7 +17428,7 @@ async function ltrSubmitRequest() {
   const ticketTeamName = ticketQueueSel && ticketQueueSel.selectedIndex > 0 ? ticketQueueSel.options[ticketQueueSel.selectedIndex].textContent : '';
   const contactEmail = (admGetCurrentUsername() || 'dashboard') + '@itemgroup.com';
 
-  // Support multi-location: create one request per selected location
+  // Support multi-location as ONE approval request with one tracking ticket.
   const indices = window._ltrSelectedIndices || [0];
   const results = window._ltrSearchResults || [];
   const list = ltrLoad();
@@ -17438,33 +17438,42 @@ async function ltrSubmitRequest() {
   // Deduplicate locations by ID
   const seenIds = new Set();
   const uniqueLocations = locations.filter(l => {
-    if (seenIds.has(l.id)) return false;
-    seenIds.add(l.id);
+    const lid = String(l.id || l.locationId || l.name || '');
+    if (!lid || seenIds.has(lid)) return false;
+    seenIds.add(lid);
     return true;
   });
 
-  // Duplicate prevention: check if identical pending request already exists
+  // Duplicate prevention: check if identical pending grouped request already exists
+  const locationKey = uniqueLocations.map(l => String(l.id || l.locationId || l.name)).sort().join('|');
   const existingPending = list.filter(r => r.status === 'PENDING_APPROVAL' && r.facilityId === FACILITY_ID);
+  const isDup = existingPending.some(r => {
+    const rKey = ((r.locations || []).length ? r.locations.map(l => String(l.id || l.locationId || l.name)).sort().join('|') : String(r.locationId || ''));
+    return rKey === locationKey && JSON.stringify(r.changes) === JSON.stringify(changes);
+  });
+  if (isDup) { alert('A matching pending request already exists for the selected location(s).'); return; }
 
-  uniqueLocations.forEach(l => {
-    const isDup = existingPending.some(r => r.locationId === l.id && JSON.stringify(r.changes) === JSON.stringify(changes));
-    if (isDup) return; // skip duplicate
-    list.push({
-      id: 'ltr_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
-      locationId: l.id,
-      locationName: l.name || l.id,
-      facilityId: FACILITY_ID,
-      changes,
-      tagId: tagId || undefined,
-      tagName: tagName || undefined,
-      status: 'PENDING_APPROVAL',
-      requester: admGetCurrentUsername() || '—',
-      requestedAt: new Date().toISOString(),
-      currentValues: l,
-      ticketTeamId: ticketTeamId || undefined,
-      ticketTeamName: ticketTeamName || undefined,
-      ticketStatus: 'PENDING',
-    });
+  const primaryLoc = uniqueLocations[0] || loc;
+  const locationLabel = uniqueLocations.length === 1
+    ? (primaryLoc.name || primaryLoc.id)
+    : (uniqueLocations.length + ' locations');
+  list.push({
+    id: 'ltr_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+    locationId: primaryLoc.id,
+    locationName: locationLabel,
+    locationIds: uniqueLocations.map(l => l.id || l.locationId || l.name).filter(Boolean),
+    locations: uniqueLocations,
+    facilityId: FACILITY_ID,
+    changes,
+    tagId: tagId || undefined,
+    tagName: tagName || undefined,
+    status: 'PENDING_APPROVAL',
+    requester: admGetCurrentUsername() || '—',
+    requestedAt: new Date().toISOString(),
+    currentValues: primaryLoc,
+    ticketTeamId: ticketTeamId || undefined,
+    ticketTeamName: ticketTeamName || undefined,
+    ticketStatus: 'PENDING',
   });
 
   ltrSave(list);
@@ -17477,10 +17486,11 @@ async function ltrSubmitRequest() {
     const cur = loc[k] || '—';
     return '  • ' + k + ': ' + cur + ' → ' + v;
   }).join('\n');
-  const ticketTitle = 'Location Tag Change Request — ' + (loc.name || loc.id) + ' — ' + (FACILITY_NAME || FACILITY_ID);
+  const selectedLocationSummary = uniqueLocations.length === 1 ? ((loc.name || loc.id) + ' (ID: ' + loc.id + ')') : (uniqueLocations.length + ' locations: ' + uniqueLocations.slice(0, 25).map(l => (l.name || l.id) + ' (ID: ' + l.id + ')').join(', ') + (uniqueLocations.length > 25 ? ', +' + (uniqueLocations.length - 25) + ' more' : ''));
+  const ticketTitle = 'Location Tag Change Request — ' + (uniqueLocations.length === 1 ? (loc.name || loc.id) : (uniqueLocations.length + ' locations')) + ' — ' + (FACILITY_NAME || FACILITY_ID);
   const ticketMsg = 'A Location Tag update request has been submitted and requires manager approval.\n\n' +
     'FACILITY: ' + (FACILITY_NAME || FACILITY_ID) + ' (' + FACILITY_ID + ')\n' +
-    'LOCATION: ' + (loc.name || loc.id) + ' (ID: ' + loc.id + ')\n' +
+    'LOCATION(S): ' + selectedLocationSummary + '\n' +
     'REQUESTER: ' + (admGetCurrentUsername() || '—') + '\n' +
     'DATE: ' + new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}) + '\n' +
     (ticketTeamName ? 'REQUESTED QUEUE/TEAM: ' + ticketTeamName + '\n' : '') +
@@ -17559,8 +17569,7 @@ async function ltrSubmitRequest() {
 
   ltrRenderList();
   const notifyNote = ' A support ticket was created for tracking.';
-  if (uniqueLocations.length > 1) alert(uniqueLocations.length + ' request(s) submitted for approval.' + notifyNote);
-  else alert('Request submitted for approval.' + notifyNote);
+  alert((uniqueLocations.length > 1 ? '1 request submitted for ' + uniqueLocations.length + ' selected location(s).' : 'Request submitted for approval.') + notifyNote);
 }
 
 function ltrViewDetail(idx) {
