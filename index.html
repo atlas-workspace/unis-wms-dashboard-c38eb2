@@ -15922,8 +15922,8 @@ const TICKET_DEPT_FALLBACK = [
 const TICKET_TOPIC_FALLBACK = [
   {id:'351666257576935424', name:'UF:Inventory Accuracy & Stock Inquiries (fallback)', departmentId:'324119200704569344'},
 ];
-const TICKET_DEFAULT_DEPT = '324119200704569344';
-const TICKET_DEFAULT_TOPIC = '351666257576935424';
+const TICKET_DEFAULT_DEPT = '336664760841621504';
+const TICKET_DEFAULT_TOPIC = '315682256835801088';
 
 let TICKET_DEPTS_CACHE = null;
 let TICKET_TOPICS_CACHE = null;
@@ -17426,7 +17426,7 @@ async function ltrSubmitRequest() {
   const ticketQueueSel = document.getElementById('ltr-ticket-queue');
   const ticketTeamId = ticketQueueSel ? ticketQueueSel.value : '';
   const ticketTeamName = ticketQueueSel && ticketQueueSel.selectedIndex > 0 ? ticketQueueSel.options[ticketQueueSel.selectedIndex].textContent : '';
-  const contactEmail = (admGetCurrentUsername() || 'dashboard') + '@itemgroup.com';
+  const contactEmail = (admGetCurrentUsername() || 'dashboard') + '@unisco.com';
 
   // Support multi-location as ONE approval request with one tracking ticket.
   const indices = window._ltrSelectedIndices || [0];
@@ -17499,8 +17499,8 @@ async function ltrSubmitRequest() {
     'Dashboard: ' + window.location.origin;
 
   try {
-    const selectedDept = (document.getElementById('ltr-ticket-dept') || {}).value || '324119200704569344';
-    const selectedTopic = (document.getElementById('ltr-ticket-topic') || {}).value || '351666257576935424';
+    const selectedDept = (document.getElementById('ltr-ticket-dept') || {}).value || TICKET_DEFAULT_DEPT;
+    const selectedTopic = (document.getElementById('ltr-ticket-topic') || {}).value || TICKET_DEFAULT_TOPIC;
     const ticketPayload = {
       departmentId: selectedDept,
       topicId: selectedTopic,
