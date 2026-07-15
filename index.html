@@ -17641,13 +17641,61 @@ async function ltrUpdateVirtualTagMembership(tagId, locationId, mode) {
   return {name: payload.name, before: existing.length, after: next.length};
 }
 
+async function ltrApplyOneLocationForRequest(r, loc, changes, tagId) {
+  const current = loc || r.currentValues || {};
+  const locationId = current.id || current.locationId || r.locationId;
+  const payload = { id: locationId, name: current.name || r.locationName || locationId, status: current.status || 'USABLE' };
+  const appliedFields = [];
+  Object.keys(changes).forEach(k => {
+    if (k === 'tagName') return;
+    if (k === 'disallowToMixItemOnSameLocation') { payload[k] = changes[k] === 'TRUE' || changes[k] === true; appliedFields.push('Mix Rule'); return; }
+    if (k === 'customerIds') { payload.customerIds = String(changes[k]).split(',').map(x => x.trim()).filter(Boolean); appliedFields.push('Customer(s)'); return; }
+    if (['maxSize','length','width','height','sequence','capacity'].includes(k)) { payload[k] = Number(changes[k]) || 0; appliedFields.push(k); return; }
+    payload[k] = changes[k]; appliedFields.push(k);
+  });
+
+  if (appliedFields.length > 0) {
+    let updatePayload = payload;
+    try {
+      const detailResp = await safeFetch(WMS_BASE + '/api/wms/wms-location/' + encodeURIComponent(locationId), {method:'GET', headers:{'Accept':'application/json'}});
+      const detail = detailResp && !detailResp._needsAuth ? (detailResp.data || detailResp) : null;
+      if (detail && detail.id) updatePayload = Object.assign({}, detail, payload);
+    } catch(_) {}
+    const resp = await safeFetch(WMS_BASE + '/api/wms/wms-location', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(updatePayload)});
+    const msg = resp ? (resp.msg || resp.message || '') : 'No response';
+    if (!resp || resp.success === false || (!resp.data && msg && String(resp.code) !== '0' && String(resp.code) !== '200')) {
+      let verified = false;
+      try {
+        const verifyResp = await safeFetch(WMS_BASE + '/api/wms/wms-location/' + encodeURIComponent(locationId), {method:'GET', headers:{'Accept':'application/json'}});
+        const verify = verifyResp && !verifyResp._needsAuth ? (verifyResp.data || verifyResp) : null;
+        if (verify) {
+          verified = true;
+          if (payload.customerIds) verified = verified && ((verify.customerIds || []).map(String).sort().join('|') === payload.customerIds.map(String).sort().join('|'));
+          if ('disallowToMixItemOnSameLocation' in payload) verified = verified && Boolean(verify.disallowToMixItemOnSameLocation) === Boolean(payload.disallowToMixItemOnSameLocation);
+        }
+      } catch(_) {}
+      if (!verified) throw new Error('Location update could not be applied.');
+    }
+  }
+
+  if (changes.tagName && tagId) {
+    const oldTagIds = (current.tagIds || current.locationTagIds || []).map(String).filter(Boolean);
+    for (const oldTagId of oldTagIds) {
+      if (String(oldTagId) !== String(tagId)) await ltrUpdateVirtualTagMembership(oldTagId, locationId, 'remove');
+    }
+    await ltrUpdateVirtualTagMembership(tagId, locationId, 'add');
+  }
+}
+
 async function ltrApprove(idx, retryMode) {
   if (!ltrRequireApprovalPassword()) return;
   const list = ltrLoad();
   const r = list[idx];
   if (!r) return;
-  if (!retryMode && !confirm('Approve this location update and apply it to WMS?')) return;
-  if (retryMode && !confirm('Retry applying this approved request to WMS?')) return;
+  const targetLocations = (r.locations && r.locations.length ? r.locations : [r.currentValues || {id:r.locationId, name:r.locationName}]).filter(Boolean);
+  const countLabel = targetLocations.length > 1 ? targetLocations.length + ' selected locations' : 'this location';
+  if (!retryMode && !confirm('Approve this location update and apply it to ' + countLabel + ' in WMS?')) return;
+  if (retryMode && !confirm('Retry applying this approved request to ' + countLabel + ' in WMS?')) return;
 
   r.status = 'APPROVED_APPLYING';
   r.approvedAt = r.approvedAt || new Date().toISOString();
@@ -17660,144 +17708,33 @@ async function ltrApprove(idx, retryMode) {
   ltrSave(list);
   ltrRenderList();
 
-  const current = r.currentValues || {};
   const changes = r.changes || {};
-  const payload = {
-    id: r.locationId,
-    name: current.name || r.locationName || r.locationId,
-    status: current.status || 'USABLE',
-  };
-  const appliedFields = [];
-  const skippedFields = [];
-
-  Object.keys(changes).forEach(k => {
-    if (k === 'tagName') { skippedFields.push('Location Tag'); return; }
-    if (k === 'disallowToMixItemOnSameLocation') { payload[k] = changes[k] === 'TRUE' || changes[k] === true; appliedFields.push('Mix Rule'); return; }
-    if (k === 'customerIds') {
-      const ids = String(changes[k]).split(',').map(s => s.trim()).filter(Boolean);
-      payload.customerIds = ids;
-      appliedFields.push('Customer(s)');
-      return;
-    }
-    if (['maxSize','length','width','height','sequence','capacity'].includes(k)) { payload[k] = Number(changes[k]) || 0; appliedFields.push(k); return; }
-    payload[k] = changes[k];
-    appliedFields.push(k);
-  });
-
-  let locationOk = true;
-  if (appliedFields.length > 0) {
-    let updatePayload = payload;
-    try {
-      const detailResp = await safeFetch(WMS_BASE + '/api/wms/wms-location/' + encodeURIComponent(r.locationId), {method:'GET', headers:{'Accept':'application/json'}});
-      const detail = detailResp && !detailResp._needsAuth ? (detailResp.data || detailResp) : null;
-      if (detail && detail.id) updatePayload = Object.assign({}, detail, payload);
-    } catch(detailErr) {
-      console.log('[ltr-location] location detail unavailable; using prepared update payload.');
-    }
-
-    const resp = await safeFetch(WMS_BASE + '/api/wms/wms-location', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(updatePayload)});
-    const respCode = resp ? (resp.code || '') : '';
-    const respMsg = resp ? (resp.msg || resp.message || '') : 'No response';
-    const markLocationApplied = (note) => {
-      const list2 = ltrLoad();
-      const r2 = list2[idx];
-      if (r2) {
-        r2.locationUpdateStatus = 'success';
-        r2.appliedAt = new Date().toISOString();
-        r2.applyNote = note || ('Applied fields: ' + appliedFields.join(', '));
-        ltrSave(list2);
-      }
-    };
-    if (resp && resp.success !== false && (String(respCode) === '0' || String(respCode) === '200' || resp.data || (!respMsg && resp.success !== false))) {
-      markLocationApplied();
-    } else {
-      let alreadyApplied = false;
-      try {
-        const verifyResp = await safeFetch(WMS_BASE + '/api/wms/wms-location/' + encodeURIComponent(r.locationId), {method:'GET', headers:{'Accept':'application/json'}});
-        const verify = verifyResp && !verifyResp._needsAuth ? (verifyResp.data || verifyResp) : null;
-        if (verify) {
-          alreadyApplied = true;
-          if (payload.customerIds) {
-            const got = (verify.customerIds || []).map(String).sort().join('|');
-            const want = payload.customerIds.map(String).sort().join('|');
-            alreadyApplied = alreadyApplied && got === want;
-          }
-          if ('disallowToMixItemOnSameLocation' in payload) {
-            alreadyApplied = alreadyApplied && Boolean(verify.disallowToMixItemOnSameLocation) === Boolean(payload.disallowToMixItemOnSameLocation);
-          }
-        }
-      } catch(verifyErr) {
-        console.log('[ltr-location] could not verify post-update location state.');
-      }
-      if (alreadyApplied) {
-        markLocationApplied('Location fields were already applied in WMS. Continuing with location tag update.');
-      } else {
-        locationOk = false;
-        console.warn('[ltr-location] update rejected', {fields: appliedFields, code: respCode, msg: respMsg});
-        const list2 = ltrLoad();
-        const r2 = list2[idx];
-        if (r2) {
-          r2.status = 'APPROVED_BUT_FAILED';
-          r2.locationUpdateStatus = 'failed';
-          r2.errorMsg = 'Location update could not be applied. Please retry or contact a WMS administrator.';
-          r2.applyDiag = {fields: appliedFields, skipped: skippedFields, upstreamCode: String(respCode), upstreamMsg: respMsg};
-          ltrSave(list2);
-        }
-        ltrRenderList();
-        alert('Location update could not be applied. Please retry or contact a WMS administrator.');
-        return;
-      }
-    }
+  const failures = [];
+  let applied = 0;
+  for (const loc of targetLocations) {
+    try { await ltrApplyOneLocationForRequest(r, loc, changes, r.tagId); applied++; }
+    catch(e) { console.warn('[ltr-apply] location failed', loc && (loc.name || loc.id), e && e.message ? e.message : e); failures.push((loc && (loc.name || loc.id)) || 'location'); }
   }
 
-  let tagOk = true;
-  let tagNote = '';
-  if (changes.tagName && r.tagId) {
-    try {
-      const currentTagIds = (current.tagIds || current.locationTagIds || []).map(String).filter(Boolean);
-      for (const oldTagId of currentTagIds) {
-        if (String(oldTagId) !== String(r.tagId)) await ltrUpdateVirtualTagMembership(oldTagId, r.locationId, 'remove');
-      }
-      const addResult = await ltrUpdateVirtualTagMembership(r.tagId, r.locationId, 'add');
-      tagNote = 'Location tag updated to "' + (addResult.name || changes.tagName) + '".';
-      const list2 = ltrLoad();
-      const r2 = list2[idx];
-      if (r2) {
-        r2.tagUpdateStatus = 'success';
-        r2.tagUpdateMsg = tagNote;
-        ltrSave(list2);
-      }
-    } catch(tagErr) {
-      tagOk = false;
-      console.warn('[ltr-tag] update failed', tagErr && tagErr.message ? tagErr.message : tagErr);
-      const list2 = ltrLoad();
-      const r2 = list2[idx];
-      if (r2) {
-        r2.tagUpdateStatus = 'failed';
-        r2.tagUpdateMsg = tagErr && tagErr.message ? tagErr.message : 'Location tag membership could not be updated.';
-        r2.applyNote = (r2.applyNote || '') + '. Location tag needs attention.';
-        ltrSave(list2);
-      }
-    }
-  }
-
-  const list3 = ltrLoad();
-  const r3 = list3[idx];
-  if (r3) {
-    if (locationOk && tagOk) {
-      r3.status = 'APPLIED';
-      r3.appliedAt = new Date().toISOString();
-      if (tagNote) r3.applyNote = (r3.applyNote || '') + '. ' + tagNote;
-    } else if (locationOk && !tagOk) {
-      r3.status = 'APPLIED_TAG_WARNING';
-      r3.errorMsg = 'Location fields were applied, but location tag membership needs attention. Use Retry Apply.';
+  const list2 = ltrLoad();
+  const r2 = list2[idx];
+  if (r2) {
+    r2.appliedAt = new Date().toISOString();
+    r2.locationUpdateStatus = failures.length ? 'partial' : 'success';
+    r2.tagUpdateStatus = failures.length ? 'partial' : (changes.tagName ? 'success' : '');
+    if (failures.length) {
+      r2.status = 'APPROVED_BUT_FAILED';
+      r2.errorMsg = applied + ' of ' + targetLocations.length + ' location(s) applied. Retry Apply for remaining locations.';
+      r2.applyNote = 'Needs attention: ' + failures.slice(0, 10).join(', ') + (failures.length > 10 ? ', +' + (failures.length - 10) + ' more' : '');
     } else {
-      r3.status = 'APPROVED_BUT_FAILED';
+      r2.status = 'APPLIED';
+      r2.errorMsg = '';
+      r2.applyNote = targetLocations.length + ' location(s) applied in WMS.';
     }
-    ltrSave(list3);
+    ltrSave(list2);
   }
   ltrRenderList();
-  alert(locationOk && tagOk ? 'Request approved and applied in WMS.' : 'Request approved, but one part needs attention. Use Retry Apply after reviewing the request.');
+  alert(failures.length ? ('Request approved, but ' + failures.length + ' location(s) still need attention. Use Retry Apply after reviewing the request.') : ('Request approved and applied to ' + targetLocations.length + ' location(s) in WMS.'));
 }
 
 function ltrRetryApply(idx) {
