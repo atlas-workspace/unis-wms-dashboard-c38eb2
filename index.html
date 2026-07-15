@@ -16962,6 +16962,65 @@ function ltrRenderList() {
   }).join('');
 }
 
+
+async function ltrLoadLocationTagRequestCustomers() {
+  const searchSel = document.getElementById('ltr-s-customer');
+  if (searchSel) searchSel.innerHTML = '<option value="">Loading customers…</option>';
+  let all = [];
+  let page = 1;
+  const pageSize = 500;
+  const maxPages = 10;
+  while (page <= maxPages) {
+    const resp = await safeFetch(WMS_BASE + '/api/wms-bam/organization/search-by-paging', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify({currentPage:page, pageSize:pageSize}),
+    });
+    if (!resp || resp._needsAuth || resp.success === false) break;
+    const d = resp.data || resp;
+    const rows = d.list || d.records || d.items || [];
+    all.push(...rows);
+    const total = Number(d.totalCount || d.total || 0);
+    const totalPage = Number(d.totalPage || d.pages || 0);
+    if (rows.length < pageSize) break;
+    if (total && all.length >= total) break;
+    if (totalPage && page >= totalPage) break;
+    page++;
+  }
+
+  const currentFacility = String(FACILITY_ID);
+  const isCustomer = org => {
+    const tags = org.tags || org.tagList || org.types || [];
+    const tagText = Array.isArray(tags) ? tags.join('|') : String(tags || '');
+    return /CUSTOMER/i.test(tagText);
+  };
+  const isActiveForFacility = org => {
+    const status = String(org.status || org.orgStatus || '').toUpperCase();
+    const activeOk = !status || status === 'ACTIVE' || status === 'ENABLE' || status === 'ENABLED';
+    const facilities = org.activatedFacilityIds || org.facilityIds || org.warehouseIds || [];
+    const facilityOk = Array.isArray(facilities) ? facilities.map(String).includes(currentFacility) : String(facilities || '').includes(currentFacility);
+    return activeOk && facilityOk;
+  };
+  let customers = all
+    .filter(org => org && org.id && isCustomer(org) && isActiveForFacility(org))
+    .map(org => ({id:String(org.id), name:org.name || org.orgName || org.code || org.id, code:org.code || ''}));
+
+  if (customers.length === 0) customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
+  customers = customers
+    .filter(c => c && c.id)
+    .sort((a,b) => String(a.name || '').localeCompare(String(b.name || '')));
+  FACILITY_CUSTOMERS[FACILITY_ID] = customers;
+  ltrPopulateCustomerControls(customers);
+}
+
+function ltrPopulateCustomerControls(customers) {
+  const opts = (customers || []).map(c => '<option value="' + escAttr(c.id) + '">' + esc(c.name || c.id) + (c.code ? ' (' + esc(c.code) + ')' : '') + '</option>').join('');
+  const searchSel = document.getElementById('ltr-s-customer');
+  if (searchSel) searchSel.innerHTML = '<option value="">All</option>' + opts;
+  ltrCustRender();
+  ltrCustSync();
+}
+
 function ltrShowNewForm() {
   try {
     const form = document.getElementById('ltr-form');
@@ -17022,7 +17081,8 @@ function ltrShowNewForm() {
     '</div>' +
     '<div id="ltr-msg" style="margin-top:8px;font-size:11px;display:none"></div></div>';
   form.scrollIntoView({behavior:'smooth'});
-  // Load ticket departments/topics for the form
+  // Load live customer list and ticket departments/topics for the form
+  ltrLoadLocationTagRequestCustomers();
   ltrLoadTicketDepts();
   } catch(e) { console.error('ltrShowNewForm error:', e); alert('Could not open request form: ' + e.message); }
 }
