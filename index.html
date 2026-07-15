@@ -17298,18 +17298,44 @@ function ltrSelectResult(idx) {
   ltrLoadTags(loc.tagName);
 }
 
+
+async function ltrFetchAllVirtualTags() {
+  const tags = [];
+  const pageSize = 100;
+  let page = 1;
+  const maxPages = 20;
+  while (page <= maxPages) {
+    const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/search-by-paging', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify({currentPage:page, pageNo:page, pageSize:pageSize}),
+    });
+    if (!resp || resp._needsAuth || resp.success === false) break;
+    const d = resp.data || resp;
+    const rows = Array.isArray(d) ? d : (d.list || d.records || d.items || []);
+    tags.push(...rows);
+    const total = Number((Array.isArray(d) ? 0 : (d.totalCount || d.total)) || 0);
+    const totalPage = Number(Array.isArray(d) ? 0 : (d.totalPage || d.pages || 0));
+    if (rows.length < pageSize) break;
+    if (total && tags.length >= total) break;
+    if (totalPage && page >= totalPage) break;
+    page++;
+  }
+  const byId = new Map();
+  tags.forEach(t => { const id = t && (t.id || t.tagId); if (id != null) byId.set(String(id), t); });
+  return Array.from(byId.values()).sort((a,b) => String(a.name || a.id || '').localeCompare(String(b.name || b.id || '')));
+}
+
 async function ltrLoadSearchTags() {
   const sel = document.getElementById('ltr-s-tag');
   if (!sel) return;
-  sel.innerHTML = '<option value="">Loading…</option>';
-  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/search-by-paging', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({currentPage:1, pageSize:100})});
+  sel.innerHTML = '<option value="">Loading all tags…</option>';
+  const tags = await ltrFetchAllVirtualTags();
   sel.innerHTML = '<option value="">All</option>';
-  if (resp && resp.success !== false) {
-    const d = resp.data || resp;
-    (d.list || d.records || []).forEach(t => { sel.innerHTML += '<option value="' + escAttr(t.name||t.id) + '">' + esc(t.name||t.id) + '</option>'; });
-  }
+  tags.forEach(t => { sel.innerHTML += '<option value="' + escAttr(t.name || t.id) + '">' + esc(t.name || t.id) + '</option>'; });
+  sel.title = tags.length + ' location tag(s) loaded for ' + (FACILITY_NAME || FACILITY_ID);
+  if (tags.length === 0) sel.innerHTML += '<option disabled>No tags found</option>';
 }
-
 // Customer dropdown for Location Tag Requests
 window._ltrCustSel = [];
 function ltrCustToggle() {
@@ -17351,27 +17377,23 @@ async function ltrLoadTags(currentTag) {
   const sel = document.getElementById('ltr-f-tagName');
   const statusEl = document.getElementById('ltr-tag-status');
   if (!sel) return;
-  sel.innerHTML = '<option value="">Loading tags…</option>';
-  if (statusEl) statusEl.textContent = 'Loading tags from WMS…';
-  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/search-by-paging', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pageNo:1, pageSize:100})});
+  sel.innerHTML = '<option value="">Loading all tags…</option>';
+  if (statusEl) statusEl.textContent = 'Loading all location tags from WMS…';
+  const tags = await ltrFetchAllVirtualTags();
   sel.innerHTML = '<option value="">— No change —</option>';
-  if (resp && resp.success !== false) {
-    const d = resp.data || resp;
-    const tags = d.list || d.records || [];
-    tags.forEach(t => {
-      const tagId = t.id || '';
-      const name = t.name || tagId;
-      const selected = currentTag && (String(tagId) === String(currentTag) || name === currentTag) ? ' selected' : '';
-      sel.innerHTML += '<option value="' + escAttr(String(tagId)) + '" data-name="' + escAttr(name) + '"' + selected + '>' + esc(name) + ' (ID:' + esc(String(tagId)) + ')</option>';
-    });
-    if (tags.length === 0) { sel.innerHTML += '<option disabled>No tags found</option>'; if (statusEl) statusEl.textContent = 'No tags available.'; }
-    else { if (statusEl) statusEl.textContent = tags.length + ' tag(s) loaded. Current: ' + (currentTag || 'none'); }
-  } else {
-    sel.innerHTML += '<option disabled>Could not load tags</option>';
-    if (statusEl) statusEl.textContent = 'Tags unavailable — check WMS connection.';
+  tags.forEach(t => {
+    const tagId = t.id || t.tagId || '';
+    const name = t.name || tagId;
+    const selected = currentTag && (String(tagId) === String(currentTag) || name === currentTag) ? ' selected' : '';
+    sel.innerHTML += '<option value="' + escAttr(String(tagId)) + '" data-name="' + escAttr(name) + '"' + selected + '>' + esc(name) + ' (ID:' + esc(String(tagId)) + ')</option>';
+  });
+  if (tags.length === 0) {
+    sel.innerHTML += '<option disabled>No tags found</option>';
+    if (statusEl) statusEl.textContent = 'No tags available for this warehouse.';
+  } else if (statusEl) {
+    statusEl.textContent = tags.length + ' location tag(s) loaded for ' + (FACILITY_NAME || FACILITY_ID) + '. Current: ' + (currentTag || 'none');
   }
 }
-
 async function ltrSubmitRequest() {
   if (!window._ltrCurrentLoc) { alert('Please search and select a WMS location first.'); return; }
   const loc = window._ltrCurrentLoc;
