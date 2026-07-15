@@ -16969,7 +16969,7 @@ async function ltrLoadLocationTagRequestCustomers() {
   let all = [];
   let page = 1;
   const pageSize = 500;
-  const maxPages = 10;
+  const maxPages = 50;
   while (page <= maxPages) {
     const resp = await safeFetch(WMS_BASE + '/api/wms-bam/organization/search-by-paging', {
       method:'POST',
@@ -16989,24 +16989,30 @@ async function ltrLoadLocationTagRequestCustomers() {
   }
 
   const currentFacility = String(FACILITY_ID);
-  const isCustomer = org => {
-    const tags = org.tags || org.tagList || org.types || [];
-    const tagText = Array.isArray(tags) ? tags.join('|') : String(tags || '');
-    return /CUSTOMER/i.test(tagText);
+  const textFrom = value => {
+    if (value == null) return '';
+    if (Array.isArray(value)) return value.map(textFrom).join('|');
+    if (typeof value === 'object') return Object.values(value).map(textFrom).join('|');
+    return String(value);
   };
+  const isCustomer = org => /CUSTOMER/i.test(textFrom(org.tags || org.tagList || org.types || org.tagNames || org.labels));
   const isActiveForFacility = org => {
-    const status = String(org.status || org.orgStatus || '').toUpperCase();
+    const status = String(org.status || org.orgStatus || org.state || '').toUpperCase();
     const activeOk = !status || status === 'ACTIVE' || status === 'ENABLE' || status === 'ENABLED';
-    const facilities = org.activatedFacilityIds || org.facilityIds || org.warehouseIds || [];
-    const facilityOk = Array.isArray(facilities) ? facilities.map(String).includes(currentFacility) : String(facilities || '').includes(currentFacility);
+    const facilities = org.activatedFacilityIds || org.facilityIds || org.warehouseIds || org.facilities || org.activatedFacilities || [];
+    const facilityOk = textFrom(facilities).split('|').map(String).includes(currentFacility) || textFrom(facilities).includes(currentFacility);
     return activeOk && facilityOk;
   };
   let customers = all
     .filter(org => org && org.id && isCustomer(org) && isActiveForFacility(org))
-    .map(org => ({id:String(org.id), name:org.name || org.orgName || org.code || org.id, code:org.code || ''}));
+    .map(org => ({id:String(org.id), name:org.name || org.orgName || org.code || org.id, code:org.code || org.customerCode || ''}));
 
-  if (customers.length === 0) customers = FACILITY_CUSTOMERS[FACILITY_ID] || [];
-  customers = customers
+  // Safety merge: if live org search returns a partial page/shape, keep any known
+  // facility customers already loaded elsewhere so the dropdown remains complete.
+  const existing = FACILITY_CUSTOMERS[FACILITY_ID] || [];
+  const byId = new Map();
+  existing.concat(customers).forEach(c => { if (c && c.id) byId.set(String(c.id), c); });
+  customers = Array.from(byId.values())
     .filter(c => c && c.id)
     .sort((a,b) => String(a.name || '').localeCompare(String(b.name || '')));
   FACILITY_CUSTOMERS[FACILITY_ID] = customers;
