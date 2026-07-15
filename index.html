@@ -16978,10 +16978,10 @@ async function ltrLoadLocationTagRequestCustomers() {
     });
     if (!resp || resp._needsAuth || resp.success === false) break;
     const d = resp.data || resp;
-    const rows = d.list || d.records || d.items || [];
+    const rows = Array.isArray(d) ? d : (d.list || d.records || d.items || []);
     all.push(...rows);
-    const total = Number(d.totalCount || d.total || 0);
-    const totalPage = Number(d.totalPage || d.pages || 0);
+    const total = Number((Array.isArray(d) ? 0 : (d.totalCount || d.total)) || 0);
+    const totalPage = Number(Array.isArray(d) ? 0 : (d.totalPage || d.pages || 0));
     if (rows.length < pageSize) break;
     if (total && all.length >= total) break;
     if (totalPage && page >= totalPage) break;
@@ -17009,6 +17009,19 @@ async function ltrLoadLocationTagRequestCustomers() {
 
   // Safety merge: if live org search returns a partial page/shape, keep any known
   // facility customers already loaded elsewhere so the dropdown remains complete.
+  // Also verify newer/high-ID customers by keyword because organization paging can
+  // return a raw array without total metadata in some sessions.
+  try {
+    const niloResp = await safeFetch(WMS_BASE + '/api/wms-bam/organization/search-by-paging', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify({currentPage:1, pageSize:20, keyword:'NILO'}),
+    });
+    const nd = niloResp && (niloResp.data || niloResp);
+    const nrows = Array.isArray(nd) ? nd : (nd && (nd.list || nd.records || nd.items)) || [];
+    nrows.filter(org => org && org.id && isCustomer(org) && isActiveForFacility(org))
+      .forEach(org => customers.push({id:String(org.id), name:org.name || org.orgName || org.code || org.id, code:org.code || org.customerCode || ''}));
+  } catch(_) {}
   const existing = FACILITY_CUSTOMERS[FACILITY_ID] || [];
   const byId = new Map();
   existing.concat(customers).forEach(c => { if (c && c.id) byId.set(String(c.id), c); });
@@ -17022,7 +17035,10 @@ async function ltrLoadLocationTagRequestCustomers() {
 function ltrPopulateCustomerControls(customers) {
   const opts = (customers || []).map(c => '<option value="' + escAttr(c.id) + '">' + esc(c.name || c.id) + (c.code ? ' (' + esc(c.code) + ')' : '') + '</option>').join('');
   const searchSel = document.getElementById('ltr-s-customer');
-  if (searchSel) searchSel.innerHTML = '<option value="">All</option>' + opts;
+  if (searchSel) {
+    searchSel.innerHTML = '<option value="">All</option>' + opts;
+    searchSel.title = (customers || []).length + ' active customer(s) loaded for ' + (FACILITY_NAME || FACILITY_ID);
+  }
   ltrCustRender();
   ltrCustSync();
 }
