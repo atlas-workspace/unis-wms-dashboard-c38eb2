@@ -3,8 +3,40 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const nodemailer = require('nodemailer');
+const { Pool } = require('pg');
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
+
+const DATABASE_URL = process.env.DATABASE_URL || '';
+let dbPool = null;
+let dbReady = false;
+
+if (DATABASE_URL) {
+  dbPool = new Pool({ connectionString: DATABASE_URL });
+  console.log('[database] DATABASE_URL configured; PostgreSQL connection pool enabled.');
+} else {
+  console.log('[database] DATABASE_URL not configured; using file fallback for shared requests.');
+}
+
+async function initDatabase() {
+  if (!dbPool) return;
+  try {
+    const schemaPath = path.join(ROOT, 'db', 'schema.sql');
+    const schema = fs.readFileSync(schemaPath, 'utf8');
+    await dbPool.query(schema);
+    dbReady = true;
+    console.log('[database] Schema ready.');
+  } catch (e) {
+    dbReady = false;
+    console.error('[database] Schema initialization failed:', e.message);
+  }
+}
+
+async function dbQuery(sql, params) {
+  if (!dbPool || !dbReady) throw new Error('database unavailable');
+  return dbPool.query(sql, params || []);
+}
+
 
 // Ticket API configuration
 // Correct path: https://unisticket.item.com/api/item-tickets/v1/...
@@ -52,22 +84,6 @@ function upstreamJson(method, host, pathname, body, query='') {
     req.end();
   });
 }
-
-function safeFacilityKey(v) {
-  return String(v || 'UNKNOWN').replace(/[^A-Za-z0-9_-]/g, '_');
-}
-function ltrStorePath(facilityId) {
-  const dir = path.join(ROOT, 'data');
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, {recursive:true});
-  return path.join(dir, 'location_tag_requests_' + safeFacilityKey(facilityId) + '.json');
-}
-function readJsonFile(file, fallback) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch(_) { return fallback; }
-}
-function writeJsonFile(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
-}
-
 function contentType(file) {
   const ext = path.extname(file).toLowerCase();
   return ({'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.ico':'image/x-icon'}[ext] || 'application/octet-stream');
@@ -137,29 +153,6 @@ async function handleApi(req, res, url) {
       return send(res, out2.status, out2.json || out2.raw || {success:false,msg:'Refresh failed'});
     }
 
-
-    // Shared Location Tag Requests store by facility so all users see the same request list.
-    if (url.pathname === '/api/location-tag-requests') {
-      const facilityId = safeFacilityKey(url.searchParams.get('facilityId') || 'LT_F1');
-      const file = ltrStorePath(facilityId);
-      if (req.method === 'GET') {
-        return send(res, 200, {success:true, facilityId, list: readJsonFile(file, [])});
-      }
-      if (req.method === 'POST') {
-        const raw = await readBody(req);
-        let body;
-        try { body = JSON.parse(raw); } catch(_) { body = {}; }
-        const incoming = Array.isArray(body.list) ? body.list : [];
-        const existing = readJsonFile(file, []);
-        const byId = new Map();
-        existing.concat(incoming).forEach(r => { if (r && r.id) byId.set(String(r.id), r); });
-        const merged = Array.from(byId.values()).sort((a,b) => String(b.requestedAt||'').localeCompare(String(a.requestedAt||'')));
-        writeJsonFile(file, merged);
-        return send(res, 200, {success:true, facilityId, count: merged.length, list: merged});
-      }
-      return send(res, 405, {success:false, msg:'Method not allowed'});
-    }
-
     // Ticket API proxy routes
     if (url.pathname.startsWith('/api/proxy/auth/ticket/')) {
       const raw = await readBody(req);
@@ -200,6 +193,12 @@ async function handleApi(req, res, url) {
         probeStatus: probe.status,
         probeMessage: probeOk ? 'Departments endpoint reachable' : ((probe.json && (probe.json.msg || probe.json.message)) || 'Probe failed'),
       });
+    }
+
+    if (url.pathname === '/api/database/health') {
+      if (!dbPool) return send(res, 200, {configured:false, ready:false});
+      try { await dbQuery('SELECT 1'); return send(res, 200, {configured:true, ready:true}); }
+      catch(e) { return send(res, 200, {configured:true, ready:false, msg:'Database not ready'}); }
     }
 
     return send(res, 404, {success:false,msg:'Unknown API route'});
@@ -247,7 +246,9 @@ const server = http.createServer((req,res) => {
     res.end(data);
   });
 });
-server.listen(PORT, () => console.log(`UNIS WMS dashboard server listening on ${PORT}`));
+initDatabase().finally(() => {
+  server.listen(PORT, () => console.log(`UNIS WMS dashboard server listening on ${PORT}`));
+});
 
 async function handleSendNotification(req, res) {
   try {

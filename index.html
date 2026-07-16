@@ -15922,8 +15922,8 @@ const TICKET_DEPT_FALLBACK = [
 const TICKET_TOPIC_FALLBACK = [
   {id:'351666257576935424', name:'UF:Inventory Accuracy & Stock Inquiries (fallback)', departmentId:'324119200704569344'},
 ];
-const TICKET_DEFAULT_DEPT = '336664760841621504';
-const TICKET_DEFAULT_TOPIC = '315682256835801088';
+const TICKET_DEFAULT_DEPT = '324119200704569344';
+const TICKET_DEFAULT_TOPIC = '351666257576935424';
 
 let TICKET_DEPTS_CACHE = null;
 let TICKET_TOPICS_CACHE = null;
@@ -16874,37 +16874,10 @@ const LTR_ENUMS = {
 };
 
 function ltrGetKey() { return 'ltr_requests_' + FACILITY_ID; }
-window.LTR_SHARED_CACHE = window.LTR_SHARED_CACHE || {};
-function ltrMergeRequests(a, b) {
-  const byId = new Map();
-  (a || []).concat(b || []).forEach(r => { if (r && r.id) byId.set(String(r.id), r); });
-  return Array.from(byId.values()).sort((x,y) => String(y.requestedAt||'').localeCompare(String(x.requestedAt||'')));
-}
-function ltrLoad() {
-  let local = [];
-  try { local = JSON.parse(localStorage.getItem(ltrGetKey()) || '[]'); } catch(_) {}
-  return ltrMergeRequests(window.LTR_SHARED_CACHE[FACILITY_ID] || [], local);
-}
-function ltrSave(list) {
-  try { localStorage.setItem(ltrGetKey(), JSON.stringify(list)); } catch(_) {}
-  window.LTR_SHARED_CACHE[FACILITY_ID] = list || [];
-  fetch('/api/location-tag-requests?facilityId=' + encodeURIComponent(FACILITY_ID), {
-    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({list:list || []})
-  }).catch(() => {});
-}
-async function ltrSyncSharedRequests() {
-  try {
-    const r = await fetch('/api/location-tag-requests?facilityId=' + encodeURIComponent(FACILITY_ID), {cache:'no-store'});
-    const d = await r.json();
-    if (d && d.success && Array.isArray(d.list)) {
-      const merged = ltrMergeRequests(d.list, JSON.parse(localStorage.getItem(ltrGetKey()) || '[]'));
-      window.LTR_SHARED_CACHE[FACILITY_ID] = merged;
-      try { localStorage.setItem(ltrGetKey(), JSON.stringify(merged)); } catch(_) {}
-    }
-  } catch(_) {}
-}
+function ltrLoad() { try { return JSON.parse(localStorage.getItem(ltrGetKey()) || '[]'); } catch(_) { return []; } }
+function ltrSave(list) { try { localStorage.setItem(ltrGetKey(), JSON.stringify(list)); } catch(_) {} }
 
-async function ltrInit() { await ltrSyncSharedRequests(); ltrRenderList(); }
+function ltrInit() { ltrRenderList(); }
 
 function ltrOpenNewRequest(evt) {
   if (evt && evt.preventDefault) evt.preventDefault();
@@ -17005,10 +16978,10 @@ async function ltrLoadLocationTagRequestCustomers() {
     });
     if (!resp || resp._needsAuth || resp.success === false) break;
     const d = resp.data || resp;
-    const rows = Array.isArray(d) ? d : (d.list || d.records || d.items || []);
+    const rows = d.list || d.records || d.items || [];
     all.push(...rows);
-    const total = Number((Array.isArray(d) ? 0 : (d.totalCount || d.total)) || 0);
-    const totalPage = Number(Array.isArray(d) ? 0 : (d.totalPage || d.pages || 0));
+    const total = Number(d.totalCount || d.total || 0);
+    const totalPage = Number(d.totalPage || d.pages || 0);
     if (rows.length < pageSize) break;
     if (total && all.length >= total) break;
     if (totalPage && page >= totalPage) break;
@@ -17036,19 +17009,6 @@ async function ltrLoadLocationTagRequestCustomers() {
 
   // Safety merge: if live org search returns a partial page/shape, keep any known
   // facility customers already loaded elsewhere so the dropdown remains complete.
-  // Also verify newer/high-ID customers by keyword because organization paging can
-  // return a raw array without total metadata in some sessions.
-  try {
-    const niloResp = await safeFetch(WMS_BASE + '/api/wms-bam/organization/search-by-paging', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Accept':'application/json'},
-      body: JSON.stringify({currentPage:1, pageSize:20, keyword:'NILO'}),
-    });
-    const nd = niloResp && (niloResp.data || niloResp);
-    const nrows = Array.isArray(nd) ? nd : (nd && (nd.list || nd.records || nd.items)) || [];
-    nrows.filter(org => org && org.id && isCustomer(org) && isActiveForFacility(org))
-      .forEach(org => customers.push({id:String(org.id), name:org.name || org.orgName || org.code || org.id, code:org.code || org.customerCode || ''}));
-  } catch(_) {}
   const existing = FACILITY_CUSTOMERS[FACILITY_ID] || [];
   const byId = new Map();
   existing.concat(customers).forEach(c => { if (c && c.id) byId.set(String(c.id), c); });
@@ -17062,10 +17022,7 @@ async function ltrLoadLocationTagRequestCustomers() {
 function ltrPopulateCustomerControls(customers) {
   const opts = (customers || []).map(c => '<option value="' + escAttr(c.id) + '">' + esc(c.name || c.id) + (c.code ? ' (' + esc(c.code) + ')' : '') + '</option>').join('');
   const searchSel = document.getElementById('ltr-s-customer');
-  if (searchSel) {
-    searchSel.innerHTML = '<option value="">All</option>' + opts;
-    searchSel.title = (customers || []).length + ' active customer(s) loaded for ' + (FACILITY_NAME || FACILITY_ID);
-  }
+  if (searchSel) searchSel.innerHTML = '<option value="">All</option>' + opts;
   ltrCustRender();
   ltrCustSync();
 }
@@ -17325,44 +17282,18 @@ function ltrSelectResult(idx) {
   ltrLoadTags(loc.tagName);
 }
 
-
-async function ltrFetchAllVirtualTags() {
-  const tags = [];
-  const pageSize = 100;
-  let page = 1;
-  const maxPages = 20;
-  while (page <= maxPages) {
-    const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/search-by-paging', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Accept':'application/json'},
-      body: JSON.stringify({currentPage:page, pageNo:page, pageSize:pageSize}),
-    });
-    if (!resp || resp._needsAuth || resp.success === false) break;
-    const d = resp.data || resp;
-    const rows = Array.isArray(d) ? d : (d.list || d.records || d.items || []);
-    tags.push(...rows);
-    const total = Number((Array.isArray(d) ? 0 : (d.totalCount || d.total)) || 0);
-    const totalPage = Number(Array.isArray(d) ? 0 : (d.totalPage || d.pages || 0));
-    if (rows.length < pageSize) break;
-    if (total && tags.length >= total) break;
-    if (totalPage && page >= totalPage) break;
-    page++;
-  }
-  const byId = new Map();
-  tags.forEach(t => { const id = t && (t.id || t.tagId); if (id != null) byId.set(String(id), t); });
-  return Array.from(byId.values()).sort((a,b) => String(a.name || a.id || '').localeCompare(String(b.name || b.id || '')));
-}
-
 async function ltrLoadSearchTags() {
   const sel = document.getElementById('ltr-s-tag');
   if (!sel) return;
-  sel.innerHTML = '<option value="">Loading all tags…</option>';
-  const tags = await ltrFetchAllVirtualTags();
+  sel.innerHTML = '<option value="">Loading…</option>';
+  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/search-by-paging', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({currentPage:1, pageSize:100})});
   sel.innerHTML = '<option value="">All</option>';
-  tags.forEach(t => { sel.innerHTML += '<option value="' + escAttr(t.name || t.id) + '">' + esc(t.name || t.id) + '</option>'; });
-  sel.title = tags.length + ' location tag(s) loaded for ' + (FACILITY_NAME || FACILITY_ID);
-  if (tags.length === 0) sel.innerHTML += '<option disabled>No tags found</option>';
+  if (resp && resp.success !== false) {
+    const d = resp.data || resp;
+    (d.list || d.records || []).forEach(t => { sel.innerHTML += '<option value="' + escAttr(t.name||t.id) + '">' + esc(t.name||t.id) + '</option>'; });
+  }
 }
+
 // Customer dropdown for Location Tag Requests
 window._ltrCustSel = [];
 function ltrCustToggle() {
@@ -17404,23 +17335,27 @@ async function ltrLoadTags(currentTag) {
   const sel = document.getElementById('ltr-f-tagName');
   const statusEl = document.getElementById('ltr-tag-status');
   if (!sel) return;
-  sel.innerHTML = '<option value="">Loading all tags…</option>';
-  if (statusEl) statusEl.textContent = 'Loading all location tags from WMS…';
-  const tags = await ltrFetchAllVirtualTags();
+  sel.innerHTML = '<option value="">Loading tags…</option>';
+  if (statusEl) statusEl.textContent = 'Loading tags from WMS…';
+  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/search-by-paging', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pageNo:1, pageSize:100})});
   sel.innerHTML = '<option value="">— No change —</option>';
-  tags.forEach(t => {
-    const tagId = t.id || t.tagId || '';
-    const name = t.name || tagId;
-    const selected = currentTag && (String(tagId) === String(currentTag) || name === currentTag) ? ' selected' : '';
-    sel.innerHTML += '<option value="' + escAttr(String(tagId)) + '" data-name="' + escAttr(name) + '"' + selected + '>' + esc(name) + ' (ID:' + esc(String(tagId)) + ')</option>';
-  });
-  if (tags.length === 0) {
-    sel.innerHTML += '<option disabled>No tags found</option>';
-    if (statusEl) statusEl.textContent = 'No tags available for this warehouse.';
-  } else if (statusEl) {
-    statusEl.textContent = tags.length + ' location tag(s) loaded for ' + (FACILITY_NAME || FACILITY_ID) + '. Current: ' + (currentTag || 'none');
+  if (resp && resp.success !== false) {
+    const d = resp.data || resp;
+    const tags = d.list || d.records || [];
+    tags.forEach(t => {
+      const tagId = t.id || '';
+      const name = t.name || tagId;
+      const selected = currentTag && (String(tagId) === String(currentTag) || name === currentTag) ? ' selected' : '';
+      sel.innerHTML += '<option value="' + escAttr(String(tagId)) + '" data-name="' + escAttr(name) + '"' + selected + '>' + esc(name) + ' (ID:' + esc(String(tagId)) + ')</option>';
+    });
+    if (tags.length === 0) { sel.innerHTML += '<option disabled>No tags found</option>'; if (statusEl) statusEl.textContent = 'No tags available.'; }
+    else { if (statusEl) statusEl.textContent = tags.length + ' tag(s) loaded. Current: ' + (currentTag || 'none'); }
+  } else {
+    sel.innerHTML += '<option disabled>Could not load tags</option>';
+    if (statusEl) statusEl.textContent = 'Tags unavailable — check WMS connection.';
   }
 }
+
 async function ltrSubmitRequest() {
   if (!window._ltrCurrentLoc) { alert('Please search and select a WMS location first.'); return; }
   const loc = window._ltrCurrentLoc;
@@ -17453,9 +17388,9 @@ async function ltrSubmitRequest() {
   const ticketQueueSel = document.getElementById('ltr-ticket-queue');
   const ticketTeamId = ticketQueueSel ? ticketQueueSel.value : '';
   const ticketTeamName = ticketQueueSel && ticketQueueSel.selectedIndex > 0 ? ticketQueueSel.options[ticketQueueSel.selectedIndex].textContent : '';
-  const contactEmail = (admGetCurrentUsername() || 'dashboard') + '@unisco.com';
+  const contactEmail = (admGetCurrentUsername() || 'dashboard') + '@itemgroup.com';
 
-  // Support multi-location as ONE approval request with one tracking ticket.
+  // Support multi-location: create one request per selected location
   const indices = window._ltrSelectedIndices || [0];
   const results = window._ltrSearchResults || [];
   const list = ltrLoad();
@@ -17465,42 +17400,33 @@ async function ltrSubmitRequest() {
   // Deduplicate locations by ID
   const seenIds = new Set();
   const uniqueLocations = locations.filter(l => {
-    const lid = String(l.id || l.locationId || l.name || '');
-    if (!lid || seenIds.has(lid)) return false;
-    seenIds.add(lid);
+    if (seenIds.has(l.id)) return false;
+    seenIds.add(l.id);
     return true;
   });
 
-  // Duplicate prevention: check if identical pending grouped request already exists
-  const locationKey = uniqueLocations.map(l => String(l.id || l.locationId || l.name)).sort().join('|');
+  // Duplicate prevention: check if identical pending request already exists
   const existingPending = list.filter(r => r.status === 'PENDING_APPROVAL' && r.facilityId === FACILITY_ID);
-  const isDup = existingPending.some(r => {
-    const rKey = ((r.locations || []).length ? r.locations.map(l => String(l.id || l.locationId || l.name)).sort().join('|') : String(r.locationId || ''));
-    return rKey === locationKey && JSON.stringify(r.changes) === JSON.stringify(changes);
-  });
-  if (isDup) { alert('A matching pending request already exists for the selected location(s).'); return; }
 
-  const primaryLoc = uniqueLocations[0] || loc;
-  const locationLabel = uniqueLocations.length === 1
-    ? (primaryLoc.name || primaryLoc.id)
-    : (uniqueLocations.length + ' locations');
-  list.push({
-    id: 'ltr_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
-    locationId: primaryLoc.id,
-    locationName: locationLabel,
-    locationIds: uniqueLocations.map(l => l.id || l.locationId || l.name).filter(Boolean),
-    locations: uniqueLocations,
-    facilityId: FACILITY_ID,
-    changes,
-    tagId: tagId || undefined,
-    tagName: tagName || undefined,
-    status: 'PENDING_APPROVAL',
-    requester: admGetCurrentUsername() || '—',
-    requestedAt: new Date().toISOString(),
-    currentValues: primaryLoc,
-    ticketTeamId: ticketTeamId || undefined,
-    ticketTeamName: ticketTeamName || undefined,
-    ticketStatus: 'PENDING',
+  uniqueLocations.forEach(l => {
+    const isDup = existingPending.some(r => r.locationId === l.id && JSON.stringify(r.changes) === JSON.stringify(changes));
+    if (isDup) return; // skip duplicate
+    list.push({
+      id: 'ltr_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+      locationId: l.id,
+      locationName: l.name || l.id,
+      facilityId: FACILITY_ID,
+      changes,
+      tagId: tagId || undefined,
+      tagName: tagName || undefined,
+      status: 'PENDING_APPROVAL',
+      requester: admGetCurrentUsername() || '—',
+      requestedAt: new Date().toISOString(),
+      currentValues: l,
+      ticketTeamId: ticketTeamId || undefined,
+      ticketTeamName: ticketTeamName || undefined,
+      ticketStatus: 'PENDING',
+    });
   });
 
   ltrSave(list);
@@ -17513,11 +17439,10 @@ async function ltrSubmitRequest() {
     const cur = loc[k] || '—';
     return '  • ' + k + ': ' + cur + ' → ' + v;
   }).join('\n');
-  const selectedLocationSummary = uniqueLocations.length === 1 ? ((loc.name || loc.id) + ' (ID: ' + loc.id + ')') : (uniqueLocations.length + ' locations: ' + uniqueLocations.slice(0, 25).map(l => (l.name || l.id) + ' (ID: ' + l.id + ')').join(', ') + (uniqueLocations.length > 25 ? ', +' + (uniqueLocations.length - 25) + ' more' : ''));
-  const ticketTitle = 'Location Tag Change Request — ' + (uniqueLocations.length === 1 ? (loc.name || loc.id) : (uniqueLocations.length + ' locations')) + ' — ' + (FACILITY_NAME || FACILITY_ID);
+  const ticketTitle = 'Location Tag Change Request — ' + (loc.name || loc.id) + ' — ' + (FACILITY_NAME || FACILITY_ID);
   const ticketMsg = 'A Location Tag update request has been submitted and requires manager approval.\n\n' +
     'FACILITY: ' + (FACILITY_NAME || FACILITY_ID) + ' (' + FACILITY_ID + ')\n' +
-    'LOCATION(S): ' + selectedLocationSummary + '\n' +
+    'LOCATION: ' + (loc.name || loc.id) + ' (ID: ' + loc.id + ')\n' +
     'REQUESTER: ' + (admGetCurrentUsername() || '—') + '\n' +
     'DATE: ' + new Date().toLocaleString('en-US', {timeZone:'America/Los_Angeles'}) + '\n' +
     (ticketTeamName ? 'REQUESTED QUEUE/TEAM: ' + ticketTeamName + '\n' : '') +
@@ -17526,8 +17451,8 @@ async function ltrSubmitRequest() {
     'Dashboard: ' + window.location.origin;
 
   try {
-    const selectedDept = (document.getElementById('ltr-ticket-dept') || {}).value || TICKET_DEFAULT_DEPT;
-    const selectedTopic = (document.getElementById('ltr-ticket-topic') || {}).value || TICKET_DEFAULT_TOPIC;
+    const selectedDept = (document.getElementById('ltr-ticket-dept') || {}).value || '324119200704569344';
+    const selectedTopic = (document.getElementById('ltr-ticket-topic') || {}).value || '351666257576935424';
     const ticketPayload = {
       departmentId: selectedDept,
       topicId: selectedTopic,
@@ -17596,7 +17521,8 @@ async function ltrSubmitRequest() {
 
   ltrRenderList();
   const notifyNote = ' A support ticket was created for tracking.';
-  alert((uniqueLocations.length > 1 ? '1 request submitted for ' + uniqueLocations.length + ' selected location(s).' : 'Request submitted for approval.') + notifyNote);
+  if (uniqueLocations.length > 1) alert(uniqueLocations.length + ' request(s) submitted for approval.' + notifyNote);
+  else alert('Request submitted for approval.' + notifyNote);
 }
 
 function ltrViewDetail(idx) {
@@ -17671,7 +17597,11 @@ async function ltrUpdateVirtualTagMembership(tagId, locationId, mode) {
 async function ltrApplyOneLocationForRequest(r, loc, changes, tagId) {
   const current = loc || r.currentValues || {};
   const locationId = current.id || current.locationId || r.locationId;
-  const payload = { id: locationId, name: current.name || r.locationName || locationId, status: current.status || 'USABLE' };
+  const payload = {
+    id: locationId,
+    name: current.name || r.locationName || locationId,
+    status: current.status || 'USABLE',
+  };
   const appliedFields = [];
   Object.keys(changes).forEach(k => {
     if (k === 'tagName') return;
@@ -17691,6 +17621,7 @@ async function ltrApplyOneLocationForRequest(r, loc, changes, tagId) {
     const resp = await safeFetch(WMS_BASE + '/api/wms/wms-location', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(updatePayload)});
     const msg = resp ? (resp.msg || resp.message || '') : 'No response';
     if (!resp || resp.success === false || (!resp.data && msg && String(resp.code) !== '0' && String(resp.code) !== '200')) {
+      // Some WMS updates apply but return a non-confirming response. Verify before failing.
       let verified = false;
       try {
         const verifyResp = await safeFetch(WMS_BASE + '/api/wms/wms-location/' + encodeURIComponent(locationId), {method:'GET', headers:{'Accept':'application/json'}});
@@ -17712,32 +17643,6 @@ async function ltrApplyOneLocationForRequest(r, loc, changes, tagId) {
     }
     await ltrUpdateVirtualTagMembership(tagId, locationId, 'add');
   }
-}
-
-
-async function ltrVerifyOneLocationForRequest(r, loc, changes, tagId) {
-  const current = loc || r.currentValues || {};
-  const locationId = current.id || current.locationId || r.locationId;
-  const detailResp = await safeFetch(WMS_BASE + '/api/wms/wms-location/' + encodeURIComponent(locationId), {method:'GET', headers:{'Accept':'application/json'}});
-  const detail = detailResp && !detailResp._needsAuth ? (detailResp.data || detailResp) : null;
-  if (!detail) return false;
-  if (changes.customerIds) {
-    const want = String(changes.customerIds).split(',').map(x => x.trim()).filter(Boolean).sort().join('|');
-    const got = (detail.customerIds || []).map(String).sort().join('|');
-    if (want !== got) return false;
-  }
-  if (changes.supportPickType && String(detail.supportPickType || '') !== String(changes.supportPickType)) return false;
-  if (changes.disallowToMixItemOnSameLocation !== undefined) {
-    const want = changes.disallowToMixItemOnSameLocation === 'TRUE' || changes.disallowToMixItemOnSameLocation === true;
-    if (Boolean(detail.disallowToMixItemOnSameLocation) !== want) return false;
-  }
-  if (changes.tagName && tagId) {
-    const tagResp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/' + encodeURIComponent(tagId), {method:'GET', headers:{'Accept':'application/json'}});
-    const tag = tagResp && !tagResp._needsAuth ? (tagResp.data || tagResp) : null;
-    const ids = tag ? ((tag.locationIds || (tag.locations || []).map(l => l.id || l) || []).map(String)) : [];
-    if (!ids.includes(String(locationId))) return false;
-  }
-  return true;
 }
 
 async function ltrApprove(idx, retryMode) {
@@ -17766,14 +17671,12 @@ async function ltrApprove(idx, retryMode) {
   let applied = 0;
   for (const loc of targetLocations) {
     try {
-      // If the prior retry actually updated WMS but the browser did not record it,
-      // verify first and mark this location complete without re-mutating it.
-      if (await ltrVerifyOneLocationForRequest(r, loc, changes, r.tagId)) { applied++; continue; }
       await ltrApplyOneLocationForRequest(r, loc, changes, r.tagId);
-      if (!(await ltrVerifyOneLocationForRequest(r, loc, changes, r.tagId))) throw new Error('Verification failed after apply.');
       applied++;
+    } catch(e) {
+      console.warn('[ltr-apply] location failed', loc && (loc.name || loc.id), e && e.message ? e.message : e);
+      failures.push((loc && (loc.name || loc.id)) || 'location');
     }
-    catch(e) { console.warn('[ltr-apply] location failed', loc && (loc.name || loc.id), e && e.message ? e.message : e); failures.push((loc && (loc.name || loc.id)) || 'location'); }
   }
 
   const list2 = ltrLoad();

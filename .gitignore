@@ -1,2 +1,5 @@
 .github-url
 node_modules/
+.env
+.env.local
+data/*.json
