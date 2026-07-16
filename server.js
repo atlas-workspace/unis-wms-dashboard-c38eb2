@@ -201,6 +201,43 @@ async function handleApi(req, res, url) {
       catch(e) { return send(res, 200, {configured:true, ready:false, msg:'Database not ready'}); }
     }
 
+    if (url.pathname === '/api/database/facility-filter-test') {
+      if (!dbPool || !dbReady) return send(res, 503, {success:false, msg:'Database not ready'});
+      const runId = 'dbtest-' + Date.now();
+      const a = { id: runId + '-LT_F1', facilityId: 'LT_F1', marker: runId, status: 'TEST_A' };
+      const b = { id: runId + '-LT_F21', facilityId: 'LT_F21', marker: runId, status: 'TEST_B' };
+      for (const rec of [a, b]) {
+        await dbQuery(
+          `INSERT INTO location_tag_requests (id, facility_code, payload, requested_by, status, requested_at, updated_at)
+           VALUES ($1, $2, $3::jsonb, 'database-test', $4, now(), now())
+           ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload, updated_at = now()`,
+          [rec.id, rec.facilityId, JSON.stringify(rec), rec.status]
+        );
+      }
+      const f1 = await dbQuery(
+        `SELECT payload FROM location_tag_requests
+         WHERE facility_code = $1 AND payload->>'marker' = $2
+         ORDER BY id`,
+        ['LT_F1', runId]
+      );
+      const f21 = await dbQuery(
+        `SELECT payload FROM location_tag_requests
+         WHERE facility_code = $1 AND payload->>'marker' = $2
+         ORDER BY id`,
+        ['LT_F21', runId]
+      );
+      const isolationPass = f1.rows.length === 1 && f21.rows.length === 1 && f1.rows[0].payload.facilityId === 'LT_F1' && f21.rows[0].payload.facilityId === 'LT_F21';
+      return send(res, 200, {
+        success: isolationPass,
+        runId,
+        write: 'ok',
+        read: 'ok',
+        facilityFiltering: isolationPass ? 'passed' : 'failed',
+        ltF1Returned: f1.rows.map(r => r.payload.id),
+        ltF21Returned: f21.rows.map(r => r.payload.id)
+      });
+    }
+
     return send(res, 404, {success:false,msg:'Unknown API route'});
   } catch (e) {
     return send(res, 500, {success:false,msg:e.message});
@@ -229,13 +266,13 @@ if (SMTP_CONFIGURED) {
 
 const server = http.createServer((req,res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  if (url.pathname.startsWith('/api/proxy/')) return handleApi(req,res,url);
   if (url.pathname === '/api/notification/email-health') {
     return send(res, 200, {configured: SMTP_CONFIGURED, status: SMTP_CONFIGURED ? 'CONNECTED' : 'NOT_CONFIGURED', fromConfigured: !!SMTP_FROM});
   }
   if (req.method === 'POST' && url.pathname === '/api/notification/send-location-tag-request') {
     return handleSendNotification(req, res);
   }
+  if (url.pathname.startsWith('/api/')) return handleApi(req,res,url);
   let file = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
   file = path.normalize(file).replace(/^([/\\])+/, '');
   const full = path.join(ROOT, file);
