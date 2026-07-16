@@ -153,6 +153,34 @@ async function handleApi(req, res, url) {
       return send(res, out2.status, out2.json || out2.raw || {success:false,msg:'Refresh failed'});
     }
 
+
+    if (url.pathname === '/api/location-tag-requests') {
+      const facilityId = String(url.searchParams.get('facilityId') || 'LT_F1').replace(/[^A-Za-z0-9_-]/g, '_');
+      if (req.method === 'GET') {
+        if (!dbPool || !dbReady) return send(res, 503, {success:false, msg:'Database not ready'});
+        const out = await dbQuery('SELECT payload FROM location_tag_requests WHERE facility_code = $1 ORDER BY COALESCE(requested_at, updated_at) DESC', [facilityId]);
+        return send(res, 200, {success:true, facilityId, source:'postgres', list: out.rows.map(r => r.payload)});
+      }
+      if (req.method === 'POST') {
+        if (!dbPool || !dbReady) return send(res, 503, {success:false, msg:'Database not ready'});
+        const raw = await readBody(req);
+        let body; try { body = JSON.parse(raw); } catch(_) { body = {}; }
+        const incoming = Array.isArray(body.list) ? body.list : [];
+        for (const r of incoming) {
+          if (!r || !r.id) continue;
+          await dbQuery(
+            `INSERT INTO location_tag_requests (id, facility_code, payload, requested_by, status, requested_at, updated_at)
+             VALUES ($1, $2, $3::jsonb, $4, $5, $6, now())
+             ON CONFLICT (id) DO UPDATE SET payload=EXCLUDED.payload, requested_by=EXCLUDED.requested_by, status=EXCLUDED.status, requested_at=EXCLUDED.requested_at, updated_at=now()`,
+            [String(r.id), facilityId, JSON.stringify(r), r.requester || null, r.status || null, r.requestedAt || null]
+          );
+        }
+        const out = await dbQuery('SELECT payload FROM location_tag_requests WHERE facility_code = $1 ORDER BY COALESCE(requested_at, updated_at) DESC', [facilityId]);
+        return send(res, 200, {success:true, facilityId, source:'postgres', count: out.rows.length, list: out.rows.map(r => r.payload)});
+      }
+      return send(res, 405, {success:false, msg:'Method not allowed'});
+    }
+
     // Ticket API proxy routes
     if (url.pathname.startsWith('/api/proxy/auth/ticket/')) {
       const raw = await readBody(req);
