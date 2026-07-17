@@ -241,12 +241,20 @@ async function handleApi(req, res, url) {
       const out = await postJsonUrl(ROBOT_COUNT_API_URL, payload, {'X-Api-Key': ROBOT_COUNT_API_KEY});
       if (out.status >= 400) return send(res, 502, {success:false, msg:'Robot count data is unavailable.'});
       let list = [];
-      if (Array.isArray(out.json)) list = out.json;
-      else if (out.json && Array.isArray(out.json.data)) list = out.json.data;
-      else if (out.json && typeof out.json.data === 'string') {
-        try { const parsed = JSON.parse(out.json.data); list = Array.isArray(parsed) ? parsed : (parsed.data || []); } catch(_) {}
+      let obj = out.json;
+      if (typeof obj === 'string') {
+        try { obj = JSON.parse(obj); } catch(_) {}
       }
-      return send(res, 200, {success:true, request:payload, summary:summarizeRobotInventory(list), list});
+      if (Array.isArray(obj)) list = obj;
+      else if (obj && Array.isArray(obj.data)) list = obj.data;
+      else if (obj && typeof obj.data === 'string') {
+        try {
+          const parsed = JSON.parse(obj.data);
+          list = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.data) ? parsed.data : []);
+        } catch(_) {}
+      }
+      const summary = summarizeRobotInventory(list);
+      return send(res, 200, {success:true, request:payload, summary, list:list.slice(0,500), totalReturned:list.length});
     }
 
     // Ticket API proxy routes
