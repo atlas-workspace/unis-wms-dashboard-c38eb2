@@ -7,6 +7,9 @@ const { Pool } = require('pg');
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
 
+const ROBOT_COUNT_API_URL = process.env.ROBOT_COUNT_API_URL || 'https://pget47t1vc.execute-api.us-west-2.amazonaws.com/prd/download_object';
+const ROBOT_COUNT_API_KEY = process.env.ROBOT_COUNT_API_KEY || '';
+
 const DATABASE_URL = process.env.DATABASE_URL || '';
 let dbPool = null;
 let dbReady = false;
@@ -122,6 +125,47 @@ function ticketUpstream(method, apiPath, body, authHeader) {
   });
 }
 
+
+function postJsonUrl(fullUrl, body, headers={}) {
+  return new Promise((resolve) => {
+    const u = new URL(fullUrl);
+    const payload = JSON.stringify(body || {});
+    const req = https.request({
+      method: 'POST',
+      hostname: u.hostname,
+      path: u.pathname + u.search,
+      headers: Object.assign({
+        'Accept': 'application/json, */*',
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+        'User-Agent': 'UNIS-WMS-Dashboard/1.0'
+      }, headers || {})
+    }, r => {
+      let raw = '';
+      r.on('data', c => raw += c);
+      r.on('end', () => {
+        let parsed = null;
+        try { parsed = raw ? JSON.parse(raw) : null; } catch(_) {}
+        resolve({status:r.statusCode || 502, raw, json:parsed});
+      });
+    });
+    req.on('error', e => resolve({status:502, raw:'', json:{success:false,msg:e.message}}));
+    req.setTimeout(30000, () => { req.destroy(); resolve({status:504, raw:'', json:{success:false,msg:'Robot count service timeout'}}); });
+    req.write(payload);
+    req.end();
+  });
+}
+
+function summarizeRobotInventory(list) {
+  const rows = Array.isArray(list) ? list : [];
+  const occupied = rows.filter(r => Number(r.is_occupied) === 1).length;
+  const empty = rows.length - occupied;
+  const lpCount = new Set(rows.map(r => r.lp_id).filter(Boolean)).size;
+  const totalQty = rows.reduce((s,r) => s + (Number(r.qty) || 0), 0);
+  const lastWiseUpdate = rows.map(r => r.wise_update_time).filter(Boolean).sort().pop() || null;
+  return {totalLocations: rows.length, occupied, empty, lpCount, totalQty, lastWiseUpdate};
+}
+
 async function handleApi(req, res, url) {
   try {
     if (req.method === 'POST' && url.pathname === '/api/proxy/auth/password-grant') {
@@ -179,6 +223,30 @@ async function handleApi(req, res, url) {
         return send(res, 200, {success:true, facilityId, source:'postgres', count: out.rows.length, list: out.rows.map(r => r.payload)});
       }
       return send(res, 405, {success:false, msg:'Method not allowed'});
+    }
+
+
+    if (url.pathname === '/api/robot-count/warehouse-inventory') {
+      if (req.method !== 'POST') return send(res, 405, {success:false, msg:'Method not allowed'});
+      if (!ROBOT_COUNT_API_KEY) return send(res, 503, {success:false, msg:'Robot count integration is not configured.'});
+      const raw = await readBody(req);
+      let body;
+      try { body = JSON.parse(raw || '{}'); } catch(_) { body = {}; }
+      const payload = {
+        date_time: body.date_time || new Date().toISOString().slice(0,10),
+        project_name: body.project_name || 'warehouse_inventory',
+        yard_code: body.yard_code || 'yard-25',
+        zone_code: body.zone_code || 'Bay1'
+      };
+      const out = await postJsonUrl(ROBOT_COUNT_API_URL, payload, {'X-Api-Key': ROBOT_COUNT_API_KEY});
+      if (out.status >= 400) return send(res, 502, {success:false, msg:'Robot count data is unavailable.'});
+      let list = [];
+      if (Array.isArray(out.json)) list = out.json;
+      else if (out.json && Array.isArray(out.json.data)) list = out.json.data;
+      else if (out.json && typeof out.json.data === 'string') {
+        try { const parsed = JSON.parse(out.json.data); list = Array.isArray(parsed) ? parsed : (parsed.data || []); } catch(_) {}
+      }
+      return send(res, 200, {success:true, request:payload, summary:summarizeRobotInventory(list), list});
     }
 
     // Ticket API proxy routes

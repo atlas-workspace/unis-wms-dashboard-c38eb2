@@ -1286,6 +1286,25 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
           </div>
         </div>
 
+
+        <div class="card" id="robot-inventory-card" style="padding:14px 18px;margin-top:15px">
+          <div class="card-hdr">
+            <div>
+              <div class="card-ttl">Robot Count · Warehouse Inventory Scan</div>
+              <div class="scheduler-help">Live yard-25 warehouse inventory scan results by date and zone.</div>
+            </div>
+            <button class="btn btn-primary" onclick="loadRobotWarehouseInventory()" id="robot-inventory-refresh" style="font-size:12.5px">↻ Load Scan</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:10px 0 12px">
+            <div class="cc-field" style="margin:0"><label class="cc-label">Date</label><input class="cc-input" id="robot-scan-date" type="date" value="2026-07-09"/></div>
+            <div class="cc-field" style="margin:0"><label class="cc-label">Yard</label><input class="cc-input" id="robot-scan-yard" value="yard-25"/></div>
+            <div class="cc-field" style="margin:0"><label class="cc-label">Zone</label><input class="cc-input" id="robot-scan-zone" value="Bay1"/></div>
+          </div>
+          <div id="robot-inventory-status" style="font-size:12px;color:#6b7280;margin-bottom:10px">Click Load Scan to fetch robot count inventory.</div>
+          <div id="robot-inventory-summary" class="kpi-grid" style="display:none;margin-top:10px"></div>
+          <div id="robot-inventory-table" style="margin-top:12px;max-height:300px;overflow:auto;border:1px solid #e5e7eb;border-radius:8px;display:none"></div>
+        </div>
+
         <div class="kpi-grid" style="margin-top:15px">
           <div class="kpi"><div class="kpi-ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="#753BBD" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/></svg></div><div><div class="kpi-lbl">Fleet Size</div><div class="kpi-val" id="rk-fleet">12</div><div class="kpi-chg neutral" id="rk-fleet-sub">2 retired, 1 inbound</div></div></div>
           <div class="kpi"><div class="kpi-ico green"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Active Now</div><div class="kpi-val" id="rk-active">8</div><div class="kpi-chg up" id="rk-active-sub">66.7% utilization</div></div></div>
@@ -2610,7 +2629,7 @@ function showView(name, sub) {
   if (name === 'calendar') loadPhysicalInvCalendar();
   if (name === 'reports') rptInitReport();
   if (name === 'scheduler') initSchedulerForm();
-  if (name === 'robots') { initRobotChart(); refreshOntologyStatus(); loadRobotKpisFromOntology(); }
+  if (name === 'robots') { initRobotChart(); refreshOntologyStatus(); loadRobotKpisFromOntology(); loadRobotWarehouseInventory(); }
   if (name === 'cycle') loadCycleCountView();
   if (name === 'countApproval') initCountApprovalView();
   if (name === 'countCalendar') loadCountCalendarView();
@@ -12839,6 +12858,54 @@ function exportCountApprovalCsv() {
   const header = ['Task','Ticket','Location','Location ID','Status','Count Type','Type','Adjustment ID','Item','Raw Item ID','Count Qty','System Qty','Diff'];
   const csv = [header].concat(rows.map(r => [r.taskId||'',r.ticketId||'',craLocationText(r),r.locationId||r.systemLocationId||'',r.status||'',r.countTicketType||'',r.type||'',r.adjustmentId||'',craItemText(r),r.itemId||'',r.countItemQty??'',r.systemItemQty??'',r.itemDiffBaseQty??''])).map(a => a.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
   const blob = new Blob([csv], {type:'text/csv'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='count-result-approval.csv'; a.click(); URL.revokeObjectURL(url);
+}
+
+
+async function loadRobotWarehouseInventory() {
+  const status = document.getElementById('robot-inventory-status');
+  const summaryEl = document.getElementById('robot-inventory-summary');
+  const tableEl = document.getElementById('robot-inventory-table');
+  const btn = document.getElementById('robot-inventory-refresh');
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+  if (status) status.textContent = 'Loading robot count warehouse inventory…';
+  try {
+    const payload = {
+      date_time: (document.getElementById('robot-scan-date') || {}).value || '2026-07-09',
+      project_name: 'warehouse_inventory',
+      yard_code: (document.getElementById('robot-scan-yard') || {}).value || 'yard-25',
+      zone_code: (document.getElementById('robot-scan-zone') || {}).value || 'Bay1'
+    };
+    const resp = await fetch('/api/robot-count/warehouse-inventory', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.success) throw new Error(data.msg || 'Robot count data unavailable');
+    const s = data.summary || {};
+    if (status) status.textContent = 'Loaded ' + (s.totalLocations || 0).toLocaleString() + ' scanned location(s). Last WMS sync: ' + (s.lastWiseUpdate || '—');
+    if (summaryEl) {
+      summaryEl.style.display = '';
+      summaryEl.innerHTML = [
+        ['Locations', s.totalLocations || 0, 'total scanned'],
+        ['Occupied', s.occupied || 0, 'robot detected inventory'],
+        ['Empty', s.empty || 0, 'open locations'],
+        ['LPs', s.lpCount || 0, 'distinct license plates'],
+        ['Qty', s.totalQty || 0, 'total units']
+      ].map(x => '<div class="kpi"><div><div class="kpi-lbl">' + esc(x[0]) + '</div><div class="kpi-val">' + Number(x[1]).toLocaleString() + '</div><div class="kpi-chg neutral">' + esc(x[2]) + '</div></div></div>').join('');
+    }
+    const rows = (data.list || []).slice(0, 200);
+    if (tableEl) {
+      tableEl.style.display = '';
+      tableEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f9fafb"><th style="padding:8px;text-align:left">Location</th><th style="padding:8px;text-align:left">Occupied</th><th style="padding:8px;text-align:left">LP</th><th style="padding:8px;text-align:right">Qty</th><th style="padding:8px;text-align:left">Status</th><th style="padding:8px;text-align:left">Update</th></tr></thead><tbody>' +
+        rows.map(r => '<tr style="border-top:1px solid #f3f4f6"><td style="padding:7px;font-family:monospace">' + esc(r.location_ip_format || '—') + '</td><td style="padding:7px">' + (Number(r.is_occupied) === 1 ? '<span class="badge ok">Yes</span>' : '<span class="badge idle">No</span>') + '</td><td style="padding:7px">' + esc(r.lp_id || '—') + '</td><td style="padding:7px;text-align:right">' + esc(r.qty == null ? '—' : String(r.qty)) + '</td><td style="padding:7px">' + esc(r.status || '—') + '</td><td style="padding:7px">' + esc(r.wise_update_time || r.update_time || '—') + '</td></tr>').join('') +
+        '</tbody></table>' + ((data.list || []).length > 200 ? '<div style="padding:8px;color:#6b7280;font-size:11px">Showing first 200 records.</div>' : '');
+    }
+  } catch(e) {
+    if (status) status.textContent = 'Robot count data could not be loaded. Confirm integration settings or try again.';
+    if (summaryEl) summaryEl.style.display = 'none';
+    if (tableEl) tableEl.style.display = 'none';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Load Scan'; }
+  }
 }
 
 // ═══ ONTOLOGY AI — Robot Count KPIs ═══
