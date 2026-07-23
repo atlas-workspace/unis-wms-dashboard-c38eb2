@@ -16948,9 +16948,11 @@ function ltrMergeRequests(a, b) {
   return Array.from(byId.values()).sort((x,y) => String(y.requestedAt||'').localeCompare(String(x.requestedAt||'')));
 }
 function ltrLoad() {
+  const shared = window.LTR_SHARED_CACHE[FACILITY_ID];
+  if (Array.isArray(shared)) return ltrMergeRequests(shared, []);
   let local = [];
   try { local = JSON.parse(localStorage.getItem(ltrGetKey()) || '[]'); } catch(_) {}
-  return ltrMergeRequests(window.LTR_SHARED_CACHE[FACILITY_ID] || [], local);
+  return ltrMergeRequests(local, []);
 }
 function ltrSave(list) {
   try { localStorage.setItem(ltrGetKey(), JSON.stringify(list)); } catch(_) {}
@@ -16975,10 +16977,9 @@ async function ltrSyncSharedRequests() {
     const r = await fetch('/api/location-tag-requests?facilityId=' + encodeURIComponent(FACILITY_ID), {cache:'no-store'});
     const d = await r.json();
     if (d && d.success && Array.isArray(d.list)) {
-      const local = JSON.parse(localStorage.getItem(ltrGetKey()) || '[]');
-      const merged = ltrMergeRequests(d.list, local);
-      window.LTR_SHARED_CACHE[FACILITY_ID] = merged;
-      try { localStorage.setItem(ltrGetKey(), JSON.stringify(merged)); } catch(_) {}
+      const shared = ltrMergeRequests(d.list, []);
+      window.LTR_SHARED_CACHE[FACILITY_ID] = shared;
+      try { localStorage.setItem(ltrGetKey(), JSON.stringify(shared)); } catch(_) {}
     }
   } catch(_) {}
 }
@@ -17708,6 +17709,24 @@ async function ltrUpdateVirtualTagMembership(tagId, locationId, mode) {
   return {name: payload.name, before: existing.length, after: next.length};
 }
 
+function ltrLocationMatchesRequestedChanges(detail, payload) {
+  if (!detail || !payload) return false;
+  let ok = true;
+  if (payload.customerIds) {
+    ok = ok && ((detail.customerIds || []).map(String).sort().join('|') === payload.customerIds.map(String).sort().join('|'));
+  }
+  if ('disallowToMixItemOnSameLocation' in payload) {
+    ok = ok && Boolean(detail.disallowToMixItemOnSameLocation) === Boolean(payload.disallowToMixItemOnSameLocation);
+  }
+  ['supportPickType','status','category','capacityType'].forEach(k => {
+    if (k in payload) ok = ok && String(detail[k] || '') === String(payload[k] || '');
+  });
+  ['maxSize','length','width','height','sequence','capacity'].forEach(k => {
+    if (k in payload) ok = ok && Number(detail[k] || 0) === Number(payload[k] || 0);
+  });
+  return ok;
+}
+
 async function ltrApplyOneLocationForRequest(r, loc, changes, tagId) {
   const current = loc || r.currentValues || {};
   const locationId = current.id || current.locationId || r.locationId;
@@ -17725,38 +17744,47 @@ async function ltrApplyOneLocationForRequest(r, loc, changes, tagId) {
     payload[k] = changes[k]; appliedFields.push(k);
   });
 
+  let locationError = null;
   if (appliedFields.length > 0) {
     let updatePayload = payload;
+    let detail = null;
     try {
       const detailResp = await safeFetch(WMS_BASE + '/wms/wms-location/' + encodeURIComponent(locationId), {method:'GET', headers:{'Accept':'application/json'}});
-      const detail = detailResp && !detailResp._needsAuth ? (detailResp.data || detailResp) : null;
+      detail = detailResp && !detailResp._needsAuth ? (detailResp.data || detailResp) : null;
       if (detail && detail.id) updatePayload = Object.assign({}, detail, payload);
     } catch(_) {}
-    const resp = await safeFetch(WMS_BASE + '/wms/wms-location', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(updatePayload)});
-    const msg = resp ? (resp.msg || resp.message || '') : 'No response';
-    if (!resp || resp.success === false || (!resp.data && msg && String(resp.code) !== '0' && String(resp.code) !== '200')) {
-      // Some WMS updates apply but return a non-confirming response. Verify before failing.
-      let verified = false;
-      try {
-        const verifyResp = await safeFetch(WMS_BASE + '/wms/wms-location/' + encodeURIComponent(locationId), {method:'GET', headers:{'Accept':'application/json'}});
-        const verify = verifyResp && !verifyResp._needsAuth ? (verifyResp.data || verifyResp) : null;
-        if (verify) {
-          verified = true;
-          if (payload.customerIds) verified = verified && ((verify.customerIds || []).map(String).sort().join('|') === payload.customerIds.map(String).sort().join('|'));
-          if ('disallowToMixItemOnSameLocation' in payload) verified = verified && Boolean(verify.disallowToMixItemOnSameLocation) === Boolean(payload.disallowToMixItemOnSameLocation);
-        }
-      } catch(_) {}
-      if (!verified) throw new Error('Location update could not be applied.');
+
+    if (!ltrLocationMatchesRequestedChanges(detail, payload)) {
+      const resp = await safeFetch(WMS_BASE + '/wms/wms-location', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(updatePayload)});
+      const msg = resp ? (resp.msg || resp.message || '') : 'No response';
+      if (!resp || resp.success === false || (!resp.data && msg && String(resp.code) !== '0' && String(resp.code) !== '200')) {
+        // Some WMS updates apply but return a non-confirming response. Verify before marking location fields failed.
+        let verified = false;
+        try {
+          const verifyResp = await safeFetch(WMS_BASE + '/wms/wms-location/' + encodeURIComponent(locationId), {method:'GET', headers:{'Accept':'application/json'}});
+          const verify = verifyResp && !verifyResp._needsAuth ? (verifyResp.data || verifyResp) : null;
+          verified = ltrLocationMatchesRequestedChanges(verify, payload);
+        } catch(_) {}
+        if (!verified) locationError = new Error('Location fields could not be confirmed.');
+      }
     }
   }
 
+  let tagResult = null;
   if (changes.tagName && tagId) {
     const oldTagIds = (current.tagIds || current.locationTagIds || []).map(String).filter(Boolean);
     for (const oldTagId of oldTagIds) {
-      if (String(oldTagId) !== String(tagId)) await ltrUpdateVirtualTagMembership(oldTagId, locationId, 'remove');
+      if (String(oldTagId) !== String(tagId)) {
+        try { await ltrUpdateVirtualTagMembership(oldTagId, locationId, 'remove'); }
+        catch(e) { console.warn('[ltr-tag] old tag removal skipped', oldTagId, locationId, e && e.message ? e.message : e); }
+      }
     }
-    await ltrUpdateVirtualTagMembership(tagId, locationId, 'add');
+    tagResult = await ltrUpdateVirtualTagMembership(tagId, locationId, 'add');
   }
+
+  // Do not block tag membership because the WMS location update returned a non-confirming response.
+  // If the tag update succeeded, the request's remaining grouped-location work can finish.
+  if (locationError && !(changes.tagName && tagId && tagResult)) throw locationError;
 }
 
 async function ltrApprove(idx, retryMode) {
