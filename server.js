@@ -231,7 +231,7 @@ async function handleApi(req, res, url) {
       const targetPath = url.pathname.replace('/api/proxy/wms', '');
       if (!targetPath.startsWith('/wms/')) return send(res, 400, {success:false, msg:'Unsupported WMS proxy path'});
       const raw = (req.method === 'GET' || req.method === 'HEAD') ? '' : await readBody(req);
-      const out = await wmsUpstream(req.method, targetPath, raw, req.headers, url.search || '');
+      const out = await wmsUpstream(req.method, '/api' + targetPath, raw, req.headers, url.search || '');
       return send(res, out.status, out.json || {success:false, msg: out.raw ? out.raw.slice(0, 300) : 'No response from WMS'});
     }
 
