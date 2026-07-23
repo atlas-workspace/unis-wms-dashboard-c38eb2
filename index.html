@@ -14358,7 +14358,7 @@ function ltagOpenEdit(tagId) {
 }
 
 async function ltagFetchTagDetail(tagId) {
-  const resp = await safeFetch(WMS_BASE + '/wms/location/virtual-tag/' + encodeURIComponent(tagId), {
+  const resp = await safeFetch('/api/proxy/wms/wms/location/virtual-tag/' + encodeURIComponent(tagId), {
     method: 'GET',
     headers: {'Accept': 'application/json'},
   });
@@ -14477,7 +14477,7 @@ async function ltagSave() {
     locationIds: LTAG_EDIT_LOCS.map(l => l.id).filter(Boolean),
   };
 
-  const resp = await safeFetch(WMS_BASE + '/wms/location/virtual-tag', {
+  const resp = await safeFetch('/api/proxy/wms/wms/location/virtual-tag', {
     method: 'PUT',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload),
@@ -14493,7 +14493,7 @@ async function ltagSave() {
 async function ltagDeleteTag(tagId) {
   if (!ltagRequirePassword()) return;
   if (!confirm('Delete this location tag? This cannot be undone.')) return;
-  const resp = await safeFetch(WMS_BASE + '/wms/location/virtual-tag/' + encodeURIComponent(tagId), {
+  const resp = await safeFetch('/api/proxy/wms/wms/location/virtual-tag/' + encodeURIComponent(tagId), {
     method: 'DELETE',
     headers: {'Accept': 'application/json'},
   });
@@ -17681,7 +17681,7 @@ function ltrRequireApprovalPassword() {
 }
 
 async function ltrUpdateVirtualTagMembership(tagId, locationId, mode) {
-  const tagResp = await safeFetch(WMS_BASE + '/wms/location/virtual-tag/' + encodeURIComponent(tagId), {method:'GET', headers:{'Accept':'application/json'}});
+  const tagResp = await safeFetch('/api/proxy/wms/wms/location/virtual-tag/' + encodeURIComponent(tagId), {method:'GET', headers:{'Accept':'application/json'}});
   if (!tagResp || tagResp._needsAuth) throw new Error('Could not load location tag details. Please confirm your WMS access and try again.');
   const tagData = tagResp.data || tagResp;
   const existing = tagData.locationIds || (tagData.locations || []).map(l => l.id || l) || [];
@@ -17695,7 +17695,7 @@ async function ltrUpdateVirtualTagMembership(tagId, locationId, mode) {
     desc: tagData.desc == null ? (tagData.description == null ? null : tagData.description) : tagData.desc,
     locationIds: next,
   };
-  const putResp = await safeFetch(WMS_BASE + '/wms/location/virtual-tag', {
+  const putResp = await safeFetch('/api/proxy/wms/wms/location/virtual-tag', {
     method:'PUT',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify(payload),
@@ -17749,19 +17749,19 @@ async function ltrApplyOneLocationForRequest(r, loc, changes, tagId) {
     let updatePayload = payload;
     let detail = null;
     try {
-      const detailResp = await safeFetch(WMS_BASE + '/wms/wms-location/' + encodeURIComponent(locationId), {method:'GET', headers:{'Accept':'application/json'}});
+      const detailResp = await safeFetch('/api/proxy/wms/wms/wms-location/' + encodeURIComponent(locationId), {method:'GET', headers:{'Accept':'application/json'}});
       detail = detailResp && !detailResp._needsAuth ? (detailResp.data || detailResp) : null;
       if (detail && detail.id) updatePayload = Object.assign({}, detail, payload);
     } catch(_) {}
 
     if (!ltrLocationMatchesRequestedChanges(detail, payload)) {
-      const resp = await safeFetch(WMS_BASE + '/wms/wms-location', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(updatePayload)});
+      const resp = await safeFetch('/api/proxy/wms/wms/wms-location', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(updatePayload)});
       const msg = resp ? (resp.msg || resp.message || '') : 'No response';
       if (!resp || resp.success === false || (!resp.data && msg && String(resp.code) !== '0' && String(resp.code) !== '200')) {
         // Some WMS updates apply but return a non-confirming response. Verify before marking location fields failed.
         let verified = false;
         try {
-          const verifyResp = await safeFetch(WMS_BASE + '/wms/wms-location/' + encodeURIComponent(locationId), {method:'GET', headers:{'Accept':'application/json'}});
+          const verifyResp = await safeFetch('/api/proxy/wms/wms/wms-location/' + encodeURIComponent(locationId), {method:'GET', headers:{'Accept':'application/json'}});
           const verify = verifyResp && !verifyResp._needsAuth ? (verifyResp.data || verifyResp) : null;
           verified = ltrLocationMatchesRequestedChanges(verify, payload);
         } catch(_) {}

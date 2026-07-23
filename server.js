@@ -87,6 +87,35 @@ function upstreamJson(method, host, pathname, body, query='') {
     req.end();
   });
 }
+
+function wmsUpstream(method, pathname, body, incomingHeaders, query='') {
+  return new Promise((resolve) => {
+    const payload = body == null || body === '' ? null : (typeof body === 'string' ? body : JSON.stringify(body));
+    const hdrs = {
+      'Accept': 'application/json',
+      'x-tenant-id': incomingHeaders['x-tenant-id'] || 'LT',
+      'x-facility-id': incomingHeaders['x-facility-id'] || '',
+      'User-Agent': 'UNIS-WMS-Dashboard/1.0'
+    };
+    if (incomingHeaders['authorization']) hdrs['Authorization'] = incomingHeaders['authorization'];
+    if (payload) {
+      hdrs['Content-Type'] = incomingHeaders['content-type'] || 'application/json';
+      hdrs['Content-Length'] = Buffer.byteLength(payload);
+    }
+    const req = https.request({ method, host: 'unis.item.com', path: pathname + (query || ''), headers: hdrs }, r => {
+      let raw='';
+      r.on('data', c => raw += c);
+      r.on('end', () => {
+        let parsed = null;
+        try { parsed = raw ? JSON.parse(raw) : null; } catch(_) {}
+        resolve({ status:r.statusCode || 502, headers:r.headers, raw, json:parsed });
+      });
+    });
+    req.on('error', e => resolve({ status:502, json:{success:false,msg:'WMS service unreachable: ' + e.message}, raw:'' }));
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
 function contentType(file) {
   const ext = path.extname(file).toLowerCase();
   return ({'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.ico':'image/x-icon'}[ext] || 'application/octet-stream');
@@ -197,6 +226,14 @@ async function handleApi(req, res, url) {
       return send(res, out2.status, out2.json || out2.raw || {success:false,msg:'Refresh failed'});
     }
 
+
+    if (url.pathname.startsWith('/api/proxy/wms/')) {
+      const targetPath = url.pathname.replace('/api/proxy/wms', '');
+      if (!targetPath.startsWith('/wms/')) return send(res, 400, {success:false, msg:'Unsupported WMS proxy path'});
+      const raw = (req.method === 'GET' || req.method === 'HEAD') ? '' : await readBody(req);
+      const out = await wmsUpstream(req.method, targetPath, raw, req.headers, url.search || '');
+      return send(res, out.status, out.json || {success:false, msg: out.raw ? out.raw.slice(0, 300) : 'No response from WMS'});
+    }
 
     if (url.pathname === '/api/location-tag-requests') {
       const facilityId = String(url.searchParams.get('facilityId') || 'LT_F1').replace(/[^A-Za-z0-9_-]/g, '_');
