@@ -16959,6 +16959,17 @@ function ltrSave(list) {
     method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({list:list || []})
   }).catch(() => {});
 }
+async function ltrDeleteSharedRequest(id) {
+  const r = await fetch('/api/location-tag-requests?facilityId=' + encodeURIComponent(FACILITY_ID) + '&id=' + encodeURIComponent(id), {
+    method:'DELETE',
+    headers:{'Accept':'application/json'},
+    cache:'no-store'
+  });
+  let d = {};
+  try { d = await r.json(); } catch(_) {}
+  if (!r.ok || (d && d.success === false)) throw new Error((d && (d.msg || d.message)) || 'Delete failed');
+  return d;
+}
 async function ltrSyncSharedRequests() {
   try {
     const r = await fetch('/api/location-tag-requests?facilityId=' + encodeURIComponent(FACILITY_ID), {cache:'no-store'});
@@ -17817,14 +17828,23 @@ function ltrReject(idx) {
   ltrRenderList();
 }
 
-function ltrDeleteRequest(idx) {
+async function ltrDeleteRequest(idx) {
   const list = ltrLoad();
   const r = list[idx];
   if (!r) return;
   if (r.status === 'APPLIED') { alert('Applied requests cannot be deleted — they are kept for audit.'); return; }
   if (!confirm('Delete this request for ' + (r.locationName || r.locationId || 'location') + '? This cannot be undone.')) return;
-  list.splice(idx, 1);
-  ltrSave(list);
+
+  try {
+    if (r.id) await ltrDeleteSharedRequest(r.id);
+  } catch (err) {
+    alert('Delete failed. Please try again. ' + (err && err.message ? err.message : ''));
+    return;
+  }
+
+  const latest = ltrLoad().filter(x => !x || String(x.id) !== String(r.id));
+  try { localStorage.setItem(ltrGetKey(), JSON.stringify(latest)); } catch(_) {}
+  window.LTR_SHARED_CACHE[FACILITY_ID] = latest;
   ltrRenderList();
 }
 

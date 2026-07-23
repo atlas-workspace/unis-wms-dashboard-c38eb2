@@ -222,6 +222,22 @@ async function handleApi(req, res, url) {
         const out = await dbQuery('SELECT payload FROM location_tag_requests WHERE facility_code = $1 ORDER BY COALESCE(requested_at, updated_at) DESC', [facilityId]);
         return send(res, 200, {success:true, facilityId, source:'postgres', count: out.rows.length, list: out.rows.map(r => r.payload)});
       }
+      if (req.method === 'DELETE') {
+        if (!dbPool || !dbReady) return send(res, 503, {success:false, msg:'Database not ready'});
+        const raw = await readBody(req);
+        let body; try { body = raw ? JSON.parse(raw) : {}; } catch(_) { body = {}; }
+        const id = String(body.id || url.searchParams.get('id') || '').trim();
+        if (!id) return send(res, 400, {success:false, msg:'Missing request id'});
+
+        const existing = await dbQuery('SELECT payload, status FROM location_tag_requests WHERE id = $1 AND facility_code = $2', [id, facilityId]);
+        if (existing.rows.length && String((existing.rows[0].payload && existing.rows[0].payload.status) || existing.rows[0].status || '') === 'APPLIED') {
+          return send(res, 409, {success:false, msg:'Applied requests cannot be deleted'});
+        }
+
+        const deleted = await dbQuery('DELETE FROM location_tag_requests WHERE id = $1 AND facility_code = $2 RETURNING id', [id, facilityId]);
+        const out = await dbQuery('SELECT payload FROM location_tag_requests WHERE facility_code = $1 ORDER BY COALESCE(requested_at, updated_at) DESC', [facilityId]);
+        return send(res, 200, {success:true, facilityId, source:'postgres', deleted: deleted.rows.length, count: out.rows.length, list: out.rows.map(r => r.payload)});
+      }
       return send(res, 405, {success:false, msg:'Method not allowed'});
     }
 
