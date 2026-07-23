@@ -17686,9 +17686,16 @@ async function ltrUpdateVirtualTagMembership(tagId, locationId, mode) {
   const tagData = tagResp.data || tagResp;
   const existing = tagData.locationIds || (tagData.locations || []).map(l => l.id || l) || [];
   const loc = String(locationId);
-  let next = existing.map(String).filter(Boolean);
-  if (mode === 'remove') next = next.filter(id => id !== loc);
-  else if (!next.includes(loc)) next.push(loc);
+  const before = existing.map(String).filter(Boolean);
+  const alreadyPresent = before.includes(loc);
+  let next = before.slice();
+  if (mode === 'remove') {
+    next = next.filter(id => id !== loc);
+    if (!alreadyPresent) return {name: tagData.name || tagData.tagName || String(tagId), before: before.length, after: next.length, alreadyApplied:true};
+  } else {
+    if (alreadyPresent) return {name: tagData.name || tagData.tagName || String(tagId), before: before.length, after: next.length, alreadyApplied:true};
+    next.push(loc);
+  }
   const payload = {
     id: tagData.id || tagId,
     name: tagData.name || tagData.tagName || String(tagId),
@@ -17703,10 +17710,19 @@ async function ltrUpdateVirtualTagMembership(tagId, locationId, mode) {
   const code = putResp ? (putResp.code || '') : '';
   const msg = putResp ? (putResp.msg || putResp.message || '') : 'No response';
   if (!putResp || putResp.success === false || (!(String(code) === '0' || String(code) === '200' || putResp.data || !msg))) {
-    console.warn('[ltr-tag] virtual tag update rejected', {tagId, mode, code, msg});
-    throw new Error('Location tag membership could not be updated. Please retry or contact a WMS administrator.');
+    let verified = false;
+    try {
+      const verifyResp = await safeFetch('/api/proxy/wms/wms/location/virtual-tag/' + encodeURIComponent(tagId), {method:'GET', headers:{'Accept':'application/json'}});
+      const verifyData = verifyResp && !verifyResp._needsAuth ? (verifyResp.data || verifyResp) : null;
+      const verifyIds = (verifyData && (verifyData.locationIds || (verifyData.locations || []).map(l => l.id || l)) || []).map(String);
+      verified = mode === 'remove' ? !verifyIds.includes(loc) : verifyIds.includes(loc);
+    } catch(_) {}
+    if (!verified) {
+      console.warn('[ltr-tag] virtual tag update rejected', {tagId, mode, code, msg});
+      throw new Error('Location tag membership could not be updated' + (msg ? ': ' + msg : '') + '.');
+    }
   }
-  return {name: payload.name, before: existing.length, after: next.length};
+  return {name: payload.name, before: before.length, after: next.length};
 }
 
 function ltrLocationMatchesRequestedChanges(detail, payload) {
