@@ -14358,7 +14358,7 @@ function ltagOpenEdit(tagId) {
 }
 
 async function ltagFetchTagDetail(tagId) {
-  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/' + encodeURIComponent(tagId), {
+  const resp = await safeFetch(WMS_BASE + '/wms/location/virtual-tag/' + encodeURIComponent(tagId), {
     method: 'GET',
     headers: {'Accept': 'application/json'},
   });
@@ -14477,7 +14477,7 @@ async function ltagSave() {
     locationIds: LTAG_EDIT_LOCS.map(l => l.id).filter(Boolean),
   };
 
-  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag', {
+  const resp = await safeFetch(WMS_BASE + '/wms/location/virtual-tag', {
     method: 'PUT',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload),
@@ -14493,7 +14493,7 @@ async function ltagSave() {
 async function ltagDeleteTag(tagId) {
   if (!ltagRequirePassword()) return;
   if (!confirm('Delete this location tag? This cannot be undone.')) return;
-  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/' + encodeURIComponent(tagId), {
+  const resp = await safeFetch(WMS_BASE + '/wms/location/virtual-tag/' + encodeURIComponent(tagId), {
     method: 'DELETE',
     headers: {'Accept': 'application/json'},
   });
@@ -17653,6 +17653,7 @@ function ltrViewDetail(idx) {
     (r.appliedAt ? '<div style="font-size:11px;color:#059669;margin-bottom:4px">Applied: ' + new Date(r.appliedAt).toLocaleString() + '</div>' : '') +
     (r.rejectedAt ? '<div style="font-size:11px;color:#dc2626;margin-bottom:4px">Rejected: ' + new Date(r.rejectedAt).toLocaleString() + '</div>' : '') +
     (r.errorMsg ? '<div style="font-size:11px;color:#dc2626;margin-bottom:4px">Error: ' + esc(r.errorMsg) + '</div>' : '') +
+    (r.applyNote ? '<div style="font-size:11px;color:#92400e;margin-bottom:4px">Apply note: ' + esc(r.applyNote) + '</div>' : '') +
     '<table style="width:100%;font-size:11px;border-collapse:collapse;margin-top:8px"><thead><tr style="background:#f9fafb"><th style="padding:4px 6px;text-align:left">Field</th><th style="padding:4px 6px;text-align:left">Current</th><th style="padding:4px 6px;text-align:left">Requested</th></tr></thead><tbody>' + diff + '</tbody></table>' +
     '<div style="margin-top:10px"><button class="btn btn-secondary" onclick="document.getElementById(\'ltr-form\').style.display=\'none\'" style="font-size:12px;padding:6px 14px">Close</button></div></div>';
 }
@@ -17679,7 +17680,7 @@ function ltrRequireApprovalPassword() {
 }
 
 async function ltrUpdateVirtualTagMembership(tagId, locationId, mode) {
-  const tagResp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/' + encodeURIComponent(tagId), {method:'GET', headers:{'Accept':'application/json'}});
+  const tagResp = await safeFetch(WMS_BASE + '/wms/location/virtual-tag/' + encodeURIComponent(tagId), {method:'GET', headers:{'Accept':'application/json'}});
   if (!tagResp || tagResp._needsAuth) throw new Error('Could not load location tag details. Please confirm your WMS access and try again.');
   const tagData = tagResp.data || tagResp;
   const existing = tagData.locationIds || (tagData.locations || []).map(l => l.id || l) || [];
@@ -17693,7 +17694,7 @@ async function ltrUpdateVirtualTagMembership(tagId, locationId, mode) {
     desc: tagData.desc == null ? (tagData.description == null ? null : tagData.description) : tagData.desc,
     locationIds: next,
   };
-  const putResp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag', {
+  const putResp = await safeFetch(WMS_BASE + '/wms/location/virtual-tag', {
     method:'PUT',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify(payload),
@@ -17727,17 +17728,17 @@ async function ltrApplyOneLocationForRequest(r, loc, changes, tagId) {
   if (appliedFields.length > 0) {
     let updatePayload = payload;
     try {
-      const detailResp = await safeFetch(WMS_BASE + '/api/wms/wms-location/' + encodeURIComponent(locationId), {method:'GET', headers:{'Accept':'application/json'}});
+      const detailResp = await safeFetch(WMS_BASE + '/wms/wms-location/' + encodeURIComponent(locationId), {method:'GET', headers:{'Accept':'application/json'}});
       const detail = detailResp && !detailResp._needsAuth ? (detailResp.data || detailResp) : null;
       if (detail && detail.id) updatePayload = Object.assign({}, detail, payload);
     } catch(_) {}
-    const resp = await safeFetch(WMS_BASE + '/api/wms/wms-location', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(updatePayload)});
+    const resp = await safeFetch(WMS_BASE + '/wms/wms-location', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(updatePayload)});
     const msg = resp ? (resp.msg || resp.message || '') : 'No response';
     if (!resp || resp.success === false || (!resp.data && msg && String(resp.code) !== '0' && String(resp.code) !== '200')) {
       // Some WMS updates apply but return a non-confirming response. Verify before failing.
       let verified = false;
       try {
-        const verifyResp = await safeFetch(WMS_BASE + '/api/wms/wms-location/' + encodeURIComponent(locationId), {method:'GET', headers:{'Accept':'application/json'}});
+        const verifyResp = await safeFetch(WMS_BASE + '/wms/wms-location/' + encodeURIComponent(locationId), {method:'GET', headers:{'Accept':'application/json'}});
         const verify = verifyResp && !verifyResp._needsAuth ? (verifyResp.data || verifyResp) : null;
         if (verify) {
           verified = true;
@@ -17783,17 +17784,19 @@ async function ltrApprove(idx, retryMode) {
   const failures = [];
   let applied = 0;
   for (const loc of targetLocations) {
+    const failName = (loc && (loc.name || loc.id)) || 'location';
     try {
       await ltrApplyOneLocationForRequest(r, loc, changes, r.tagId);
       applied++;
     } catch(e) {
-      console.warn('[ltr-apply] location failed', loc && (loc.name || loc.id), e && e.message ? e.message : e);
-      failures.push((loc && (loc.name || loc.id)) || 'location');
+      const failMsg = e && e.message ? e.message : 'Apply failed';
+      console.warn('[ltr-apply] location failed', failName, failMsg);
+      failures.push({name: failName, msg: failMsg});
     }
   }
 
   const list2 = ltrLoad();
-  const r2 = list2[idx];
+  const r2 = list2.find(x => x && String(x.id) === String(r.id)) || list2[idx];
   if (r2) {
     r2.appliedAt = new Date().toISOString();
     r2.locationUpdateStatus = failures.length ? 'partial' : 'success';
@@ -17801,10 +17804,12 @@ async function ltrApprove(idx, retryMode) {
     if (failures.length) {
       r2.status = 'APPROVED_BUT_FAILED';
       r2.errorMsg = applied + ' of ' + targetLocations.length + ' location(s) applied. Retry Apply for remaining locations.';
-      r2.applyNote = 'Needs attention: ' + failures.slice(0, 10).join(', ') + (failures.length > 10 ? ', +' + (failures.length - 10) + ' more' : '');
+      r2.applyFailures = failures;
+      r2.applyNote = 'Needs attention: ' + failures.slice(0, 10).map(f => f.name + (f.msg ? ' (' + f.msg + ')' : '')).join(', ') + (failures.length > 10 ? ', +' + (failures.length - 10) + ' more' : '');
     } else {
       r2.status = 'APPLIED';
       r2.errorMsg = '';
+      delete r2.applyFailures;
       r2.applyNote = targetLocations.length + ' location(s) applied in WMS.';
     }
     ltrSave(list2);
