@@ -51,6 +51,9 @@ CREATE TABLE IF NOT EXISTS abc_location_master (
   facility_code TEXT NOT NULL,
   location_id TEXT NOT NULL,
   zone TEXT,
+  tag_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+  tag_name TEXT,
+  tag_names JSONB NOT NULL DEFAULT '[]'::jsonb,
   storage_type TEXT,
   rack_or_bulk TEXT,
   aisle TEXT,
@@ -385,6 +388,11 @@ CREATE TABLE IF NOT EXISTS abc_audit_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_abc_sku_scope ON abc_sku_master(facility_code, customer_id, sku);
+
+ALTER TABLE abc_location_master ADD COLUMN IF NOT EXISTS tag_ids JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE abc_location_master ADD COLUMN IF NOT EXISTS tag_name TEXT;
+ALTER TABLE abc_location_master ADD COLUMN IF NOT EXISTS tag_names JSONB NOT NULL DEFAULT '[]'::jsonb;
+CREATE INDEX IF NOT EXISTS idx_abc_location_tag_name ON abc_location_master(facility_code, tag_name);
 CREATE INDEX IF NOT EXISTS idx_abc_location_facility ON abc_location_master(facility_code, location_id);
 CREATE INDEX IF NOT EXISTS idx_abc_inbound_scope_date ON abc_inbound_transactions(facility_code, customer_id, sku, receipt_date_time);
 CREATE INDEX IF NOT EXISTS idx_abc_outbound_scope_date ON abc_outbound_transactions(facility_code, customer_id, sku, order_date);
