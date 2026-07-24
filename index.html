@@ -17356,6 +17356,8 @@ function ltrShowNewForm() {
   // Load live customer list and ticket departments/topics for the form
   ltrLoadLocationTagRequestCustomers();
   ltrLoadTicketDepts();
+  // Keep both the search filter and requested-change Location Tag controls current.
+  setTimeout(() => { ltrLoadSearchTags(); ltrLoadTags(); }, 0);
   } catch(e) { console.error('ltrShowNewForm error:', e); alert('Could not open request form: ' + e.message); }
 }
 
@@ -17430,6 +17432,48 @@ async function ltrLoadTeamsForDept(deptId) {
   }
 }
 
+async function ltrFetchAllVirtualTags() {
+  const tags = [];
+  const pageSize = 500;
+  const maxPages = 50;
+  for (let page = 1; page <= maxPages; page++) {
+    const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/search-by-paging', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({currentPage:page, pageNo:page, pageSize:pageSize})
+    });
+    if (!resp || resp._needsAuth || resp.success === false) break;
+    const d = resp.data || resp;
+    const rows = d.list || d.records || d.items || [];
+    tags.push(...rows);
+    const total = Number(d.totalCount || d.total || 0);
+    const totalPage = Number(d.totalPage || d.totalPages || d.pages || 0);
+    if (rows.length < pageSize) break;
+    if (total && tags.length >= total) break;
+    if (totalPage && page >= totalPage) break;
+  }
+  const byId = new Map();
+  tags.forEach(t => { if (t && (t.id != null || t.name)) byId.set(String(t.id || t.name), t); });
+  return Array.from(byId.values()).sort((a,b) => String(a.name || a.id || '').localeCompare(String(b.name || b.id || '')));
+}
+function ltrTagLabel(loc) {
+  if (!loc) return '';
+  if (loc.tagName || loc.locationTag || loc.locationTagName) return String(loc.tagName || loc.locationTag || loc.locationTagName);
+  const names = Array.isArray(loc.tagNames) ? loc.tagNames.map(t => typeof t === 'string' ? t : (t && (t.name || t.tagName))).filter(Boolean) : [];
+  if (names.length) return names.join(', ');
+  const ids = Array.isArray(loc.tagIds) ? loc.tagIds : (Array.isArray(loc.locationTagIds) ? loc.locationTagIds : []);
+  return ids.length ? ids.join(', ') : '';
+}
+function ltrLocMatchesTag(loc, tagId, tagName) {
+  if (!tagId && !tagName) return true;
+  const idText = String(tagId || '');
+  const nameText = String(tagName || '').toLowerCase();
+  const ids = (Array.isArray(loc.tagIds) ? loc.tagIds : (Array.isArray(loc.locationTagIds) ? loc.locationTagIds : [])).map(String);
+  if (idText && ids.includes(idText)) return true;
+  const label = ltrTagLabel(loc).toLowerCase();
+  return !!nameText && label.includes(nameText);
+}
+
 async function ltrSearchLocation() {
   const el = document.getElementById('ltr-results');
   const curEl = document.getElementById('ltr-current');
@@ -17452,7 +17496,10 @@ async function ltrSearchLocation() {
   if (v('ltr-s-slot')) body.slot = v('ltr-s-slot');
   if (v('ltr-s-customer')) body.customerIds = [v('ltr-s-customer')];
 
-  const requestedTag = String(v('ltr-s-tag') || '').trim().toLowerCase();
+  const tagSel = document.getElementById('ltr-s-tag');
+  const selectedTagId = tagSel ? String(tagSel.value || '').trim() : '';
+  const selectedTagName = tagSel && tagSel.selectedIndex >= 0 ? (tagSel.options[tagSel.selectedIndex].dataset.name || tagSel.options[tagSel.selectedIndex].textContent || '') : '';
+  if (selectedTagId) body.tagIds = [isNaN(Number(selectedTagId)) ? selectedTagId : Number(selectedTagId)];
   const all = [];
   let page = 1;
   let total = 0;
@@ -17478,14 +17525,14 @@ async function ltrSearchLocation() {
   }
 
   let list = all;
-  if (requestedTag) {
-    list = list.filter(loc => String(loc.tagName || loc.locationTag || '').toLowerCase().includes(requestedTag));
+  if (selectedTagId) {
+    list = list.filter(loc => ltrLocMatchesTag(loc, selectedTagId, selectedTagName));
   }
   if (list.length === 0) { el.innerHTML='<span style="color:#d97706">No locations found matching filters at ' + esc(FACILITY_NAME||FACILITY_ID) + '.</span>'; return; }
 
-  el.innerHTML = '<div style="font-size:11px;color:#6b7280;margin-bottom:6px">' + list.length.toLocaleString() + ' result(s) — select locations to request updates' + (requestedTag ? ' <span style="color:#9ca3af">(tag filter applied)</span>' : '') + '</div>' +
+  el.innerHTML = '<div style="font-size:11px;color:#6b7280;margin-bottom:6px">' + list.length.toLocaleString() + ' result(s) — select locations to request updates' + (selectedTagId ? ' <span style="color:#9ca3af">(tag filter applied)</span>' : '') + '</div>' +
     '<div style="max-height:320px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:6px"><table style="width:100%;font-size:10px;border-collapse:collapse"><thead><tr style="background:#f9fafb;position:sticky;top:0"><th style="padding:4px 6px;width:28px"><input type="checkbox" onchange="ltrToggleAll(this.checked)" style="accent-color:#753BBD"/></th><th style="padding:4px 6px;text-align:left">Name</th><th style="padding:4px 6px">Type</th><th style="padding:4px 6px">Status</th><th style="padding:4px 6px">Pick Type</th><th style="padding:4px 6px">Category</th><th style="padding:4px 6px">Aisle</th><th style="padding:4px 6px">Location Tag</th></tr></thead><tbody>' +
-    list.map((loc, i) => '<tr style="cursor:pointer;border-top:1px solid #f3f4f6" onmouseenter="this.style.background=\'#EDE9FE\'" onmouseleave="this.style.background=\'\'"><td style="padding:4px 6px"><input type="checkbox" data-idx="'+i+'" class="ltr-sel-cb" onchange="ltrUpdateSelection()" style="accent-color:#753BBD"/></td><td style="padding:4px 6px;font-family:monospace;color:#5B21B6;font-weight:600">' + esc(loc.name||loc.id) + '</td><td style="padding:4px 6px">' + esc(loc.type||'—') + '</td><td style="padding:4px 6px">' + esc(loc.status||'—') + '</td><td style="padding:4px 6px">' + esc(loc.supportPickType||'—') + '</td><td style="padding:4px 6px">' + esc(loc.category||'—') + '</td><td style="padding:4px 6px">' + esc(loc.aisle||'—') + '</td><td style="padding:4px 6px">' + esc(loc.tagName||'—') + '</td></tr>').join('') +
+    list.map((loc, i) => '<tr style="cursor:pointer;border-top:1px solid #f3f4f6" onmouseenter="this.style.background=\'#EDE9FE\'" onmouseleave="this.style.background=\'\'"><td style="padding:4px 6px"><input type="checkbox" data-idx="'+i+'" class="ltr-sel-cb" onchange="ltrUpdateSelection()" style="accent-color:#753BBD"/></td><td style="padding:4px 6px;font-family:monospace;color:#5B21B6;font-weight:600">' + esc(loc.name||loc.id) + '</td><td style="padding:4px 6px">' + esc(loc.type||'—') + '</td><td style="padding:4px 6px">' + esc(loc.status||'—') + '</td><td style="padding:4px 6px">' + esc(loc.supportPickType||'—') + '</td><td style="padding:4px 6px">' + esc(loc.category||'—') + '</td><td style="padding:4px 6px">' + esc(loc.aisle||'—') + '</td><td style="padding:4px 6px">' + esc(ltrTagLabel(loc)||'—') + '</td></tr>').join('') +
     '</tbody></table></div>' +
     '<div id="ltr-selection-bar" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span id="ltr-sel-count" style="font-size:11px;color:#6b7280">0 selected</span><button class="btn btn-primary" onclick="ltrUseSelected()" style="font-size:11px;padding:4px 12px;display:none" id="ltr-use-btn">Use Selected Location</button></div>';
   window._ltrSearchResults = list;
@@ -17531,7 +17578,7 @@ function ltrSelectResult(idx) {
   curEl.style.display = '';
   curEl.innerHTML = '<strong style="color:#059669">Selected:</strong> ' + esc(loc.name||loc.id) +
     '<table style="width:100%;font-size:10px;border-collapse:collapse;margin-top:6px"><tr style="background:#f3f4f6"><th style="padding:3px 4px;text-align:left">Field</th><th style="padding:3px 4px;text-align:left">Current WMS Value</th></tr>' +
-    [['ID',loc.id],['Name',loc.name],['Type',loc.type],['Status',loc.status],['Pick Type',loc.supportPickType],['Category',loc.category],['Capacity Type',loc.capacityType],['Aisle',loc.aisle],['Bay/Section',loc.bay||loc.section],['Level',loc.level],['Slot',loc.slot],['Customers',(loc.customerIds||[]).join(', ')||'—'],['Tag',loc.tagName||'—'],['Disallow Mix',loc.disallowToMixItemOnSameLocation||'—']].map(([k,v])=>'<tr><td style="padding:2px 4px;color:#6b7280">'+esc(k)+'</td><td style="padding:2px 4px">'+esc(String(v||'—'))+'</td></tr>').join('') +
+    [['ID',loc.id],['Name',loc.name],['Type',loc.type],['Status',loc.status],['Pick Type',loc.supportPickType],['Category',loc.category],['Capacity Type',loc.capacityType],['Aisle',loc.aisle],['Bay/Section',loc.bay||loc.section],['Level',loc.level],['Slot',loc.slot],['Customers',(loc.customerIds||[]).join(', ')||'—'],['Tag',ltrTagLabel(loc)||'—'],['Disallow Mix',loc.disallowToMixItemOnSameLocation||'—']].map(([k,v])=>'<tr><td style="padding:2px 4px;color:#6b7280">'+esc(k)+'</td><td style="padding:2px 4px">'+esc(String(v||'—'))+'</td></tr>').join('') +
     '</table>';
   document.getElementById('ltr-fields-wrap').style.display = '';
   const setVal = (id, val) => { const e = document.getElementById(id); if (e && val) e.value = val; };
@@ -17545,20 +17592,23 @@ function ltrSelectResult(idx) {
     window._ltrCustSel = [];
     ltrCustSync();
   }
-  ltrLoadTags(loc.tagName);
+  ltrLoadTags(loc.tagName || (Array.isArray(loc.tagIds) && loc.tagIds.length ? String(loc.tagIds[0]) : ''));
 }
 
 async function ltrLoadSearchTags() {
   const sel = document.getElementById('ltr-s-tag');
   if (!sel) return;
-  sel.innerHTML = '<option value="">Loading…</option>';
-  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/search-by-paging', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({currentPage:1, pageSize:100})});
+  sel.innerHTML = '<option value="">Loading tags…</option>';
+  const tags = await ltrFetchAllVirtualTags();
   sel.innerHTML = '<option value="">All</option>';
-  if (resp && resp.success !== false) {
-    const d = resp.data || resp;
-    (d.list || d.records || []).forEach(t => { sel.innerHTML += '<option value="' + escAttr(t.name||t.id) + '">' + esc(t.name||t.id) + '</option>'; });
-  }
+  tags.forEach(t => {
+    const tagId = t.id || '';
+    const name = t.name || t.tagName || tagId;
+    sel.innerHTML += '<option value="' + escAttr(String(tagId || name)) + '" data-name="' + escAttr(String(name)) + '">' + esc(name) + (tagId ? ' (ID:' + esc(String(tagId)) + ')' : '') + '</option>';
+  });
+  if (!tags.length) sel.innerHTML += '<option disabled>No tags found</option>';
 }
+
 
 // Customer dropdown for Location Tag Requests
 window._ltrCustSel = [];
@@ -17603,24 +17653,18 @@ async function ltrLoadTags(currentTag) {
   if (!sel) return;
   sel.innerHTML = '<option value="">Loading tags…</option>';
   if (statusEl) statusEl.textContent = 'Loading tags from WMS…';
-  const resp = await safeFetch(WMS_BASE + '/api/wms/location/virtual-tag/search-by-paging', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pageNo:1, pageSize:100})});
+  const tags = await ltrFetchAllVirtualTags();
   sel.innerHTML = '<option value="">— No change —</option>';
-  if (resp && resp.success !== false) {
-    const d = resp.data || resp;
-    const tags = d.list || d.records || [];
-    tags.forEach(t => {
-      const tagId = t.id || '';
-      const name = t.name || tagId;
-      const selected = currentTag && (String(tagId) === String(currentTag) || name === currentTag) ? ' selected' : '';
-      sel.innerHTML += '<option value="' + escAttr(String(tagId)) + '" data-name="' + escAttr(name) + '"' + selected + '>' + esc(name) + ' (ID:' + esc(String(tagId)) + ')</option>';
-    });
-    if (tags.length === 0) { sel.innerHTML += '<option disabled>No tags found</option>'; if (statusEl) statusEl.textContent = 'No tags available.'; }
-    else { if (statusEl) statusEl.textContent = tags.length + ' tag(s) loaded. Current: ' + (currentTag || 'none'); }
-  } else {
-    sel.innerHTML += '<option disabled>Could not load tags</option>';
-    if (statusEl) statusEl.textContent = 'Tags unavailable — check WMS connection.';
-  }
+  tags.forEach(t => {
+    const tagId = t.id || '';
+    const name = t.name || t.tagName || tagId;
+    const selected = currentTag && (String(tagId) === String(currentTag) || String(name) === String(currentTag)) ? ' selected' : '';
+    sel.innerHTML += '<option value="' + escAttr(String(tagId || name)) + '" data-name="' + escAttr(String(name)) + '"' + selected + '>' + esc(name) + (tagId ? ' (ID:' + esc(String(tagId)) + ')' : '') + '</option>';
+  });
+  if (tags.length === 0) { sel.innerHTML += '<option disabled>No tags found</option>'; if (statusEl) statusEl.textContent = 'No tags available.'; }
+  else { if (statusEl) statusEl.textContent = tags.length + ' tag(s) loaded. Current: ' + (currentTag || 'none'); }
 }
+
 
 async function ltrSubmitRequest() {
   if (!window._ltrCurrentLoc) { alert('Please search and select a WMS location first.'); return; }
