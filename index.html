@@ -2278,6 +2278,7 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
       <div class="modal-body">
         <div class="modal-filters">
           <div class="cc-field"><label class="cc-label">Customer</label><select class="cc-input" id="loc-customer"><option value="">Select</option></select></div>
+          <div class="cc-field"><label class="cc-label">Item</label><input class="cc-input" id="loc-item" placeholder="SKU, item name, or item ID" autocomplete="off"/></div>
           <div class="cc-field"><label class="cc-label">Location</label><input class="cc-input" id="loc-name" placeholder="e.g. 100.001.1.1" autocomplete="off"/></div>
           <div class="cc-field"><label class="cc-label">Location Type</label><select class="cc-input" id="loc-type"><option value="">Select</option></select></div>
           <div class="cc-field"><label class="cc-label">Storage Zone</label><select class="cc-input" id="loc-storage-zone"><option value="">Rack + Bulk</option><option value="RACK">RACK only</option><option value="BULK">BULK only</option></select></div>
@@ -11038,7 +11039,7 @@ function closeLocationModal() {
 }
 
 function resetLocFilters(preserveCustomer) {
-  ['loc-name','loc-aisle','loc-bay','loc-level','loc-slot'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  ['loc-name','loc-item','loc-aisle','loc-bay','loc-level','loc-slot'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   ['loc-type','loc-storage-zone','loc-pick-type','loc-status','loc-occ'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   if (!preserveCustomer) {
     const lc = document.getElementById('loc-customer');
@@ -11069,6 +11070,51 @@ function buildLocSearchBody(page, pageSize) {
   return body;
 }
 
+function locExtractRows(resp) {
+  const d = resp && resp.data != null ? resp.data : resp;
+  if (Array.isArray(d)) return d;
+  if (d && Array.isArray(d.list)) return d.list;
+  if (d && Array.isArray(d.records)) return d.records;
+  if (d && Array.isArray(d.items)) return d.items;
+  if (resp && Array.isArray(resp.list)) return resp.list;
+  return [];
+}
+function locExtractTotal(resp, rows) {
+  const d = resp && resp.data != null ? resp.data : resp;
+  return (d && (d.totalCount ?? d.total ?? d.count)) ?? (rows ? rows.length : 0);
+}
+async function resolveLocationIdsForItem(itemText, customerOrgId) {
+  const keyword = String(itemText || '').trim();
+  if (!keyword) return {ids:null, itemCount:0, inventoryRows:0};
+  const itemResp = await safeFetch(WMS_BASE + '/api/wms-bam/item/search-by-paging', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({currentPage:1, pageSize:20, keyword, customerId:customerOrgId || undefined})
+  });
+  if (!itemResp || itemResp.success === false || itemResp._needsAuth) throw new Error((itemResp && (itemResp.msg || itemResp.message)) || 'Could not search WMS items.');
+  const items = locExtractRows(itemResp).filter(Boolean);
+  const candidateIds = items.map(x => x.id || x.itemId).filter(Boolean).slice(0, 10);
+  // If the user typed an item ID directly, also try that value.
+  if (/^(ITEM-|\d+$)/i.test(keyword) && !candidateIds.includes(keyword)) candidateIds.unshift(keyword);
+  const locIds = new Set();
+  let invRows = 0;
+  for (const itemId of candidateIds) {
+    const invResp = await safeFetch(WMS_BASE + '/api/wms-bam/inventory/search-by-paging', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({currentPage:1, pageSize:500, customerId:customerOrgId || undefined, itemId, statuses:['OPEN']})
+    });
+    if (!invResp || invResp.success === false || invResp._needsAuth) continue;
+    const rows = locExtractRows(invResp);
+    invRows += rows.length;
+    rows.forEach(r => {
+      const id = r.locationId || (r.location && r.location.id);
+      if (id) locIds.add(String(id));
+    });
+  }
+  return {ids:Array.from(locIds), itemCount:candidateIds.length, inventoryRows:invRows};
+}
+
 // Token for an in-flight bulk load — bump to cancel previous load.
 CC.loadToken = 0;
 
@@ -11078,6 +11124,8 @@ async function searchLocations() {
   const body = buildLocSearchBody(1, 500);   // page 1, big page
   const customerOrgId = body.customerIds ? body.customerIds[0] : null;
   const hasNameFilter = !!(body.names && body.names.length > 0);
+  const itemFilter = ((document.getElementById('loc-item') || {}).value || '').trim();
+  let itemLocationIds = null;
 
   // Show facility context in modal
   const facLabel = document.getElementById('loc-facility-label');
@@ -11093,6 +11141,26 @@ async function searchLocations() {
 
   const tbody = document.getElementById('loc-results-body');
   tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Loading from Wise…</td></tr>';
+
+  if (itemFilter) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Finding current inventory locations for item…</td></tr>';
+    try {
+      const itemLookup = await resolveLocationIdsForItem(itemFilter, customerOrgId);
+      itemLocationIds = itemLookup.ids || [];
+      if (itemLocationIds.length === 0) {
+        CC.modalResults = [];
+        CC.modalTotal = 0;
+        const noteEl = document.getElementById('loc-filter-note');
+        if (noteEl) { noteEl.textContent = 'No current OPEN inventory locations found for item: ' + itemFilter; noteEl.style.display = ''; }
+        renderLocResults();
+        return;
+      }
+      body.ids = itemLocationIds;
+    } catch (e) {
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="10" style="color:#dc2626">' + esc(e && e.message ? e.message : 'Could not search item inventory locations.') + '</td></tr>';
+      return;
+    }
+  }
 
   // Try the live Wise call first
   const data = await safeFetch(API.locSearch, {
@@ -11119,6 +11187,7 @@ async function searchLocations() {
   if (live && firstRows.length === 0 && hasNameFilter && customerOrgId) {
     const retryBody = { ...body };
     delete retryBody.customerIds;
+    if (itemLocationIds) retryBody.ids = itemLocationIds;
     const retry = await safeFetch(API.locSearch, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -11161,6 +11230,7 @@ async function searchLocations() {
     let nextPage = 2;
     while (CC.loadToken === myToken && CC.modalResults.length < totalToLoad) {
       const b = buildLocSearchBody(nextPage++, 500);
+      if (itemLocationIds) b.ids = itemLocationIds;
       const more = await safeFetch(API.locSearch, {
         method:'POST',
         headers:{'Content-Type':'application/json'},
@@ -11413,6 +11483,7 @@ function renderLocResults() {
     // user notices and can clear them.
     const activeFilters = [];
     const f = id => (document.getElementById(id) || {}).value || '';
+    if (f('loc-item'))      activeFilters.push(`Item = ${f('loc-item')}`);
     if (f('loc-type'))      activeFilters.push(`Type = ${f('loc-type')}`);
     if (f('loc-storage-zone')) activeFilters.push(`Storage Zone = ${f('loc-storage-zone')}`);
     if (f('loc-pick-type')) activeFilters.push(`Support Pick = ${f('loc-pick-type')}`);
