@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const nodemailer = require('nodemailer');
 const { Pool } = require('pg');
+const abcSlotting = require('./lib/abc-slotting');
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
 
@@ -226,6 +227,13 @@ async function handleApi(req, res, url) {
       return send(res, out2.status, out2.json || out2.raw || {success:false,msg:'Refresh failed'});
     }
 
+
+    if (url.pathname.startsWith('/api/abc-slotting')) {
+      return abcSlotting.handleApi({
+        req, res, url, send, readBody, dbQuery,
+        isDbReady: () => !!dbPool && !!dbReady
+      });
+    }
 
     if (url.pathname.startsWith('/api/proxy/wms/')) {
       const targetPath = url.pathname.replace('/api/proxy/wms', '');

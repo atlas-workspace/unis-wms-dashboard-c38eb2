@@ -540,6 +540,10 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
       </div>
 
       <div class="sb-sect" style="margin-top:6px">Analytics</div>
+      <div class="sb-item" data-view="abcSlotting" onclick="showView('abcSlotting')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l3-3 3 2 5-7"/><path d="M7 8h2"/><path d="M7 12h2"/></svg>
+        ABC Slotting <span class="sb-badge blue">New</span>
+      </div>
       <div class="sb-item" data-view="reports" onclick="showView('reports')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         Reports
@@ -1394,6 +1398,87 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
               <div class="robot-row"><span class="l">Picks/hr</span><span class="v">—</span></div>
               <div class="robot-row"><span class="l">Uptime</span><span class="v">99.0%</span></div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ VIEW: ABC INVENTORY SLOTTING ════ -->
+      <div class="view" id="view-abcSlotting">
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+            <div>
+              <div class="card-ttl">ABC Inventory Slotting &amp; Trend Analysis</div>
+              <div class="scheduler-help">Analyze inbound/outbound movement by facility, customer, and SKU. Results are calculated server-side and isolated by facility/customer.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <a class="btn btn-secondary" href="/api/abc-slotting/templates/sku-master" style="height:34px;font-size:12px;text-decoration:none">SKU Template</a>
+              <a class="btn btn-secondary" href="/api/abc-slotting/templates/outbound" style="height:34px;font-size:12px;text-decoration:none">Outbound Template</a>
+              <a class="btn btn-secondary" href="/api/abc-slotting/templates/inbound" style="height:34px;font-size:12px;text-decoration:none">Inbound Template</a>
+            </div>
+          </div>
+          <div class="cc-grid" style="margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+            <div class="cc-field"><label class="cc-label">Facility</label><input class="cc-input" id="abc-facility" readonly /></div>
+            <div class="cc-field"><label class="cc-label"><span class="req">*</span> Customer</label><select class="cc-input" id="abc-customer"><option value="">Select customer</option></select></div>
+            <div class="cc-field"><label class="cc-label">Start Date</label><input class="cc-input" type="date" id="abc-start" /></div>
+            <div class="cc-field"><label class="cc-label">End Date</label><input class="cc-input" type="date" id="abc-end" /></div>
+            <div class="cc-field"><label class="cc-label">ABC Method</label><select class="cc-input" id="abc-method"><option value="outbound_units">Outbound Units</option><option value="outbound_cases">Outbound Cases</option><option value="outbound_pallets">Outbound Pallets</option><option value="pick_lines">Pick Lines</option><option value="order_frequency">Order Frequency</option><option value="location_visits">Location Visits</option><option value="cube_movement">Cube Movement</option><option value="composite">Weighted Composite</option></select></div>
+            <div class="cc-field"><label class="cc-label">Analysis Type</label><select class="cc-input" id="abc-analysis-type"><option value="combined">Inbound + Outbound</option><option value="outbound">Outbound Only</option><option value="inbound">Inbound Only</option></select></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="abcRunAnalysis()">Run Analysis</button>
+            <button class="btn btn-secondary" onclick="abcRefreshAll()">Refresh Results</button>
+            <span id="abc-status" style="font-size:12px;color:#6b7280"></span>
+          </div>
+        </div>
+
+        <div class="dash-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-bottom:16px">
+          <div class="kpi"><div class="kpi-ico purple">A</div><div><div class="kpi-lbl">A Items</div><div class="kpi-val" id="abc-kpi-a">—</div><div class="kpi-chg neutral">top cumulative activity</div></div></div>
+          <div class="kpi"><div class="kpi-ico blue">B</div><div><div class="kpi-lbl">B Items</div><div class="kpi-val" id="abc-kpi-b">—</div><div class="kpi-chg neutral">mid velocity</div></div></div>
+          <div class="kpi"><div class="kpi-ico amber">C</div><div><div class="kpi-lbl">C Items</div><div class="kpi-val" id="abc-kpi-c">—</div><div class="kpi-chg neutral">long tail</div></div></div>
+          <div class="kpi"><div class="kpi-ico green">↗</div><div><div class="kpi-lbl">Fast Growing</div><div class="kpi-val" id="abc-kpi-growth">—</div><div class="kpi-chg neutral">increasing demand</div></div></div>
+          <div class="kpi"><div class="kpi-ico red">Z</div><div><div class="kpi-lbl">Dormant / No Activity</div><div class="kpi-val" id="abc-kpi-dormant">—</div><div class="kpi-chg neutral">review storage</div></div></div>
+          <div class="kpi"><div class="kpi-ico purple">R</div><div><div class="kpi-lbl">Re-Slot Recs</div><div class="kpi-val" id="abc-kpi-recs">—</div><div class="kpi-chg neutral">pending review</div></div></div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+            <div><div class="card-ttl">ABC Item Analysis</div><div class="scheduler-help">Searchable latest calculation results for the selected facility and customer.</div></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="cc-input" id="abc-search" placeholder="Search SKU" oninput="abcRenderItems()" style="width:180px"/><select class="cc-input" id="abc-filter-class" onchange="abcRenderItems()" style="width:120px"><option value="">All ABC</option><option>A</option><option>B</option><option>C</option></select></div>
+          </div>
+          <div style="overflow:auto"><table class="data-table" style="min-width:1150px"><thead><tr><th>SKU</th><th>ABC</th><th>Trend</th><th>Outbound Units</th><th>Pick Lines</th><th>Inbound Units</th><th>Cube Velocity</th><th>Slotting Score</th><th>Recommended Storage</th><th>Priority</th><th>Status</th></tr></thead><tbody id="abc-items-body"><tr><td colspan="11" style="text-align:center;padding:28px;color:#9ca3af">Select a customer and run or refresh analysis.</td></tr></tbody></table></div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+            <div><div class="card-ttl">Re-Slotting Workbench</div><div class="scheduler-help">Approve, reject, or assign recommendations. Approved recommendations can be converted into Re-Slot Inventory tasks in a later integration phase.</div></div>
+            <button class="btn btn-secondary" onclick="abcExportRecommendations()" style="font-size:12px">Export CSV</button>
+          </div>
+          <div style="overflow:auto"><table class="data-table" style="min-width:1150px"><thead><tr><th>SKU</th><th>Current</th><th>Recommended</th><th>Reason</th><th>Priority</th><th>Approval</th><th>Assigned</th><th>Actions</th></tr></thead><tbody id="abc-recs-body"><tr><td colspan="8" style="text-align:center;padding:28px;color:#9ca3af">No recommendations loaded.</td></tr></tbody></table></div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-ttl">Configuration</div>
+          <div class="scheduler-help">Customer/facility-specific thresholds and weights. Saved settings are used by the next official run.</div>
+          <div class="cc-grid" style="margin-top:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+            <div class="cc-field"><label class="cc-label">A Threshold %</label><input class="cc-input" id="abc-cfg-a" type="number" value="80" /></div>
+            <div class="cc-field"><label class="cc-label">B Cumulative %</label><input class="cc-input" id="abc-cfg-b" type="number" value="95" /></div>
+            <div class="cc-field"><label class="cc-label">Dormant Days</label><input class="cc-input" id="abc-cfg-dormant" type="number" value="60" /></div>
+            <div class="cc-field"><label class="cc-label">Days Between Replen</label><input class="cc-input" id="abc-cfg-replen-days" type="number" value="3" /></div>
+            <div class="cc-field"><label class="cc-label">A Safety Factor</label><input class="cc-input" id="abc-cfg-sf-a" type="number" step="0.01" value="1.20" /></div>
+            <div class="cc-field"><label class="cc-label">Bulk Full-Pallet %</label><input class="cc-input" id="abc-cfg-bulk-pct" type="number" value="60" /></div>
+          </div>
+          <button class="btn btn-primary" onclick="abcSaveConfig()" style="margin-top:10px">Save Configuration</button>
+        </div>
+
+        <div class="card">
+          <div class="card-ttl">Imports / Exports</div>
+          <div class="scheduler-help">Download templates, populate them, then use the API import workflow. Invalid rows are rejected and returned with row-level errors.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+            <a class="btn btn-secondary" href="/api/abc-slotting/templates/sku-master" style="text-decoration:none">SKU Master</a>
+            <a class="btn btn-secondary" href="/api/abc-slotting/templates/inbound" style="text-decoration:none">Inbound</a>
+            <a class="btn btn-secondary" href="/api/abc-slotting/templates/outbound" style="text-decoration:none">Outbound</a>
+            <a class="btn btn-secondary" href="/api/abc-slotting/templates/inventory-snapshot" style="text-decoration:none">Inventory Snapshot</a>
+            <a class="btn btn-secondary" href="/api/abc-slotting/templates/location-master" style="text-decoration:none">Location Master</a>
           </div>
         </div>
       </div>
@@ -2579,6 +2664,7 @@ const VIEW_META = {
   countApproval: {t:'Count Result Approve', s:'Review and approve cycle count results'},
   countCalendar: {t:'Count Schedule Calendar', s:'Confirmed Cycle Count and Physical Count schedules'},
   robots:    {t:'Robot Count', s:'Fleet status, battery, and throughput'},
+  abcSlotting: {t:'ABC Slotting', s:'Inventory slotting, ABC movement, trends, and re-slot recommendations'},
   reports:   {t:'Reports', s:'Saved and scheduled warehouse reports'},
   alerts:    {t:'Alerts', s:'Critical, warning, and info alerts across systems'},
   settings:  {t:'Admin Settings', s:'Dashboard preferences, security, and configuration'},
@@ -2627,6 +2713,7 @@ function showView(name, sub) {
   if (name === 'replenish') loadReplenishView();
   if (name === 'replenSuggest') loadReplenSuggestView();
   if (name === 'calendar') loadPhysicalInvCalendar();
+  if (name === 'abcSlotting') abcInit();
   if (name === 'reports') rptInitReport();
   if (name === 'scheduler') initSchedulerForm();
   if (name === 'robots') { initRobotChart(); refreshOntologyStatus(); loadRobotKpisFromOntology(); loadRobotWarehouseInventory(); }
@@ -19221,6 +19308,139 @@ function aiClear() {
   try { localStorage.removeItem('ai_chat_' + FACILITY_ID); } catch(_) {}
   aiRenderMessages();
   aiShowWelcome();
+}
+
+
+// ═══ ABC INVENTORY SLOTTING MODULE ═══
+const ABC_STATE = {items: [], recommendations: [], dashboard: null, initialized: false};
+function abcSetStatus(msg, color) { const el = document.getElementById('abc-status'); if (el) { el.textContent = msg || ''; el.style.color = color || '#6b7280'; } }
+function abcCustomerId() { return (document.getElementById('abc-customer') || {}).value || ''; }
+function abcScopeQuery() { return 'facilityId=' + encodeURIComponent(FACILITY_ID) + '&customerId=' + encodeURIComponent(abcCustomerId()); }
+function abcConfigPayload() {
+  return {
+    abcThresholdA: Number((document.getElementById('abc-cfg-a') || {}).value || 80),
+    abcThresholdB: Number((document.getElementById('abc-cfg-b') || {}).value || 95),
+    dormantDays: Number((document.getElementById('abc-cfg-dormant') || {}).value || 60),
+    daysBetweenReplenishments: Number((document.getElementById('abc-cfg-replen-days') || {}).value || 3),
+    bulkFullPalletPickPct: Number((document.getElementById('abc-cfg-bulk-pct') || {}).value || 60),
+    safetyFactors: {A: Number((document.getElementById('abc-cfg-sf-a') || {}).value || 1.2), B: 1.1, C: 1.0}
+  };
+}
+function abcPopulateCustomers() {
+  const fac = document.getElementById('abc-facility'); if (fac) fac.value = FACILITY_NAME ? FACILITY_NAME + ' (' + FACILITY_ID + ')' : FACILITY_ID;
+  const sel = document.getElementById('abc-customer'); if (!sel) return;
+  const current = sel.value;
+  const customers = (FACILITY_CUSTOMERS[FACILITY_ID] || []).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  sel.innerHTML = '<option value="">Select customer</option>' + customers.map(c => '<option value="' + escAttr(c.id) + '">' + esc(c.name || c.id) + '</option>').join('');
+  if (current) sel.value = current;
+}
+function abcInitDates() {
+  const end = document.getElementById('abc-end'); const start = document.getElementById('abc-start');
+  if (end && !end.value) end.value = new Date().toISOString().slice(0,10);
+  if (start && !start.value) { const d = new Date(); d.setDate(d.getDate() - 89); start.value = d.toISOString().slice(0,10); }
+}
+async function abcInit() {
+  abcPopulateCustomers(); abcInitDates();
+  if (!ABC_STATE.initialized) { ABC_STATE.initialized = true; abcSetStatus('Select a customer, then run analysis or refresh existing results.'); }
+  if (abcCustomerId()) await abcRefreshAll();
+}
+async function abcFetchJson(url, opts) {
+  const r = await fetch(url, Object.assign({cache:'no-store', headers:{'Content-Type':'application/json'}}, opts || {}));
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.success === false) throw new Error(d.msg || d.message || 'ABC request failed');
+  return d;
+}
+async function abcRefreshAll() {
+  if (!abcCustomerId()) { abcSetStatus('Select a customer first.', '#dc2626'); return; }
+  abcSetStatus('Loading ABC results…');
+  try {
+    const [dash, items, recs] = await Promise.all([
+      abcFetchJson('/api/abc-slotting/dashboard?' + abcScopeQuery()),
+      abcFetchJson('/api/abc-slotting/items?' + abcScopeQuery() + '&limit=200'),
+      abcFetchJson('/api/abc-slotting/recommendations?' + abcScopeQuery()),
+    ]);
+    ABC_STATE.dashboard = dash; ABC_STATE.items = items.list || []; ABC_STATE.recommendations = recs.list || [];
+    abcRenderDashboard(); abcRenderItems(); abcRenderRecommendations();
+    abcSetStatus(dash.empty ? 'No official analysis exists yet for this customer.' : 'ABC results loaded.', dash.empty ? '#d97706' : '#059669');
+  } catch(e) { abcSetStatus(e.message || 'Could not load ABC results.', '#dc2626'); }
+}
+async function abcRunAnalysis() {
+  if (!abcCustomerId()) { abcSetStatus('Select a customer first.', '#dc2626'); return; }
+  const startDate = (document.getElementById('abc-start') || {}).value;
+  const endDate = (document.getElementById('abc-end') || {}).value;
+  if (!startDate || !endDate) { abcSetStatus('Select a date range.', '#dc2626'); return; }
+  abcSetStatus('Running server-side ABC analysis…');
+  try {
+    const body = {facilityId:FACILITY_ID, customerId:abcCustomerId(), startDate, endDate, method:(document.getElementById('abc-method')||{}).value || 'outbound_units', analysisType:(document.getElementById('abc-analysis-type')||{}).value || 'combined', config:abcConfigPayload(), user:admGetCurrentUsername ? admGetCurrentUsername() : ''};
+    const d = await abcFetchJson('/api/abc-slotting/run-analysis', {method:'POST', body:JSON.stringify(body)});
+    abcSetStatus('Analysis completed: ' + (d.resultCount || 0) + ' SKU(s).', '#059669');
+    await abcRefreshAll();
+  } catch(e) { abcSetStatus(e.message || 'Analysis failed.', '#dc2626'); }
+}
+function abcRenderDashboard() {
+  const dash = ABC_STATE.dashboard || {}; const abc = {}; (dash.abcCounts || []).forEach(r => abc[r.abc_class] = r.count);
+  const trends = {}; (dash.trendCounts || []).forEach(r => trends[r.trend_status] = r.count);
+  const recTotal = (dash.recommendationCounts || []).reduce((s,r)=>s+Number(r.count||0),0);
+  const set = (id,val) => { const el=document.getElementById(id); if(el) el.textContent = val == null ? '—' : String(val); };
+  set('abc-kpi-a', abc.A || 0); set('abc-kpi-b', abc.B || 0); set('abc-kpi-c', abc.C || 0);
+  set('abc-kpi-growth', (trends['Rapidly Increasing'] || 0) + (trends['Increasing'] || 0));
+  set('abc-kpi-dormant', (trends['Dormant'] || 0) + (trends['No Activity'] || 0));
+  set('abc-kpi-recs', recTotal || 0);
+}
+function abcRenderItems() {
+  const body = document.getElementById('abc-items-body'); if (!body) return;
+  const q = ((document.getElementById('abc-search') || {}).value || '').toLowerCase();
+  const cls = (document.getElementById('abc-filter-class') || {}).value || '';
+  let rows = ABC_STATE.items || [];
+  if (q) rows = rows.filter(r => String(r.sku || '').toLowerCase().includes(q));
+  if (cls) rows = rows.filter(r => r.abc_class === cls);
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:28px;color:#9ca3af">No SKU analysis rows found. Import data and run analysis.</td></tr>'; return; }
+  body.innerHTML = rows.map(r => '<tr>' +
+    '<td style="font-family:monospace">' + esc(r.sku || '') + '</td>' +
+    '<td><strong>' + esc(r.abc_class || '—') + '</strong></td>' +
+    '<td>' + esc(r.trend_status || '—') + '</td>' +
+    '<td>' + Number(r.total_outbound_units || 0).toLocaleString() + '</td>' +
+    '<td>' + Number(r.pick_lines || 0).toLocaleString() + '</td>' +
+    '<td>—</td>' +
+    '<td>' + Number(r.cube_velocity_score || 0).toFixed(1) + '</td>' +
+    '<td>' + Number(r.slotting_score || 0).toFixed(1) + '</td>' +
+    '<td>' + esc(r.recommended_storage_type || '—') + '</td>' +
+    '<td>' + esc(r.priority || '—') + '</td>' +
+    '<td>' + esc(r.approval_status || '—') + '</td>' +
+    '</tr>').join('');
+}
+function abcRenderRecommendations() {
+  const body = document.getElementById('abc-recs-body'); if (!body) return;
+  const rows = ABC_STATE.recommendations || [];
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:28px;color:#9ca3af">No slotting recommendations found.</td></tr>'; return; }
+  body.innerHTML = rows.map(r => '<tr>' +
+    '<td style="font-family:monospace">' + esc(r.sku || '') + '</td>' +
+    '<td>' + esc(r.current_storage_type || r.current_location || '—') + '</td>' +
+    '<td><strong>' + esc(r.recommended_storage_type || '—') + '</strong><br><span style="font-size:10px;color:#6b7280">' + esc(r.recommended_zone || '') + ' ' + esc(r.recommended_level || '') + '</span></td>' +
+    '<td style="max-width:360px;font-size:11px">' + esc(r.reason || '—') + '</td>' +
+    '<td>' + esc(r.priority || '—') + '</td>' +
+    '<td>' + esc(r.approval_status || 'PENDING') + '</td>' +
+    '<td>' + esc(r.assigned_user || '—') + '</td>' +
+    '<td><span style="color:#059669;cursor:pointer;font-size:11px;font-weight:700;margin-right:8px" onclick="abcRecommendationAction(\'' + escAttr(r.id) + '\',\'approve\')">Approve</span><span style="color:#dc2626;cursor:pointer;font-size:11px;font-weight:700;margin-right:8px" onclick="abcRecommendationAction(\'' + escAttr(r.id) + '\',\'reject\')">Reject</span><span style="color:#753BBD;cursor:pointer;font-size:11px;font-weight:700" onclick="abcRecommendationAction(\'' + escAttr(r.id) + '\',\'assign\')">Assign</span></td>' +
+    '</tr>').join('');
+}
+async function abcRecommendationAction(id, action) {
+  let payload = {user: admGetCurrentUsername ? admGetCurrentUsername() : ''};
+  if (action === 'assign') payload.assignedUser = prompt('Assign to user:') || '';
+  try { await abcFetchJson('/api/abc-slotting/recommendations/' + encodeURIComponent(id) + '/' + action, {method:'POST', body:JSON.stringify(payload)}); await abcRefreshAll(); }
+  catch(e) { alert(e.message || 'Recommendation update failed.'); }
+}
+async function abcSaveConfig() {
+  if (!abcCustomerId()) { abcSetStatus('Select a customer first.', '#dc2626'); return; }
+  try { await abcFetchJson('/api/abc-slotting/config', {method:'POST', body:JSON.stringify({facilityId:FACILITY_ID, customerId:abcCustomerId(), config:abcConfigPayload(), user:admGetCurrentUsername ? admGetCurrentUsername() : ''})}); abcSetStatus('Configuration saved.', '#059669'); }
+  catch(e) { abcSetStatus(e.message || 'Could not save configuration.', '#dc2626'); }
+}
+function abcExportRecommendations() {
+  const rows = ABC_STATE.recommendations || [];
+  if (!rows.length) { alert('No recommendations to export.'); return; }
+  const headers = ['sku','current_storage_type','recommended_storage_type','priority','approval_status','reason'];
+  const csv = headers.join(',') + '\n' + rows.map(r => headers.map(h => '"' + String(r[h] || '').replace(/"/g,'""') + '"').join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'abc-slotting-recommendations.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
 // Restore chat on load
