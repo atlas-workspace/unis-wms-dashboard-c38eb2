@@ -1425,7 +1425,8 @@ select.cc-input{appearance:none;-webkit-appearance:none;background-image:url("da
             <div class="cc-field"><label class="cc-label">Analysis Type</label><select class="cc-input" id="abc-analysis-type"><option value="combined">Inbound + Outbound</option><option value="outbound">Outbound Only</option><option value="inbound">Inbound Only</option></select></div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
-            <button class="btn btn-primary" onclick="abcRunAnalysis()">Run Analysis</button>
+            <button class="btn btn-primary" onclick="abcSyncFromWms()">Sync from WMS</button>
+            <button class="btn btn-secondary" onclick="abcRunAnalysis()">Run Analysis</button>
             <button class="btn btn-secondary" onclick="abcRefreshAll()">Refresh Results</button>
             <span id="abc-status" style="font-size:12px;color:#6b7280"></span>
           </div>
@@ -19345,7 +19346,10 @@ async function abcInit() {
   if (abcCustomerId()) await abcRefreshAll();
 }
 async function abcFetchJson(url, opts) {
-  const r = await fetch(url, Object.assign({cache:'no-store', headers:{'Content-Type':'application/json'}}, opts || {}));
+  opts = opts || {};
+  const headers = Object.assign({'Content-Type':'application/json','x-tenant-id': TENANT_ID, 'x-facility-id': FACILITY_ID}, opts.headers || {});
+  if (typeof WISE_TOKEN !== 'undefined' && WISE_TOKEN) headers.Authorization = 'Bearer ' + WISE_TOKEN;
+  const r = await fetch(url, Object.assign({}, opts, {cache:'no-store', headers}));
   const d = await r.json().catch(() => ({}));
   if (!r.ok || d.success === false) throw new Error(d.msg || d.message || 'ABC request failed');
   return d;
@@ -19363,6 +19367,19 @@ async function abcRefreshAll() {
     abcRenderDashboard(); abcRenderItems(); abcRenderRecommendations();
     abcSetStatus(dash.empty ? 'No official analysis exists yet for this customer.' : 'ABC results loaded.', dash.empty ? '#d97706' : '#059669');
   } catch(e) { abcSetStatus(e.message || 'Could not load ABC results.', '#dc2626'); }
+}
+async function abcSyncFromWms() {
+  if (!abcCustomerId()) { abcSetStatus('Select a customer first.', '#dc2626'); return; }
+  const startDate = (document.getElementById('abc-start') || {}).value;
+  const endDate = (document.getElementById('abc-end') || {}).value;
+  if (!startDate || !endDate) { abcSetStatus('Select a date range.', '#dc2626'); return; }
+  abcSetStatus('Syncing SKU, location, inventory, inbound, and outbound data from WMS…');
+  try {
+    const body = {facilityId:FACILITY_ID, customerId:abcCustomerId(), startDate, endDate, user:admGetCurrentUsername ? admGetCurrentUsername() : ''};
+    const d = await abcFetchJson('/api/abc-slotting/sync-wms', {method:'POST', body:JSON.stringify(body)});
+    const s = d.summary || {};
+    abcSetStatus('WMS sync complete: ' + (s.skuMaster || 0) + ' SKU(s), ' + (s.locations || 0) + ' location(s), ' + (s.inboundTransactions || 0) + ' inbound row(s), ' + (s.outboundTransactions || 0) + ' outbound row(s).', '#059669');
+  } catch(e) { abcSetStatus(e.message || 'WMS sync failed.', '#dc2626'); }
 }
 async function abcRunAnalysis() {
   if (!abcCustomerId()) { abcSetStatus('Select a customer first.', '#dc2626'); return; }

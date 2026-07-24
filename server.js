@@ -230,7 +230,7 @@ async function handleApi(req, res, url) {
 
     if (url.pathname.startsWith('/api/abc-slotting')) {
       return abcSlotting.handleApi({
-        req, res, url, send, readBody, dbQuery,
+        req, res, url, send, readBody, dbQuery, wmsUpstream,
         isDbReady: () => !!dbPool && !!dbReady
       });
     }
