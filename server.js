@@ -8,6 +8,22 @@ const abcSlotting = require('./lib/abc-slotting');
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
 
+function normalizePresenceTrackerBaseUrl(value) {
+  if (typeof value !== 'string' || !value.trim()) return '';
+  try {
+    const url = new URL(value.trim());
+    if (!/^https?:$/.test(url.protocol) || url.username || url.password || url.search || url.hash) return '';
+    return url.origin + url.pathname.replace(/\/+$/, '');
+  } catch (_) {
+    return '';
+  }
+}
+
+const PRESENCE_TRACKER_BASE_URL = normalizePresenceTrackerBaseUrl(process.env.PRESENCE_TRACKER_BASE_URL || '');
+if (process.env.PRESENCE_TRACKER_BASE_URL && !PRESENCE_TRACKER_BASE_URL) {
+  console.warn('[presence] PRESENCE_TRACKER_BASE_URL is invalid; collection is disabled.');
+}
+
 const ROBOT_COUNT_API_URL = process.env.ROBOT_COUNT_API_URL || 'https://pget47t1vc.execute-api.us-west-2.amazonaws.com/prd/download_object';
 const ROBOT_COUNT_API_KEY = process.env.ROBOT_COUNT_API_KEY || '';
 
@@ -497,6 +513,9 @@ if (SMTP_CONFIGURED) {
 
 const server = http.createServer((req,res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  if (req.method === 'GET' && url.pathname === '/api/runtime-config') {
+    return send(res, 200, {presenceTrackerBaseUrl: PRESENCE_TRACKER_BASE_URL});
+  }
   if (url.pathname === '/api/notification/email-health') {
     return send(res, 200, {configured: SMTP_CONFIGURED, status: SMTP_CONFIGURED ? 'CONNECTED' : 'NOT_CONFIGURED', fromConfigured: !!SMTP_FROM});
   }

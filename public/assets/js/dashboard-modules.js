@@ -109,14 +109,6 @@ async function safeFetch(url, opts, _alreadyRefreshed) {
       if (ok) {
         return safeFetch(url, opts, true);  // retry once with the new token
       }
-      // refresh failed (no refresh_token, expired, etc.). Fall back to the
-      // embedded token from the original live build if it is still usable.
-      if (_embeddedTokenUsable() && WISE_TOKEN !== EMBEDDED_TOKEN) {
-        console.warn('safeFetch: refresh unavailable, retrying with embedded token');
-        WISE_TOKEN = EMBEDDED_TOKEN;
-        updateTokenStatus();
-        return safeFetch(url, opts, true);
-      }
       console.warn('safeFetch: refresh unavailable or failed');
       try { localStorage.removeItem('wise_token'); } catch(_) {}
       WISE_TOKEN = null;

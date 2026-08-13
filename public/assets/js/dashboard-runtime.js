@@ -17,6 +17,31 @@ function _extractTokens(obj) {
   return { at, rt };
 }
 
+let _presenceCollector = null;
+function getPresenceCollector() {
+  if (_presenceCollector || !window.WarehousePresence) return _presenceCollector;
+  try {
+    _presenceCollector = window.WarehousePresence.initialize({
+      getAccessToken: function () { return WISE_TOKEN || ''; },
+      getFacilityId: function () { return FACILITY_ID || ''; }
+    });
+  } catch(_) {
+    console.warn('[presence] collector initialization failed; WMS activity is unaffected');
+  }
+  return _presenceCollector;
+}
+
+function startPresenceCollection() {
+  const collector = getPresenceCollector();
+  try { if (collector) collector.start(); }
+  catch(_) { console.warn('[presence] start failed; WMS activity is unaffected'); }
+}
+
+function stopPresenceCollection() {
+  try { if (_presenceCollector) _presenceCollector.stop(); }
+  catch(_) { console.warn('[presence] stop failed; WMS logout will continue'); }
+}
+
 // ═══ LOGIN ═══
 async function doLogin() {
   const btn = document.getElementById('login-btn');
@@ -96,6 +121,7 @@ function showDash() {
   // near (or past) expiry (e.g. tab was left open overnight).
   tickTokenRefresh();
   populateFacilitySwitcher();
+  startPresenceCollection();
   // Sync chrome (top bar, user menu, settings) with whoever's logged in.
   // We pull user_name from the JWT when possible so this works even if
   // localStorage was pre-seeded (no fresh form input).
@@ -177,6 +203,8 @@ function switchFacility(newId) {
   FACILITY_ID = fac.id;
   FACILITY_NAME = fac.name;
   try { localStorage.setItem('facility_id', newId); } catch(_) {}
+  try { if (_presenceCollector) _presenceCollector.facilityChanged(); }
+  catch(_) { console.warn('[presence] facility update failed; WMS switching will continue'); }
 
   // Cancel any in-flight load + reset preview
   CC.loadToken = (CC.loadToken || 0) + 1;
@@ -646,6 +674,7 @@ function closeUserMenu() {
 }
 function doLogout() {
   closeUserMenu();
+  stopPresenceCollection();
   // Clear stored credentials and per-user state
   try {
     localStorage.removeItem('wise_token');
@@ -794,6 +823,7 @@ async function showReconnect() {
     return;
   }
   // No usable refresh token — clear session and return to sign-in
+  stopPresenceCollection();
   try {
     localStorage.removeItem('wise_token');
     localStorage.removeItem('wise_refresh_token');
@@ -7210,26 +7240,14 @@ const API_COUNT_RESULTS = WMS_BASE + '/api/cyclecount-app/cycle-count/count-resu
 // Enriched count-result detail includes display fields such as locationName.
 // The app count-result endpoint can return only numeric locationId/systemLocationId.
 const API_COUNT_RESULTS_DETAIL = WMS_BASE + '/api/cyclecount-bam/cycle-count/count-result/detail/search-by-paging';
-// Hosted fallback build — retains the original embedded token as a
-// best-effort live-data fallback, but only uses it when it is still valid.
-// Normal login still calls Atlas password-grant and stores both
-// access_token and refresh_token; auto-refresh handles renewal.
-const EMBEDDED_TOKEN = 'eyJraWQiOiJ1OWVkOWRmMi05OTI5LTgyYjEtYmQ5MC04OTlhMDJmMjFmbTkiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJiZXNjb2JhciIsImNsaWVudF9jYXRlZ29yeSI6MSwiZGF0YSI6eyJ1c2VyX2lkIjoiMTk3MDgiLCJ1c2VyX25hbWUiOiJiZXNjb2JhciIsInRlbmFudF9pZCI6IkxUIiwidGVuYW50cyI6WyJMVCJdLCJlbXBsb3llZUNvZGUiOiIyNDA5IiwiY29tcGFueV9jb2RlIjoiTFQiLCJyb2xlX2lkcyI6WyIxODc1MDEzNjE3NTEwNzQ4MTYyIl0sImNybV91c2VyX2lkIjoiMjI4MiIsInRtc191c2VyX2lkIjoiMCJ9LCJpc3MiOiJodHRwczovL2lkLml0ZW0uY29tIiwiY2xpZW50X2lkIjoiYWRjMjc1OTMtZWNmNC00NjE4LTllOGYtYTQ0NjY2ZGYxMDNhIiwiYXVkIjoiYWRjMjc1OTMtZWNmNC00NjE4LTllOGYtYTQ0NjY2ZGYxMDNhIiwibmJmIjoxNzc5OTQ4NzY2LCJhcHBsaWNhdGlvbiI6IkF0bGFzIiwiZ3JhbnRfdHlwZSI6InBhc3N3b3JkIiwic2NvcGUiOlsib3BlbmlkIiwiZW1haWwiXSwiZXhwIjoxNzc5OTg0NzY2LCJpYXQiOjE3Nzk5NDg3NjYsImNsaWVudF9uYW1lIjoid21zIiwianRpIjoiNDg1YWJkYjQtNDcwNS00YzZkLWJhOGYtMTdkNjY5NWUxZWYxIn0.lk87S9gSOoVQ97Mu7gWiPlhfSrK3Rp2ZHfKzEXVMgJ3UzOzwsMkoRSFqPpm3QPrED5Whzza5jRdc7BpZTymtn7jT-Rpa9gKG3cHVTTG8Fu_FmbfCdkL5Xnm8QUSdX9nrUM2N0zTwSJnQ7TBnz0lQcI0cdtrRdAT6-XtamE_k_DWj1w7I1XnHv05nNJNOTspUpiaC6YknvBG3P2aEn0Qp4zMlYU0wBrr9ulFq8j1gMA1W7Opp0P_Rwn3XkMcdq8aNb4azmQlJkJYuqJdJ_nAqiyhLCPIoZg0XoywIy7SoCEANIfzL6NsL53beyG0sX0utm6F8ina5QD5sXiZxQBTq1w';
 let WISE_TOKEN = null;
 // Initialize: load token from localStorage. Expiry / auto-refresh is
 // handled by tickTokenRefresh when the dashboard becomes visible.
 try {
   WISE_TOKEN = localStorage.getItem('wise_token') || null;
 } catch(_) { WISE_TOKEN = null; }
-// Legacy live-data fallback: if no stored user token is available and the
-// embedded demo token is still valid, allow the dashboard to extract live
-// data using it. If it is expired, it is ignored and normal IAM login is used.
-function _embeddedTokenUsable() {
-  return !!(EMBEDDED_TOKEN && !tokenNeedsRefresh(EMBEDDED_TOKEN, 0));
-}
-try {
-  if (!WISE_TOKEN && _embeddedTokenUsable()) WISE_TOKEN = EMBEDDED_TOKEN;
-} catch(_) {}
+// No bearer credential is bundled with the browser source. Users enter through
+// normal IAM login, and restored sessions use the stored refresh token.
 
 // All customers known across all facilities (orgId → {code, name}).
 const ALL_CUSTOMERS_MASTER = {
