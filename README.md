@@ -1,6 +1,6 @@
 # UNIS WMS Dashboard
 
-UNIS WMS operations dashboard with live service integrations.
+UNIS WMS operations dashboard with a read-only WISE appointments workspace for all accounts at Buena Park (LT_F1), plus the existing inventory, task, cycle-count, and facility tools.
 
 ## Files
 

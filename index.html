@@ -2,14 +2,14 @@
 {
   "name": "Unis Wms Dashboard",
   "schemaVersion": 1,
-  "description": "UNIS WMS Inventory & Task Controller dashboard for the Valley View Warehouse facility (LT_F1). Sidebar tabs Dashboard, Inventory, Tasks, Calendar, Cycle Count, Robot Count, Reports, Alerts, Settings, plus a fully wired Scheduler tab that creates Cycle Counts: Customer dropdown populated with the 28 active Valley View customers from Atlas, Type / Schedule Date / Target Completion / Blind Count / Manual / Count Method / Ignore Collect Fields chips, and a Select Locations modal with all 10 filter fields and pagination. Calls live unis.item.com REST endpoints with credential cookie auth and graceful offline fallback."
+  "description": "UNIS WMS read-only WISE appointments dashboard for all accounts at Buena Park (LT_F1), with live appointment search, status summaries, date and account filters, and linked load/order context."
 }
 </script>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>UNIS WMS — Inventory & Task Controller</title>
+<title>UNIS WMS — Buena Park Appointments</title>
 <link rel="icon" href="/assets/brand/item-logo-light.svg" type="image/svg+xml"/>
 <script src="/assets/vendor/i18next/i18next.min.js"></script>
 <script src="/assets/js/i18n.js"></script>
@@ -268,8 +268,47 @@
 
       <!-- ════ VIEW: DASHBOARD ════ -->
       <div class="view active" id="view-dashboard">
+        <section id="appointments-dashboard" class="appointments-dashboard" aria-labelledby="appointments-title">
+          <div class="appointments-hero">
+            <div>
+              <div class="appointments-eyebrow"><span class="status-dot"></span>WMS · Citas de muelle</div>
+              <h2 id="appointments-title">Todas las cuentas UNIS</h2>
+              <p>WISE appointments · <strong>Buena Park</strong></p>
+            </div>
+            <div class="appointments-hero-meta">
+              <span id="appointments-updated">Sin datos cargados</span>
+              <button class="appt-icon-btn" id="appointments-refresh" type="button" aria-label="Actualizar citas" title="Actualizar citas">↻</button>
+            </div>
+          </div>
+
+          <div class="appointments-filters" role="search" aria-label="Filtros de citas">
+            <label><span>Cuenta</span><select id="appt-account"><option value="all">Todas las cuentas UNIS</option></select></label>
+            <label><span>Ubicación</span><input value="Buena Park" readonly aria-label="Ubicación seleccionada" /></label>
+            <label><span>Desde</span><input id="appt-from" type="date" /></label>
+            <label><span>Hasta</span><input id="appt-to" type="date" /></label>
+            <label><span>Estado</span><select id="appt-status"><option value="all">Todos los estados</option><option value="NEW">Nueva</option><option value="NOT_CONFIRMED">No confirmada</option><option value="WAITING_FOR_DRIVER">Esperando conductor</option><option value="CHECKED_IN">Registrada</option><option value="COMPLETED">Completada</option><option value="CANCEL">Cancelada</option></select></label>
+            <label class="appt-search"><span>Buscar</span><input id="appt-search" type="search" placeholder="SID, transportista o carga" /></label>
+            <button class="appt-filter-btn" id="appt-apply" type="button">Aplicar filtros</button>
+          </div>
+
+          <div id="appointments-state" class="appointments-state" role="status" aria-live="polite">Inicia sesión para cargar las citas de WISE.</div>
+
+          <div class="appointments-kpis" aria-label="Resumen de citas">
+            <article class="appt-kpi"><span class="appt-kpi-label">Citas visibles</span><strong id="appt-kpi-total">—</strong><small id="appt-kpi-total-sub">Esperando datos reales</small></article>
+            <article class="appt-kpi"><span class="appt-kpi-label">Próximas 24 h</span><strong id="appt-kpi-next">—</strong><small>Ventana local</small></article>
+            <article class="appt-kpi"><span class="appt-kpi-label">Sin confirmar</span><strong id="appt-kpi-unconfirmed">—</strong><small>Requieren seguimiento</small></article>
+            <article class="appt-kpi"><span class="appt-kpi-label">Cuentas activas</span><strong id="appt-kpi-accounts">—</strong><small>En el resultado actual</small></article>
+          </div>
+
+          <div class="appointments-grid">
+            <section class="appt-panel appt-chart-panel"><div class="appt-panel-head"><div><h3>Flujo por día</h3><p>Distribución de citas en la ventana seleccionada</p></div><span class="appt-panel-tag">Lectura WISE</span></div><div id="appt-day-chart" class="appt-day-chart"><div class="appt-empty-chart">Los datos aparecerán después de una lectura.</div></div></section>
+            <section class="appt-panel"><div class="appt-panel-head"><div><h3>Estado operativo</h3><p>Estado reportado por WISE</p></div></div><div id="appt-status-list" class="appt-status-list"><div class="appt-empty-chart">Sin datos disponibles.</div></div></section>
+          </div>
+
+          <section class="appt-panel appt-table-panel"><div class="appt-panel-head"><div><h3>Agenda de citas</h3><p id="appt-table-sub">Todas las cuentas UNIS · Buena Park</p></div><span class="appt-readonly">Solo lectura</span></div><div class="appt-table-wrap"><table class="appt-table"><thead><tr><th>Hora local</th><th>SID</th><th>Cuenta</th><th>Transportista</th><th>Servicio</th><th>Carga</th><th>Órdenes</th><th>Estado</th></tr></thead><tbody id="appt-table-body"><tr><td colspan="8" class="appt-empty-row">Las citas reales aparecerán aquí al iniciar sesión.</td></tr></tbody></table></div></section>
+        </section>
         <!-- EMPLOYEE OWNERSHIP -->
-        <div class="card" id="dashboard-employee-ownership-card" style="margin-bottom:18px;border:1.5px solid color-mix(in srgb,var(--primary) 35%,var(--border));background:linear-gradient(135deg,var(--card) 0%,color-mix(in srgb,var(--primary) 10%,var(--card)) 100%)">
+        <div class="card legacy-dashboard-panel" id="dashboard-employee-ownership-card" style="margin-bottom:18px;border:1.5px solid color-mix(in srgb,var(--primary) 35%,var(--border));background:linear-gradient(135deg,var(--card) 0%,color-mix(in srgb,var(--primary) 10%,var(--card)) 100%)">
           <div class="card-hdr" style="align-items:center">
             <div>
               <div class="card-ttl" data-i18n="modules.dashboard.employeeOwnership">Employee Ownership</div>
@@ -2095,6 +2134,7 @@
 <script src="/assets/js/presence-collector.js"></script>
 <script src="/assets/js/dashboard-runtime.js"></script>
 <script src="/assets/js/dashboard-modules.js"></script>
+<script src="/assets/js/appointments-dashboard.js"></script>
 
 <!-- AI Assistant Widget -->
 <div id="ai-assist-btn" onclick="aiToggle()" style="position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;background:var(--primary);box-shadow:0 4px 16px color-mix(in srgb,var(--primary) 35%,transparent);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:9998;transition:transform .2s" onmouseenter="this.style.transform='scale(1.08)'" onmouseleave="this.style.transform='scale(1)'">

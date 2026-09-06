@@ -150,7 +150,7 @@ async function showDash() {
   const initialActiveView = document.querySelector('.view.active');
   const initialActiveName = initialActiveView ? initialActiveView.id.replace(/^view-/, '') : 'dashboard';
   if (initialActiveName === 'robots' || initialActiveName === 'gis') showView(initialActiveName);
-  else { loadDashboardLiveData(); loadDashCycleCountKpi(); }
+  else { loadDashboardLiveData(); loadDashCycleCountKpi(); if (typeof loadAppointmentsDashboard === 'function') loadAppointmentsDashboard(); }
   // Sync chrome (top bar, user menu, settings) with whoever's logged in.
   // We pull user_name from the JWT when possible so this works even if
   // localStorage was pre-seeded (no fresh form input).
@@ -291,6 +291,7 @@ async function switchFacility(newId) {
   if (activeName === 'dashboard') {
     loadDashboardLiveData();
     loadDashCycleCountKpi();
+    if (typeof loadAppointmentsDashboard === 'function') loadAppointmentsDashboard();
   } else if (activeName === 'cycle') {
     loadCycleCountView();
   } else if (activeName === 'robots') {
@@ -469,7 +470,7 @@ function showView(name, sub, options) {
   // lazy-init view-specific content. Initial hash routing may defer this work
   // until showDash has established the authenticated facility context.
   if (!(options && options.deferLoad)) {
-    if (name === 'dashboard') { loadDashboardLiveData(); loadDashCycleCountKpi(); }
+    if (name === 'dashboard') { loadDashboardLiveData(); loadDashCycleCountKpi(); if (typeof loadAppointmentsDashboard === 'function') loadAppointmentsDashboard(); }
     if (name === 'consolidation') loadConsolidationView();
     if (name === 'replenish') loadReplenishView();
     if (name === 'replenSuggest') loadReplenSuggestView();
@@ -1070,7 +1071,7 @@ const CYCLECOUNT_BASE  = 'https://cyclecount.item.com';
 // facility switcher shows only those (with the user's most recent
 // choice persisted to localStorage per user).
 const FACILITIES = [
-  {id:'LT_F1',        code:'FAC242', name:'Valley View'},
+  {id:'LT_F1',        code:'FAC242', name:'Buena Park'},
   {id:'LT_F3',        code:'FAC264', name:'COR-1'},
   {id:'LT_F4',        code:'FAC265', name:'Morgan Lakes'},
   {id:'LT_F5',        code:'FAC266', name:'Spring-902'},
