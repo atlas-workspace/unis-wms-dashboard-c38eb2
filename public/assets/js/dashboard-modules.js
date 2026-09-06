@@ -121,7 +121,10 @@ async function safeFetch(url, opts, _alreadyRefreshed) {
     if (timer) clearTimeout(timer);
 
     let data = null;
-    try { data = await r.json(); } catch(_) {}
+    try { data = await r.json(); } catch(_) {
+      data = {success:false, code:r.status, msg:'The WMS response was not valid JSON', _malformed:true};
+    }
+    if (data && typeof data === 'object') data._httpStatus = r.status;
 
     // Auto-recover from Unauthorized:
     //   1. Silent refresh via refresh_token (preferred — zero UX impact)
@@ -159,7 +162,7 @@ async function safeFetch(url, opts, _alreadyRefreshed) {
 
     setLiveStatus(true);
     if (data == null) {
-      return {success: false, code: r.status, msg: 'Request unavailable'};
+      return {success: false, code: r.status, _httpStatus:r.status, msg: 'Request unavailable'};
     }
     return data;
   } catch(e) {
@@ -10166,8 +10169,44 @@ window.addEventListener('item-language-change', rerenderDashboardRobotLanguage);
 // ═══════════════════════════════════════════════════════════════════════════
 
 let INV_DATA = [];
+let INV_LOAD_TOKEN = 0;
+
+function invPopulateCustomerFilter() {
+  const select = document.getElementById('inv-customer');
+  if (!select) return;
+  const current = select.value;
+  const customers = (FACILITY_CUSTOMERS[FACILITY_ID] || [])
+    .filter(c => c && c.id)
+    .slice()
+    .sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id)));
+  select.innerHTML = '<option value="">All accounts</option>' + customers.map(c =>
+    '<option value="' + escAttr(String(c.id)) + '">' + esc(String(c.name || c.id)) + '</option>'
+  ).join('');
+  if (current && customers.some(c => String(c.id) === current)) select.value = current;
+}
+
+function invResponseResult(resp) {
+  if (resp == null) return {kind:'network', message:'The WMS service could not be reached.'};
+  const status = Number(resp._httpStatus || 0);
+  const msg = String(resp.msg || resp.message || '').trim();
+  if (resp._needsAuth || status === 401 || /unauthor|session|token|expired/i.test(msg)) {
+    return {kind:'auth', message:'Your WMS session has expired. Sign in again and retry.'};
+  }
+  if (status === 403 || resp.code === 403 || /forbidden|permission|access denied/i.test(msg)) {
+    return {kind:'permission', message:'Your account is not permitted to view inventory for this warehouse.'};
+  }
+  if (status >= 500 || resp._malformed || resp.success === false || (resp.code != null && String(resp.code) !== '0')) {
+    return {kind:'upstream', message:msg || 'The WMS inventory service returned an unavailable response.'};
+  }
+  const data = resp.data;
+  if (!data || !Array.isArray(data.list)) {
+    return {kind:'upstream', message:'The WMS inventory response did not include a record list.'};
+  }
+  return {kind:'ok', rows:data.list, total:Number(data.totalCount ?? data.total ?? data.list.length) || 0};
+}
 
 async function loadLiveInventory() {
+  const loadToken = ++INV_LOAD_TOKEN;
   const btn = document.getElementById('inv-refresh-btn');
   const tbody = document.getElementById('inv-tbody');
   const facLabel = document.getElementById('inv-facility-label');
@@ -10187,40 +10226,61 @@ async function loadLiveInventory() {
     return;
   }
 
-  INV_DATA = [];
-  const resp = await safeFetch(WMS_BASE + '/api/wms-bam/inventory/search-by-paging', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({currentPage: 1, pageSize: 100}),
-  });
-
-  if (btn) { btn.disabled = false; btn.textContent = moduleT('inventory.loadLive', 'Load Live Inventory'); }
-
-  if (!resp || resp._needsAuth) {
-    if (facLabel) facLabel.textContent = '';
-    if (!WISE_TOKEN) {
-      if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--destructive)">' + moduleT('inventory.pleaseSignIn', 'Please sign in again to view live inventory.') + '</td></tr>';
-    } else {
-      if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--chart-4)">' + moduleT('inventory.unavailable', 'Inventory data is currently unavailable. Your session may need to be refreshed — try signing in again.') + '</td></tr>';
+  invPopulateCustomerFilter();
+  const selectedCustomer = String((document.getElementById('inv-customer') || {}).value || '').trim();
+  let customers = (FACILITY_CUSTOMERS[FACILITY_ID] || []).filter(c => c && c.id);
+  if (!selectedCustomer && customers.length === 0) {
+    try { await fetchFacilityCustomersFromAPI(); } catch (_) {}
+    customers = (FACILITY_CUSTOMERS[FACILITY_ID] || []).filter(c => c && c.id);
+    invPopulateCustomerFilter();
+  }
+  const requests = selectedCustomer
+    ? [{customerId:selectedCustomer}]
+    : Array.from({length:Math.ceil(customers.length / 10)}, (_, i) => ({customerIds:customers.slice(i * 10, i * 10 + 10).map(c => String(c.id))}));
+  if (requests.length === 0) {
+    if (btn) { btn.disabled = false; btn.textContent = moduleT('inventory.loadLive', 'Load Live Inventory'); }
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted-foreground)">No customer accounts are available for this warehouse.</td></tr>';
+    return;
+  }
+  const results = [];
+  let cursor = 0;
+  async function worker() {
+    while (cursor < requests.length) {
+      const req = requests[cursor++];
+      const resp = await safeFetch(WMS_BASE + '/api/wms-bam/inventory/search-by-paging', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(Object.assign({currentPage:1, pageSize:100}, req)),
+      });
+      results.push(invResponseResult(resp));
     }
+  }
+  await Promise.all(Array.from({length:Math.min(3, requests.length)}, () => worker()));
+  if (loadToken !== INV_LOAD_TOKEN) return;
+  if (btn) { btn.disabled = false; btn.textContent = moduleT('inventory.loadLive', 'Load Live Inventory'); }
+  const okResults = results.filter(r => r.kind === 'ok');
+  const errors = results.filter(r => r.kind !== 'ok');
+  if (okResults.length === 0) {
+    const primary = errors.find(r => r.kind === 'auth' || r.kind === 'permission' || r.kind === 'network' || r.kind === 'upstream') || {message:'Inventory is currently unavailable.'};
+    if (facLabel) facLabel.textContent = primary.kind === 'auth' ? 'Session required for ' + (FACILITY_NAME || FACILITY_ID) : 'Inventory unavailable for ' + (FACILITY_NAME || FACILITY_ID);
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:' + (primary.kind === 'auth' || primary.kind === 'permission' ? 'var(--destructive)' : 'var(--chart-4)') + '">' + esc(primary.message) + '</td></tr>';
+    return;
+  }
+  INV_DATA = okResults.flatMap(r => r.rows);
+  const total = okResults.reduce((sum, r) => sum + r.total, 0);
+  if (INV_DATA.length === 0) {
+    const accountLabel = selectedCustomer ? (((FACILITY_CUSTOMERS[FACILITY_ID] || []).find(c => String(c.id) === selectedCustomer) || {}).name || selectedCustomer) : (FACILITY_NAME || FACILITY_ID);
+    if (facLabel) facLabel.textContent = 'No inventory records found for ' + accountLabel;
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted-foreground)">No inventory records were returned for ' + esc(accountLabel) + '. This is an empty result, not a loading failure.</td></tr>';
     return;
   }
 
-  const d = resp.data || resp;
-  const list = d.list || d.records || [];
-  const total = d.totalCount || d.total || list.length;
-
-  if (list.length === 0) {
-    if (facLabel) facLabel.textContent = moduleT('inventory.noRecordsFor', 'No inventory records found for {{facility}}', {facility:FACILITY_NAME || FACILITY_ID});
-    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted-foreground)">' + moduleHtml('inventory.noDataFor', 'No inventory data available for {{facility}}. The warehouse may have no active inventory or API access may be restricted.', {facility:FACILITY_NAME || FACILITY_ID}) + '</td></tr>';
-    return;
-  }
-
-  INV_DATA = list.map(inv => ({
+  const customerNames = Object.fromEntries((FACILITY_CUSTOMERS[FACILITY_ID] || []).map(c => [String(c.id), c.name || c.id]));
+  const rawRows = INV_DATA;
+  INV_DATA = rawRows.map(inv => ({
     locationName: inv.locationName || inv.locationId || '—',
     itemName: inv.itemName || inv.description || inv.shortDescription || inv.itemId || '—',
     itemId: inv.itemId || '',
-    customerName: inv.customerName || inv.customerId || '—',
+    customerName: inv.customerName || customerNames[String(inv.customerId || '')] || inv.customerId || '—',
     qty: parseFloat(inv.qty || inv.baseQty || 0),
     uom: inv.uomName || inv.baseUomName || 'EA',
     status: inv.status || '—',
@@ -10237,7 +10297,9 @@ async function loadLiveInventory() {
   document.getElementById('inv-kpi-items').textContent = uniqueItems.size.toLocaleString();
   document.getElementById('inv-kpi-custs').textContent = uniqueCusts.size.toLocaleString();
 
-  if (facLabel) facLabel.textContent = moduleT('inventory.liveFor', 'Live inventory for {{facility}}', {facility:FACILITY_NAME || FACILITY_ID});
+  if (facLabel) facLabel.textContent = errors.length
+    ? 'Live inventory for ' + (FACILITY_NAME || FACILITY_ID) + ' · ' + errors.length + ' account request(s) unavailable'
+    : 'Live inventory for ' + (selectedCustomer ? 'selected account' : (FACILITY_NAME || FACILITY_ID));
 
   invRenderTable();
 }
